@@ -1,0 +1,23 @@
+cat > .gitignore << 'EOF'
+# DDEV
+.ddev/.dbimageBuild/
+.ddev/.ddev-docker-compose-*.yaml
+.ddev/.ddev-docker-compose-full*.yaml
+
+# ProcessWire runtime / generated
+public/site/assets/cache/
+public/site/assets/files/
+public/site/assets/sessions/
+public/wire/cache/
+
+# ProcessWire config with DB creds (do not commit)
+public/site/config.php
+
+# If installer folder exists
+public/site/install/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+EOF
