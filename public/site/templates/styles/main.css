@@ -478,7 +478,7 @@ h6,
   font-size: 32px;
   line-height: 1.15;
   font-family: "Ruberoid", "Inter", "Arial", sans-serif;
-  font-weight: 600;
+  font-weight: 700;
   
 }
 
@@ -503,9 +503,8 @@ h6,
 .section-title--places {
   font-size: 52px;
   font-family: "Ruberoid", sans-serif;
-  font-weight: 300;
+  font-weight: 600;
   margin-top: 60px;
-
 }
 
 .places-banner-actions {

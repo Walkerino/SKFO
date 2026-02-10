@@ -195,7 +195,7 @@
 	<section class="section section--hot-tours">
 		<div class="container">
 			<div class="hot-tours-header">
-				<h2 class="section-title">Чем заняться этим летом</h2>
+				<h2 class="section-title">Чем заняться этим летом?</h2>
 				<div class="hot-tours-actions">
 					<button class="circle-btn" type="button"></button>
 					<button class="circle-btn circle-btn--accent" type="button"></button>
