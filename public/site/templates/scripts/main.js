@@ -114,7 +114,49 @@ const initPeoplePicker = () => {
   });
 };
 
+const initJournalSlider = () => {
+  const slider = document.querySelector(".journal-card");
+  if (!slider) return;
+
+  const articles = Array.from(slider.querySelectorAll(".journal-article"));
+  if (articles.length < 2) return;
+
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (prefersReducedMotion) return;
+
+  let index = articles.findIndex((item) => item.classList.contains("is-active"));
+  if (index === -1) index = 0;
+  articles.forEach((item, i) => item.classList.toggle("is-active", i === index));
+
+  const advance = () => {
+    const current = articles[index];
+    const nextIndex = (index + 1) % articles.length;
+    const next = articles[nextIndex];
+
+    current.classList.add("is-exit");
+    next.classList.add("is-active", "is-enter");
+
+    window.setTimeout(() => {
+      current.classList.remove("is-active", "is-exit");
+      next.classList.remove("is-enter");
+    }, 520);
+
+    index = nextIndex;
+  };
+
+  let timer = window.setInterval(advance, 10000);
+
+  slider.addEventListener("mouseenter", () => {
+    window.clearInterval(timer);
+  });
+
+  slider.addEventListener("mouseleave", () => {
+    timer = window.setInterval(advance, 10000);
+  });
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   initHeroTabs();
   initPeoplePicker();
+  initJournalSlider();
 });
