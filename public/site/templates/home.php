@@ -304,7 +304,7 @@
 					</p>
 					<button class="forum-button" type="button">Присоединиться</button>
 				</div>
-				<div class="forum-illustration"></div>
+				<img class="forum-image" src="<?php echo $config->urls->templates; ?>assets/image1.png" alt="Форум СКФО" />
 			</div>
 		</div>
 	</section>
