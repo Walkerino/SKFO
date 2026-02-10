@@ -185,6 +185,8 @@
 							<span class="journal-article-tag">Советы туристам</span>
 						</div>
 					</article>
+
+					<article class="journal-article-second"></article>
 				</div>
 			</div>
 		</div>
