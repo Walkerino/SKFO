@@ -168,12 +168,12 @@
 				<div class="journal-card-header">
 					<h2 class="journal-title">Статьи СКФО</h2>
 					<p class="journal-subtitle">
-						Читайте и планируйте поездки по гайдам, маршрутам, советам
+						Читайте и планируйте поездки </br> по гайдам, маршрутам, советам
 					</p>
 					<button class="journal-button" type="button">Выбрать статью</button>
 				</div>
 				<div class="journal-articles" aria-live="polite">
-					<article class="journal-article is-active">
+					<article class="journal-article">
 						<div class="journal-article-image journal-article-image--1"></div>
 						<div class="journal-article-content">
 							<div class="journal-article-meta">
@@ -183,30 +183,6 @@
 								Как подготовиться к первому путешествию в Дагестан
 							</h3>
 							<span class="journal-article-tag">Советы туристам</span>
-						</div>
-					</article>
-					<article class="journal-article">
-						<div class="journal-article-image journal-article-image--2"></div>
-						<div class="journal-article-content">
-							<div class="journal-article-meta">
-								<span class="journal-article-date">02 Янв 2026</span>
-							</div>
-							<h3 class="journal-article-title">
-								Маршруты выходного дня по Северной Осетии
-							</h3>
-							<span class="journal-article-tag">Маршруты</span>
-						</div>
-					</article>
-					<article class="journal-article">
-						<div class="journal-article-image journal-article-image--3"></div>
-						<div class="journal-article-content">
-							<div class="journal-article-meta">
-								<span class="journal-article-date">18 Янв 2026</span>
-							</div>
-							<h3 class="journal-article-title">
-								Горные озёра и лучшие смотровые точки КБР
-							</h3>
-							<span class="journal-article-tag">Гайды</span>
 						</div>
 					</article>
 				</div>
