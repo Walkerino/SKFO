@@ -1,0 +1,15 @@
+2026-02-13 10:15:50	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'card_title'.
+2026-02-13 10:15:50	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'card_text'.
+2026-02-13 10:15:50	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'card_region'.
+2026-02-13 10:15:50	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'card_image'.
+2026-02-13 10:15:51	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'actual_cards'.
+2026-02-13 10:15:51	admin	http://skfo.ddev.site/processwire/?login=1	Updated repeater fieldgroup 'repeater_actual_cards'.
+2026-02-13 10:15:51	admin	http://skfo.ddev.site/processwire/?login=1	Added 'actual_cards' to template 'home'.
+2026-02-13 10:21:12	admin	http://skfo.ddev.site/processwire/page/edit/?id=1&s=1&c=1	Updated field 'card_image' settings.
+2026-02-13 11:28:22	admin	http://skfo.ddev.site/	Created field 'hot_tour_title'.
+2026-02-13 11:28:22	admin	http://skfo.ddev.site/	Created field 'hot_tour_region'.
+2026-02-13 11:28:22	admin	http://skfo.ddev.site/	Created field 'hot_tour_price'.
+2026-02-13 11:28:22	admin	http://skfo.ddev.site/	Created field 'hot_tour_image'.
+2026-02-13 11:28:22	admin	http://skfo.ddev.site/	Created field 'hot_tours_cards'.
+2026-02-13 11:28:22	admin	http://skfo.ddev.site/	Updated repeater fieldgroup 'repeater_hot_tours_cards'.
+2026-02-13 11:28:22	admin	http://skfo.ddev.site/	Updated repeater fields on template 'home'.

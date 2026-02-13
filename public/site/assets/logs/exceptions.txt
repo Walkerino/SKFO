@@ -1,0 +1,5 @@
+2026-02-13 10:19:08	admin	http://skfo.ddev.site/	Method Pageimage::count does not exist or is not callable in this context (/wire/core/Wire.php:563)
+2026-02-13 10:19:08	admin	http://skfo.ddev.site/	Method Pageimage::count does not exist or is not callable in this context (/wire/core/Wire.php:563)
+2026-02-13 10:19:23	admin	http://skfo.ddev.site/	Method Pageimage::count does not exist or is not callable in this context (/wire/core/Wire.php:563)
+2026-02-13 10:19:24	admin	http://skfo.ddev.site/	Method Pageimage::count does not exist or is not callable in this context (/wire/core/Wire.php:563)
+2026-02-13 10:19:34	admin	http://skfo.ddev.site/	Method Pageimage::count does not exist or is not callable in this context (/wire/core/Wire.php:563)

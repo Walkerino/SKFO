@@ -4,3 +4,5 @@
 2026-02-09 13:33:17	guest	http://skfo.ddev.site/http404/	Installed module 'ProcessLogger'
 2026-02-09 13:33:17	guest	http://skfo.ddev.site/http404/	Installed module 'InputfieldIcon'
 2026-02-09 13:37:29	admin	http://skfo.ddev.site/	Installed module 'FileValidatorZip'
+2026-02-13 10:15:50	admin	http://skfo.ddev.site/processwire/?login=1	Installed module 'InputfieldRepeater'
+2026-02-13 10:15:50	admin	http://skfo.ddev.site/processwire/?login=1	Installed module 'FieldtypeRepeater'

@@ -132,33 +132,67 @@
 	</section>
 
 	<section class="section section--actual">
+		<?php
+		$actualCards = [];
+
+			if ($page->hasField('actual_cards') && $page->actual_cards->count()) {
+				foreach ($page->actual_cards as $card) {
+					$imageUrl = '';
+					if ($card->hasField('card_image')) {
+						$cardImage = $card->getUnformatted('card_image');
+						if ($cardImage instanceof Pageimage) {
+							$imageUrl = $cardImage->url;
+						} elseif ($cardImage instanceof Pageimages && $cardImage->count()) {
+							$imageUrl = $cardImage->first()->url;
+						}
+					}
+
+				$actualCards[] = [
+					'title' => $card->hasField('card_title') ? trim((string) $card->card_title) : '',
+					'text' => $card->hasField('card_text') ? trim((string) $card->card_text) : '',
+					'region' => $card->hasField('card_region') ? trim((string) $card->card_region) : '',
+					'image' => $imageUrl,
+				];
+			}
+		}
+
+		if (!count($actualCards)) {
+			$actualCards = [
+				[
+					'title' => 'Джейрахское ущелье',
+					'text' => 'Гордость Ингушетии! Территория ущелья входит в состав Джейрахско-Ассинского заповедника.',
+					'region' => 'Ингушетия',
+					'image' => $config->urls->templates . 'assets/image1.png',
+				],
+				[
+					'title' => 'Озеро Кезеной-Ам',
+					'text' => 'Самое большое высокогорное и невероятной красоты озеро на Северном Кавказе.',
+					'region' => 'Чеченская Республика',
+					'image' => $config->urls->templates . 'assets/image1.png',
+				],
+			];
+		}
+		?>
 		<div class="container actual-grid">
-			<article class="actual-card">
-				<div class="actual-card-image actual-card-image--1"></div>
-				<div class="actual-card-body">
-					<h3 class="actual-card-title">Джейрахское ущелье</h3>
-					<p class="actual-card-text">
-						Гордость Ингушетии! Территория ущелья входит в состав
-						Джейрахско-Ассинского заповедника.
-					</p>
-					<div class="actual-card-footer">
-						<span class="tag-location">Ингушетия</span>
+			<?php foreach ($actualCards as $card): ?>
+				<?php
+				$backgroundStyle = '';
+				if (!empty($card['image'])) {
+					$image = htmlspecialchars($card['image'], ENT_QUOTES, 'UTF-8');
+					$backgroundStyle = " style=\"background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.25), rgba(17, 24, 39, 0.15)), url('{$image}');\"";
+				}
+				?>
+				<article class="actual-card">
+					<div class="actual-card-image"<?php echo $backgroundStyle; ?>></div>
+					<div class="actual-card-body">
+						<h3 class="actual-card-title"><?php echo $sanitizer->entities($card['title']); ?></h3>
+						<p class="actual-card-text"><?php echo $sanitizer->entities($card['text']); ?></p>
+						<div class="actual-card-footer">
+							<span class="tag-location"><?php echo $sanitizer->entities($card['region']); ?></span>
+						</div>
 					</div>
-				</div>
-			</article>
-			<article class="actual-card">
-				<div class="actual-card-image actual-card-image--2"></div>
-				<div class="actual-card-body">
-					<h3 class="actual-card-title">Озеро Кезеной-Ам</h3>
-					<p class="actual-card-text">
-						Самое большое высокогорное и невероятной красоты озеро на Северном
-						Кавказе.
-					</p>
-					<div class="actual-card-footer">
-						<span class="tag-location">Чеченская Республика</span>
-					</div>
-				</div>
-			</article>
+				</article>
+			<?php endforeach; ?>
 		</div>
 	</section>
 
@@ -193,79 +227,99 @@
 	</section>
 
 	<section class="section section--hot-tours">
-		<div class="container">
+		<?php
+		$hotToursCards = [];
+
+		if ($page->hasField('hot_tours_cards') && $page->hot_tours_cards->count()) {
+			foreach ($page->hot_tours_cards as $card) {
+				$imageUrl = '';
+				if ($card->hasField('hot_tour_image')) {
+					$cardImage = $card->getUnformatted('hot_tour_image');
+					if ($cardImage instanceof Pageimage) {
+						$imageUrl = $cardImage->url;
+					} elseif ($cardImage instanceof Pageimages && $cardImage->count()) {
+						$imageUrl = $cardImage->first()->url;
+					}
+				}
+
+				$hotToursCards[] = [
+					'title' => $card->hasField('hot_tour_title') ? trim((string) $card->hot_tour_title) : '',
+					'region' => $card->hasField('hot_tour_region') ? trim((string) $card->hot_tour_region) : '',
+					'price' => $card->hasField('hot_tour_price') ? trim((string) $card->hot_tour_price) : '',
+					'image' => $imageUrl,
+				];
+			}
+		}
+
+		if (!count($hotToursCards)) {
+			$hotToursCards = [
+				[
+					'title' => 'Посетить Аргунское ущелье',
+					'region' => 'Чеченская Республика',
+					'price' => 'от 15 000₽',
+					'image' => '',
+				],
+				[
+					'title' => 'Взобраться на гору Эльбрус',
+					'region' => 'Кабардино-Балкарская Республика',
+					'price' => 'от 15 000₽',
+					'image' => '',
+				],
+				[
+					'title' => 'Расслабиться в Суворовских термах',
+					'region' => 'Ставропольский край',
+					'price' => 'от 15 000₽',
+					'image' => '',
+				],
+				[
+					'title' => 'Умчать в Старый Кахиб',
+					'region' => 'Республика Дагестан',
+					'price' => 'от 15 000₽',
+					'image' => '',
+				],
+				[
+					'title' => 'Заглянуть в Замок на воде Шато Эркен',
+					'region' => 'Кабардино-Балкарская Республика',
+					'price' => 'от 15 000₽',
+					'image' => '',
+				],
+			];
+		}
+		?>
+		<div class="container-hot-tours">
 			<div class="hot-tours-header">
 				<h2 class="section-title">Чем заняться этим летом?</h2>
 				<div class="hot-tours-actions">
-					<button class="circle-btn" type="button"></button>
-					<button class="circle-btn circle-btn--accent" type="button"></button>
+					<button class="circle-btn circle-btn--prev hot-tours-prev" type="button" aria-label="Предыдущие туры"></button>
+					<button class="circle-btn circle-btn--next hot-tours-next" type="button" aria-label="Следующие туры"></button>
 				</div>
 			</div>
-			<div class="hot-tours-grid">
-				<article class="hot-tour-card">
-					<div class="hot-tour-image hot-tour-image--1"></div>
-					<div class="hot-tour-body">
-						<h3 class="hot-tour-title">
-							Посетить<br />
-							Аргунское ущелье
-						</h3>
-						<div class="hot-tour-region">Чеченская Республика</div>
-						<div class="hot-tour-footer">
-							<span class="hot-tour-price">от 15 000₽</span>
-						</div>
+				<div class="hot-tours-grid">
+					<div class="hot-tours-track">
+						<?php foreach ($hotToursCards as $card): ?>
+							<?php
+							$backgroundStyle = '';
+							if (!empty($card['image'])) {
+								$image = htmlspecialchars($card['image'], ENT_QUOTES, 'UTF-8');
+								$backgroundStyle = " style=\"background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.2), rgba(17, 24, 39, 0.1)), url('{$image}');\"";
+							}
+							?>
+							<article class="hot-tour-card">
+								<div class="hot-tour-image"<?php echo $backgroundStyle; ?>></div>
+								<div class="hot-tour-body">
+									<h3 class="hot-tour-title"><?php echo $sanitizer->entities($card['title']); ?></h3>
+									<div class="hot-tour-region"><?php echo $sanitizer->entities($card['region']); ?></div>
+									<div class="hot-tour-footer">
+										<span class="hot-tour-price"><?php echo $sanitizer->entities($card['price']); ?></span>
+									</div>
+								</div>
+							</article>
+						<?php endforeach; ?>
 					</div>
-				</article>
-				<article class="hot-tour-card">
-					<div class="hot-tour-image hot-tour-image--2"></div>
-					<div class="hot-tour-body">
-						<h3 class="hot-tour-title">
-							Взобраться<br />
-							на гору Эльбрус
-						</h3>
-						<div class="hot-tour-region">Кабардино-Балкарская Республика</div>
-						<div class="hot-tour-footer">
-							<span class="hot-tour-price">от 15 000₽</span>
-						</div>
-					</div>
-				</article>
-				<article class="hot-tour-card">
-					<div class="hot-tour-image hot-tour-image--3"></div>
-					<div class="hot-tour-body">
-						<h3 class="hot-tour-title">
-							Расслабиться<br />
-							в Суворовских термах
-						</h3>
-						<div class="hot-tour-region">Ставропольский край</div>
-						<div class="hot-tour-footer">
-							<span class="hot-tour-price">от 15 000₽</span>
-						</div>
-					</div>
-				</article>
-				<article class="hot-tour-card">
-					<div class="hot-tour-image hot-tour-image--4"></div>
-					<div class="hot-tour-body">
-						<h3 class="hot-tour-title">Умчать в Старый Кахиб</h3>
-						<div class="hot-tour-region">Республика Дагестан</div>
-						<div class="hot-tour-footer">
-							<span class="hot-tour-price">от 15 000₽</span>
-						</div>
-					</div>
-				</article>
-				<article class="hot-tour-card">
-					<div class="hot-tour-image hot-tour-image--5"></div>
-					<div class="hot-tour-body">
-						<h3 class="hot-tour-title">
-							Заглянуть в Замок<br />
-							на воде Шато Эркен
-						</h3>
-						<div class="hot-tour-region">Кабардино-Балкарская Республика</div>
-						<div class="hot-tour-footer">
-							<span class="hot-tour-price">от 15 000₽</span>
-						</div>
-					</div>
-				</article>
-				<button class="hot-tour-card hot-tour-card--more" type="button">
-					<span class="hot-tour-more-text">Показать всё</span>
+				</div>
+			<div class="hot-tours-footer">
+				<button class="hot-tours-more-btn" type="button">
+					<span>Показать всё</span>
 				</button>
 			</div>
 		</div>

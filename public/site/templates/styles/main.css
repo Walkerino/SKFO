@@ -84,6 +84,15 @@ a {
   margin: 0 auto;
 }
 
+.container-hot-tours {
+  width: 1145px;
+  max-width: 100%;
+  margin: 0 auto;
+  background-color: white;
+  padding-top: 50px;
+  border-radius: 32px;
+}
+
 .site-header {
   background: linear-gradient(135deg, var(--blue-900), var(--blue-700));
   color: var(--white);
@@ -515,15 +524,20 @@ h6,
 }
 
 .circle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 38px;
   height: 38px;
   border-radius: 999px;
   border: 0;
   background: #e4e4e4;
   cursor: pointer;
+  color: #555;
 }
 
 .circle-btn--next {
+  color: #3b82f6;
   background: radial-gradient(circle at 30% 20%, #ffffff, #e0e7ff);
   box-shadow: 0 0 0 1px rgba(148, 163, 253, 0.4);
 }
@@ -532,18 +546,26 @@ h6,
 .circle-btn--next::before {
   content: "";
   display: block;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  border-top: 2px solid #555;
-  border-right: 2px solid #555;
-  transform: rotate(135deg);
-  margin: 0 auto;
+  width: 12px;
+  height: 12px;
+  border-top: 3px solid currentColor;
+  border-right: 3px solid currentColor;
+  border-radius: 1px;
+}
+
+.circle-btn--prev::before {
+  transform: rotate(-135deg);
 }
 
 .circle-btn--next::before {
-  border-color: #3b82f6;
-  transform: rotate(-45deg);
+  transform: rotate(45deg);
+}
+
+.circle-btn.is-disabled,
+.circle-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
 }
 
 .places-grid {
@@ -609,48 +631,95 @@ h6,
 }
 
 .actual-card {
-  background: var(--white);
+  position: relative;
   border-radius: 28px;
   overflow: hidden;
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.12);
+  min-height: 500px;
+  color: var(--white);
   display: flex;
-  flex-direction: column;
+  align-items: flex-end;
+}
+
+.actual-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.05) 0%,
+    rgba(0, 0, 0, 0.14) 44%,
+    rgba(0, 0, 0, 0.68) 100%
+  );
+  pointer-events: none;
 }
 
 .actual-card-image {
-  height: 180px;
+  position: absolute;
+  inset: 0;
   background: linear-gradient(135deg, #111827, #1f2937);
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.01);
 }
 
 .actual-card-body {
-  padding: 18px 20px 20px;
+  position: relative;
+  z-index: 1;
+  width: 539px;
+  height: 539px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 26px 38px 34px;
 }
 
 .actual-card-title {
-  margin: 0 0 8px;
-  font-size: 18px;
-  font-weight: 600;
+  margin: 0 0 10px;
+  font-family: 'Ruberoid', sans-serif;
+  font-size: 36px;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.01em;
 }
 
 .actual-card-text {
-  margin: 0 0 14px;
-  font-size: 14px;
-  color: #4b5563;
+  margin: 0;
+  max-width: 550px;
+  font-size: 20px;
+  line-height: 1.1;
+  color: #F4F4F4;
+
+  font-family: 'Inter', 'Arial', sans-serif;
 }
 
 .actual-card-footer {
-  display: flex;
+  position: absolute;
+  top: 22px;
+  left: 22px;
 }
 
 .tag-location {
   display: inline-flex;
   align-items: center;
-  padding: 6px 12px;
+  gap: 3px;
+  padding: 10px 20px;
   border-radius: 16px;
-  background: rgba(37, 99, 235, 0.1);
-  font-size: 13px;
-  font-weight: 600;
-  color: #1f4fb8;
+  background: rgba(255, 255, 255, 0.96);
+  font-size: 20px;
+  font-weight: 300;
+  color: #1f52b2;
+
+  line-height: 120%;
+
+  font-family: 'Ruberoid', sans-serif;
+}
+
+.tag-location::before {
+  content: "";
+  width: 24px;
+  height: 24px;
+  display: block;
+  background: url("../assets/icons/location_on.svg") center / contain no-repeat;
 }
 
 .section--journal {
@@ -827,7 +896,17 @@ h6,
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  width: 100%;
+  max-width: calc(100% - 120px);
+  margin-left: auto;
+  margin-right: auto;
   margin-bottom: 24px;
+}
+
+.section--hot-tours .section-title {
+  font-size: 52px;
+  font-family: "Ruberoid", sans-serif;
+  font-weight: 600;
 }
 
 .hot-tours-actions {
@@ -836,48 +915,47 @@ h6,
 }
 
 .hot-tours-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  max-width: calc(100% - 120px);
+  margin-left: auto;
+  margin-right: auto;
+  overflow: hidden;
+}
+
+.hot-tours-track {
+  display: flex;
   gap: 18px;
+  will-change: transform;
 }
 
 .hot-tour-card {
-  background: var(--white);
-  border-radius: 18px;
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.12);
-  overflow: hidden;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 10px;
+  flex: 0 0 calc((100% - 4 * 18px) / 5);
   display: flex;
   flex-direction: column;
-}
-
-.hot-tour-card--more {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  cursor: pointer;
-}
-
-.hot-tour-more-text {
-  font-weight: 600;
+  gap: 10px;
 }
 
 .hot-tour-image {
-  height: 120px;
+  border-radius: 12px;
+  height: 156px;
   background: linear-gradient(135deg, #111827, #1f2937);
 }
 
 .hot-tour-body {
-  padding: 14px 16px 16px;
+  padding: 4px 2px 2px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .hot-tour-title {
   margin: 0;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
+  line-height: 1.3;
 }
 
 .hot-tour-region {
@@ -886,12 +964,34 @@ h6,
 }
 
 .hot-tour-footer {
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .hot-tour-price {
+  font-weight: 800;
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  color: #1F52B2;
+}
+
+.hot-tours-footer {
+  margin-top: 32px;
+  display: flex;
+  justify-content: center;
+}
+
+.hot-tours-more-btn {
+  width: 412px;
+  padding: 20px 138px;
+  border-radius: 16px;
+  background: #E8E8E8;
+  border: 0;
+  font-size: 20px;
   font-weight: 700;
-  font-size: 15px;
+  color: #424242;
+  cursor: pointer;
+
+  margin-bottom: 42px;
 }
 
 
@@ -1098,9 +1198,59 @@ h6,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .actual-grid,
-  .hot-tours-grid {
+  .actual-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hot-tours-track {
+    gap: 18px;
+  }
+
+  .hot-tour-card {
+    flex-basis: calc((100% - 18px) / 2);
+  }
+
+  .hot-tours-header,
+  .hot-tours-grid {
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .hot-tours-more-btn {
+    width: 100%;
+    max-width: 412px;
+    padding: 16px 24px;
+  }
+
+  .actual-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .actual-card {
+    min-height: 420px;
+  }
+
+  .actual-card-body {
+    padding: 20px 20px 24px;
+  }
+
+  .actual-card-title {
+    font-size: clamp(30px, 8vw, 44px);
+  }
+
+  .actual-card-text {
+    font-size: clamp(16px, 4.6vw, 28px);
+  }
+
+  .actual-card-footer {
+    top: 18px;
+    left: 18px;
+  }
+
+  .tag-location {
+    padding: 8px 14px;
+    font-size: 17px;
   }
 
   .journal-card {
