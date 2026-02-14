@@ -13,3 +13,27 @@
 2026-02-13 11:28:22	admin	http://skfo.ddev.site/	Created field 'hot_tours_cards'.
 2026-02-13 11:28:22	admin	http://skfo.ddev.site/	Updated repeater fieldgroup 'repeater_hot_tours_cards'.
 2026-02-13 11:28:22	admin	http://skfo.ddev.site/	Updated repeater fields on template 'home'.
+2026-02-14 10:47:33	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'dagestan_place_title'.
+2026-02-14 10:47:33	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'dagestan_place_image'.
+2026-02-14 10:47:33	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'dagestan_places_cards'.
+2026-02-14 10:47:33	admin	http://skfo.ddev.site/processwire/?login=1	Updated repeater fieldgroup 'repeater_dagestan_places_cards'.
+2026-02-14 10:47:33	admin	http://skfo.ddev.site/processwire/?login=1	Updated repeater fields on template 'home'.
+2026-02-14 11:48:04	admin	http://skfo.ddev.site/	Created field 'tour_subtitle'.
+2026-02-14 11:48:04	admin	http://skfo.ddev.site/	Created field 'tour_region'.
+2026-02-14 11:48:04	admin	http://skfo.ddev.site/	Created field 'tour_description'.
+2026-02-14 11:48:04	admin	http://skfo.ddev.site/	Created field 'tour_price'.
+2026-02-14 11:48:04	admin	http://skfo.ddev.site/	Created field 'tour_duration'.
+2026-02-14 11:48:04	admin	http://skfo.ddev.site/	Created field 'tour_group'.
+2026-02-14 11:48:04	admin	http://skfo.ddev.site/	Created field 'tour_season'.
+2026-02-14 11:48:04	admin	http://skfo.ddev.site/	Created field 'tour_difficulty'.
+2026-02-14 11:48:04	admin	http://skfo.ddev.site/	Created field 'tour_transfer'.
+2026-02-14 11:48:04	admin	http://skfo.ddev.site/	Created field 'tour_age'.
+2026-02-14 11:48:04	admin	http://skfo.ddev.site/	Created field 'tour_included'.
+2026-02-14 11:48:04	admin	http://skfo.ddev.site/	Created field 'tour_cover_image'.
+2026-02-14 11:57:15	admin	http://skfo.ddev.site/processwire/setup/template/edit?id=46	Updated fields on template 'tour'.
+2026-02-14 12:27:26	admin	http://skfo.ddev.site/tur-po-dagestanu/	Created field 'tour_day_title'.
+2026-02-14 12:27:26	admin	http://skfo.ddev.site/tur-po-dagestanu/	Created field 'tour_day_description'.
+2026-02-14 12:27:26	admin	http://skfo.ddev.site/tur-po-dagestanu/	Created field 'tour_day_images'.
+2026-02-14 12:27:26	admin	http://skfo.ddev.site/tur-po-dagestanu/	Created field 'tour_days'.
+2026-02-14 12:27:26	admin	http://skfo.ddev.site/tur-po-dagestanu/	Updated repeater fieldgroup 'repeater_tour_days'.
+2026-02-14 12:27:26	admin	http://skfo.ddev.site/tur-po-dagestanu/	Updated fields on template 'tour'.

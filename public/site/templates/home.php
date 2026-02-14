@@ -90,40 +90,84 @@
 		</div>
 	</section>
 
-	<section class="section section--places">
-		<div class="container">
-			<div class="places-banner">
-				<div class="places-banner-header">
-					<h2 class="section-title section-title--places">Что насчёт Дагестана ?</h2>
-					<div class="places-banner-actions">
-						<button class="circle-btn circle-btn--prev" type="button" aria-label="Предыдущие места"></button>
-						<button class="circle-btn circle-btn--next" type="button" aria-label="Следующие места"></button>
+		<section class="section section--places">
+			<?php
+			$dagestanPlacesCards = [];
+
+			if ($page->hasField('dagestan_places_cards') && $page->dagestan_places_cards->count()) {
+				foreach ($page->dagestan_places_cards as $card) {
+					$imageUrl = '';
+					if ($card->hasField('dagestan_place_image')) {
+						$cardImage = $card->getUnformatted('dagestan_place_image');
+						if ($cardImage instanceof Pageimage) {
+							$imageUrl = $cardImage->url;
+						} elseif ($cardImage instanceof Pageimages && $cardImage->count()) {
+							$imageUrl = $cardImage->first()->url;
+						}
+					}
+
+					$dagestanPlacesCards[] = [
+						'title' => $card->hasField('dagestan_place_title') ? trim((string) $card->dagestan_place_title) : '',
+						'image' => $imageUrl,
+					];
+				}
+			}
+
+			if (!count($dagestanPlacesCards)) {
+				$dagestanPlacesCards = [
+					[
+						'title' => 'Сулакский каньон',
+						'image' => '',
+					],
+					[
+						'title' => 'Гамсутль',
+						'image' => '',
+					],
+					[
+						'title' => 'Экраноплан “Лунь”',
+						'image' => '',
+					],
+					[
+						'title' => 'Гуллинский мост',
+						'image' => '',
+					],
+					[
+						'title' => 'Беседка Имама Шамиля',
+						'image' => '',
+					],
+				];
+			}
+
+			$dagestanHasSlider = count($dagestanPlacesCards) > 5;
+			?>
+			<div class="container">
+				<div class="places-banner<?php echo $dagestanHasSlider ? ' places-banner--slider' : ''; ?>">
+					<div class="places-banner-header">
+						<h2 class="section-title section-title--places">Что насчет Дагестана?</h2>
+						<div class="places-banner-actions">
+							<button class="circle-btn circle-btn--prev places-prev" type="button" aria-label="Предыдущие места"></button>
+							<button class="circle-btn circle-btn--next places-next" type="button" aria-label="Следующие места"></button>
+						</div>
 					</div>
-				</div>
-				<div class="places-grid">
-					<article class="place-card">
-						<div class="place-card-image place-card-image--1"></div>
-						<h3 class="place-card-title">Сулакский каньон</h3>
-					</article>
-					<article class="place-card">
-						<div class="place-card-image place-card-image--2"></div>
-						<h3 class="place-card-title">Гамсутль</h3>
-					</article>
-					<article class="place-card">
-						<div class="place-card-image place-card-image--3"></div>
-						<h3 class="place-card-title">Экраноплан “Лунь”</h3>
-					</article>
-					<article class="place-card">
-						<div class="place-card-image place-card-image--4"></div>
-						<h3 class="place-card-title">Гуллинский мост</h3>
-					</article>
-					<article class="place-card">
-						<div class="place-card-image place-card-image--5"></div>
-						<h3 class="place-card-title">Беседка Имама Шамиля</h3>
-					</article>
-				</div>
-				<div class="places-footer">
-					<button class="places-more-btn" type="button">
+					<div class="places-grid">
+						<div class="places-track">
+							<?php foreach ($dagestanPlacesCards as $card): ?>
+								<?php
+								$backgroundStyle = '';
+								if (!empty($card['image'])) {
+									$image = htmlspecialchars($card['image'], ENT_QUOTES, 'UTF-8');
+									$backgroundStyle = " style=\"background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.2), rgba(17, 24, 39, 0.1)), url('{$image}');\"";
+								}
+								?>
+								<article class="place-card">
+									<div class="place-card-image"<?php echo $backgroundStyle; ?>></div>
+									<h3 class="place-card-title"><?php echo $sanitizer->entities($card['title']); ?></h3>
+								</article>
+							<?php endforeach; ?>
+						</div>
+					</div>
+					<div class="places-footer">
+						<button class="places-more-btn" type="button">
 						<span>Показать всё</span>
 					</button>
 				</div>

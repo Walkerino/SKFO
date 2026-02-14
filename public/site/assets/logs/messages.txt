@@ -1,2 +1,7 @@
 2026-02-13 10:18:08	admin	http://skfo.ddev.site/processwire/page/edit/?id=1&field=actual_cards&repeater_add=1	Populated initial created/modified dates for 'card_image' (FieldtypeImage)
 2026-02-13 11:28:35	admin	http://skfo.ddev.site/processwire/page/edit/?id=1&field=hot_tours_cards&repeater_add=1	Populated initial created/modified dates for 'hot_tour_image' (FieldtypeImage)
+2026-02-14 10:47:47	admin	http://skfo.ddev.site/processwire/page/edit/?id=1&field=dagestan_places_cards&repeater_add=1	Populated initial created/modified dates for 'dagestan_place_image' (FieldtypeImage)
+2026-02-14 12:03:37	admin	http://skfo.ddev.site/processwire/page/add/	Populated initial created/modified dates for 'tour_cover_image' (FieldtypeImage)
+2026-02-14 12:27:26	admin	http://skfo.ddev.site/tur-po-dagestanu/	Deleted field "tour_subtitle" data in 0 row(s) from 0 page(s) using template "tour". [page-by-page] (Fields)
+2026-02-14 12:27:26	admin	http://skfo.ddev.site/tur-po-dagestanu/	Deleted field "tour_transfer" data in 1 row(s) from 1 page(s) using template "tour". [page-by-page] (Fields)
+2026-02-14 12:28:42	admin	http://skfo.ddev.site/processwire/page/edit/?id=1038&field=tour_days&repeater_add=1	Populated initial created/modified dates for 'tour_day_images' (FieldtypeImage)

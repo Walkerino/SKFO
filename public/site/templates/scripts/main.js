@@ -207,9 +207,76 @@ const initHotToursSlider = () => {
   update();
 };
 
+const initDagestanSlider = () => {
+  const section = document.querySelector(".section--places");
+  if (!section) return;
+
+  const banner = section.querySelector(".places-banner");
+  const grid = section.querySelector(".places-grid");
+  const track = section.querySelector(".places-track");
+  const prevBtn = section.querySelector(".places-prev");
+  const nextBtn = section.querySelector(".places-next");
+  if (!banner || !grid || !track || !prevBtn || !nextBtn) return;
+
+  const cards = Array.from(track.querySelectorAll(".place-card"));
+  if (cards.length === 0) return;
+
+  const getVisibleCount = () => (window.innerWidth <= 720 ? 2 : 5);
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let startIndex = 0;
+
+  const update = () => {
+    const hasSlider = cards.length > 5;
+    banner.classList.toggle("places-banner--slider", hasSlider);
+
+    if (!hasSlider) {
+      startIndex = 0;
+      track.style.transform = "";
+      track.style.transition = "";
+      prevBtn.disabled = true;
+      nextBtn.disabled = true;
+      prevBtn.classList.add("is-disabled");
+      nextBtn.classList.add("is-disabled");
+      return;
+    }
+
+    const visibleCount = Math.max(1, getVisibleCount());
+    const maxStart = Math.max(0, cards.length - visibleCount);
+    startIndex = Math.min(startIndex, maxStart);
+    const cardWidth = cards[0].getBoundingClientRect().width;
+    const styles = window.getComputedStyle(track);
+    const gap = parseFloat(styles.columnGap || styles.gap || "0");
+    const offset = (cardWidth + gap) * startIndex;
+    track.style.transform = `translateX(-${offset}px)`;
+    track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
+
+    prevBtn.disabled = startIndex <= 0;
+    nextBtn.disabled = startIndex >= maxStart;
+    prevBtn.classList.toggle("is-disabled", prevBtn.disabled);
+    nextBtn.classList.toggle("is-disabled", nextBtn.disabled);
+  };
+
+  prevBtn.addEventListener("click", () => {
+    startIndex = Math.max(0, startIndex - 1);
+    update();
+  });
+
+  nextBtn.addEventListener("click", () => {
+    const visibleCount = Math.max(1, getVisibleCount());
+    const maxStart = Math.max(0, cards.length - visibleCount);
+    startIndex = Math.min(maxStart, startIndex + 1);
+    update();
+  });
+
+  window.addEventListener("resize", update);
+  update();
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   initHeroTabs();
   initPeoplePicker();
   initJournalSlider();
+  initDagestanSlider();
   initHotToursSlider();
 });

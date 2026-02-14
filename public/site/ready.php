@@ -80,6 +80,33 @@ $hotTourImageField = $ensureField('hot_tour_image', 'FieldtypeImage', 'Фото 
 ]);
 $hotToursCardsField = $ensureField('hot_tours_cards', 'FieldtypeRepeater', 'Карточки блока "Чем заняться этим летом?"');
 
+$dagestanPlaceTitleField = $ensureField('dagestan_place_title', 'FieldtypeText', 'Заголовок места');
+$dagestanPlaceImageField = $ensureField('dagestan_place_image', 'FieldtypeImage', 'Фото места', [
+	'maxFiles' => 1,
+	'extensions' => 'jpg jpeg png gif webp',
+]);
+$dagestanPlacesCardsField = $ensureField('dagestan_places_cards', 'FieldtypeRepeater', 'Карточки блока "Что насчёт Дагестана?"');
+
+$tourRegionField = $ensureField('tour_region', 'FieldtypeText', 'Регион тура');
+$tourDescriptionField = $ensureField('tour_description', 'FieldtypeTextarea', 'Описание тура');
+$tourPriceField = $ensureField('tour_price', 'FieldtypeText', 'Цена тура');
+$tourDurationField = $ensureField('tour_duration', 'FieldtypeText', 'Длительность тура');
+$tourGroupField = $ensureField('tour_group', 'FieldtypeText', 'Группа тура');
+$tourSeasonField = $ensureField('tour_season', 'FieldtypeText', 'Сезон тура');
+$tourDifficultyField = $ensureField('tour_difficulty', 'FieldtypeText', 'Сложность тура');
+$tourAgeField = $ensureField('tour_age', 'FieldtypeText', 'Возраст тура');
+$tourIncludedField = $ensureField('tour_included', 'FieldtypeTextarea', 'Что включено (по строкам)');
+$tourCoverImageField = $ensureField('tour_cover_image', 'FieldtypeImage', 'Обложка тура', [
+	'maxFiles' => 1,
+	'extensions' => 'jpg jpeg png gif webp',
+]);
+$tourDayTitleField = $ensureField('tour_day_title', 'FieldtypeText', 'День тура: заголовок');
+$tourDayDescriptionField = $ensureField('tour_day_description', 'FieldtypeTextarea', 'День тура: описание');
+$tourDayImagesField = $ensureField('tour_day_images', 'FieldtypeImage', 'День тура: изображения', [
+	'extensions' => 'jpg jpeg png gif webp',
+]);
+$tourDaysField = $ensureField('tour_days', 'FieldtypeRepeater', 'Информация по дням');
+
 if($imageField && $imageField->id) {
 	$imageChanged = false;
 
@@ -120,7 +147,66 @@ if($hotTourImageField && $hotTourImageField->id) {
 	}
 }
 
-if((!$actualCardsField || !$actualCardsField->id) && (!$hotToursCardsField || !$hotToursCardsField->id)) return;
+if($dagestanPlaceImageField && $dagestanPlaceImageField->id) {
+	$dagestanPlaceImageChanged = false;
+
+	if((int) $dagestanPlaceImageField->get('maxFiles') !== 1) {
+		$dagestanPlaceImageField->set('maxFiles', 1);
+		$dagestanPlaceImageChanged = true;
+	}
+
+	$dagestanExtensions = trim((string) $dagestanPlaceImageField->get('extensions'));
+	if($dagestanExtensions === '') {
+		$dagestanPlaceImageField->set('extensions', 'jpg jpeg png gif webp');
+		$dagestanPlaceImageChanged = true;
+	}
+
+	if($dagestanPlaceImageChanged) {
+		$fields->save($dagestanPlaceImageField);
+		$log->save('actual-cards-setup', "Updated field 'dagestan_place_image' settings.");
+	}
+}
+
+if($tourCoverImageField && $tourCoverImageField->id) {
+	$tourCoverChanged = false;
+
+	if((int) $tourCoverImageField->get('maxFiles') !== 1) {
+		$tourCoverImageField->set('maxFiles', 1);
+		$tourCoverChanged = true;
+	}
+
+	$tourCoverExtensions = trim((string) $tourCoverImageField->get('extensions'));
+	if($tourCoverExtensions === '') {
+		$tourCoverImageField->set('extensions', 'jpg jpeg png gif webp');
+		$tourCoverChanged = true;
+	}
+
+	if($tourCoverChanged) {
+		$fields->save($tourCoverImageField);
+		$log->save('actual-cards-setup', "Updated field 'tour_cover_image' settings.");
+	}
+}
+
+if($tourDayImagesField && $tourDayImagesField->id) {
+	$tourDayImagesChanged = false;
+	$tourDayImagesExtensions = trim((string) $tourDayImagesField->get('extensions'));
+	if($tourDayImagesExtensions === '') {
+		$tourDayImagesField->set('extensions', 'jpg jpeg png gif webp');
+		$tourDayImagesChanged = true;
+	}
+
+	if($tourDayImagesChanged) {
+		$fields->save($tourDayImagesField);
+		$log->save('actual-cards-setup', "Updated field 'tour_day_images' settings.");
+	}
+}
+
+if(
+	(!$actualCardsField || !$actualCardsField->id) &&
+	(!$hotToursCardsField || !$hotToursCardsField->id) &&
+	(!$dagestanPlacesCardsField || !$dagestanPlacesCardsField->id) &&
+	(!$tourDaysField || !$tourDaysField->id)
+) return;
 
 /** @var FieldtypeRepeater|null $repeaterType */
 $repeaterType = $modules->get('FieldtypeRepeater');
@@ -173,6 +259,50 @@ if($hotToursCardsField && $hotToursCardsField->id) {
 	}
 }
 
+if($dagestanPlacesCardsField && $dagestanPlacesCardsField->id) {
+	$dagestanRepeaterTemplate = $repeaterType->_getRepeaterTemplate($dagestanPlacesCardsField);
+	if($dagestanRepeaterTemplate && $dagestanRepeaterTemplate->id) {
+		$dagestanFieldgroup = $dagestanRepeaterTemplate->fieldgroup;
+		$dagestanRepeaterFields = [$dagestanPlaceTitleField, $dagestanPlaceImageField];
+		$dagestanChanged = false;
+
+		foreach($dagestanRepeaterFields as $field) {
+			if(!$field || !$field->id) continue;
+			if(!$dagestanFieldgroup->has($field)) {
+				$dagestanFieldgroup->add($field);
+				$dagestanChanged = true;
+			}
+		}
+
+		if($dagestanChanged) {
+			$dagestanFieldgroup->save();
+			$log->save('actual-cards-setup', "Updated repeater fieldgroup '{$dagestanFieldgroup->name}'.");
+		}
+	}
+}
+
+if($tourDaysField && $tourDaysField->id) {
+	$tourDaysRepeaterTemplate = $repeaterType->_getRepeaterTemplate($tourDaysField);
+	if($tourDaysRepeaterTemplate && $tourDaysRepeaterTemplate->id) {
+		$tourDaysFieldgroup = $tourDaysRepeaterTemplate->fieldgroup;
+		$tourDaysRepeaterFields = [$tourDayTitleField, $tourDayDescriptionField, $tourDayImagesField];
+		$tourDaysChanged = false;
+
+		foreach($tourDaysRepeaterFields as $field) {
+			if(!$field || !$field->id) continue;
+			if(!$tourDaysFieldgroup->has($field)) {
+				$tourDaysFieldgroup->add($field);
+				$tourDaysChanged = true;
+			}
+		}
+
+		if($tourDaysChanged) {
+			$tourDaysFieldgroup->save();
+			$log->save('actual-cards-setup', "Updated repeater fieldgroup '{$tourDaysFieldgroup->name}'.");
+		}
+	}
+}
+
 $homeTemplate = $templates->get('home');
 if($homeTemplate && $homeTemplate->id) {
 	$homeFieldgroup = $homeTemplate->fieldgroup;
@@ -188,8 +318,54 @@ if($homeTemplate && $homeTemplate->id) {
 		$homeChanged = true;
 	}
 
+	if($dagestanPlacesCardsField && $dagestanPlacesCardsField->id && !$homeFieldgroup->has($dagestanPlacesCardsField)) {
+		$homeFieldgroup->add($dagestanPlacesCardsField);
+		$homeChanged = true;
+	}
+
 	if($homeChanged) {
 		$homeFieldgroup->save();
 		$log->save('actual-cards-setup', "Updated repeater fields on template 'home'.");
+	}
+}
+
+$tourTemplate = $templates->get('tour');
+if($tourTemplate && $tourTemplate->id) {
+	$tourFieldgroup = $tourTemplate->fieldgroup;
+	$tourChanged = false;
+	$tourFields = [
+		$tourRegionField,
+		$tourDescriptionField,
+		$tourPriceField,
+		$tourDurationField,
+		$tourGroupField,
+		$tourSeasonField,
+		$tourDifficultyField,
+		$tourAgeField,
+		$tourIncludedField,
+		$tourCoverImageField,
+		$tourDaysField,
+	];
+
+	foreach($tourFields as $field) {
+		if(!$field || !$field->id) continue;
+		if(!$tourFieldgroup->has($field)) {
+			$tourFieldgroup->add($field);
+			$tourChanged = true;
+		}
+	}
+
+	$tourFieldsToRemove = ['tour_subtitle', 'tour_transfer'];
+	foreach($tourFieldsToRemove as $fieldName) {
+		$field = $fields->get($fieldName);
+		if($field && $field->id && $tourFieldgroup->has($field)) {
+			$tourFieldgroup->remove($field);
+			$tourChanged = true;
+		}
+	}
+
+	if($tourChanged) {
+		$tourFieldgroup->save();
+		$log->save('actual-cards-setup', "Updated fields on template 'tour'.");
 	}
 }

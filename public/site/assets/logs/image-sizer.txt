@@ -1,3 +1,6 @@
 2026-02-13 10:18:54	admin	http://skfo.ddev.site/processwire/page/edit/?id=1&s=1&c=1	GD Resized: image_1.png => image_1.0x260.png (0x260) 0.0597 secs 651121 => 142907 bytes (quality=90, sharpening=soft)
 2026-02-13 10:21:57	admin	http://skfo.ddev.site/processwire/page/edit/?id=1019&InputfieldFileAjax=1&eid=1	GD Resized: image_2.png => image_2.0x260.png (0x260) 0.0948 secs 696019 => 144580 bytes (quality=90, sharpening=soft)
 2026-02-13 11:29:19	admin	http://skfo.ddev.site/processwire/page/edit/?id=1022&InputfieldFileAjax=1&eid=1	GD Resized: image_2.png => image_2.0x260.png (0x260) 0.0996 secs 696019 => 144580 bytes (quality=90, sharpening=soft)
+2026-02-14 10:52:37	admin	http://skfo.ddev.site/processwire/page/edit/?id=1037&InputfieldFileAjax=1&eid=1	GD Resized: image_2.png => image_2.0x260.png (0x260) 0.1030 secs 696019 => 144580 bytes (quality=90, sharpening=soft)
+2026-02-14 12:29:15	admin	http://skfo.ddev.site/processwire/page/edit/?id=1041&InputfieldFileAjax=1&eid=1038	GD Resized: image_2.png => image_2.0x260.png (0x260) 0.0965 secs 696019 => 144580 bytes (quality=90, sharpening=soft)
+2026-02-14 12:29:34	admin	http://skfo.ddev.site/processwire/page/edit/?id=1042&InputfieldFileAjax=1&eid=1038	GD Resized: image_1.png => image_1.0x260.png (0x260) 0.0555 secs 651121 => 142907 bytes (quality=90, sharpening=soft)
