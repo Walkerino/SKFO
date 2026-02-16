@@ -37,40 +37,45 @@ $home = $pages->get('/'); /** @var HomePage $home */
 			<?php if($isTourTemplate): ?>
 				<header class="tour-header" id="site-header">
 					<div class="container tour-header-row">
-						<a class="tour-header-logo" href="<?php echo $home->url; ?>" aria-label="SKFO.RU">SKFO.RU</a>
-						<nav class="tour-header-nav" aria-label="Основная навигация">
-							<a class="tour-header-link is-active" href="/tours/">
-								<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
-								<span>Туры</span>
-							</a>
-							<a class="tour-header-link" href="/hotels/">
-								<img src="<?php echo $config->urls->templates; ?>assets/icons/hotel.svg" alt="" aria-hidden="true" />
-								<span>Отели</span>
-							</a>
-							<a class="tour-header-link" href="/reviews/">
-								<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
-								<span>Отзывы</span>
-							</a>
-							<a class="tour-header-link" href="/regions/">
-								<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
-								<span>Регионы</span>
-							</a>
-							<a class="tour-header-link" href="/articles/">
-								<img src="<?php echo $config->urls->templates; ?>assets/icons/journal.svg" alt="" aria-hidden="true" />
-								<span>Статьи</span>
-							</a>
-							<a class="tour-header-link tour-header-link--forum" href="/forum/">
+						<a class="logo tour-header-logo" href="<?php echo $home->url; ?>" aria-label="SKFO.RU">
+							<img class="logo-img" src="<?php echo $config->urls->templates; ?>assets/icons/logo.svg" alt="SKFO.RU" />
+						</a>
+						<nav class="tour-header-center tour-nav" aria-label="Основная навигация">
+							<div class="tour-header-nav tour-nav-group" role="tablist">
+								<span class="tour-nav-indicator" aria-hidden="true"></span>
+								<span class="tour-nav-hover" aria-hidden="true"></span>
+								<a class="tour-header-link tour-nav-link is-active" href="/tours/">
+									<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
+									<span class="tour-nav-text">Туры</span>
+								</a>
+								<a class="tour-header-link tour-nav-link" href="/hotels/">
+									<img src="<?php echo $config->urls->templates; ?>assets/icons/hotel.svg" alt="" aria-hidden="true" />
+									<span class="tour-nav-text">Отели</span>
+								</a>
+								<a class="tour-header-link tour-nav-link" href="/reviews/">
+									<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
+									<span class="tour-nav-text">Отзывы</span>
+								</a>
+								<a class="tour-header-link tour-nav-link" href="/regions/">
+									<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
+									<span class="tour-nav-text">Регионы</span>
+								</a>
+								<a class="tour-header-link tour-nav-link" href="/articles/">
+									<img src="<?php echo $config->urls->templates; ?>assets/icons/journal.svg" alt="" aria-hidden="true" />
+									<span class="tour-nav-text">Статьи</span>
+								</a>
+							</div>
+							<a class="tour-header-link tour-nav-link tour-header-link--forum" href="/forum/">
 								<img src="<?php echo $config->urls->templates; ?>assets/icons/forum.svg" alt="" aria-hidden="true" />
-								<span>Форум</span>
-								<img class="tour-header-link-external" src="<?php echo $config->urls->templates; ?>assets/icons/external_site.svg" alt="" aria-hidden="true" />
+								<span class="tour-nav-text">Форум</span>
 							</a>
 						</nav>
 						<div class="tour-header-actions">
-							<a class="tour-header-icon" href="/profile/" aria-label="Профиль">
-								<img src="<?php echo $config->urls->templates; ?>assets/icons/profile.svg" alt="" aria-hidden="true" />
+							<a class="icon-btn tour-header-action" href="/profile/" aria-label="Профиль">
+								<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/profile.svg" alt="" aria-hidden="true" />
 							</a>
-							<a class="tour-header-icon" href="/contacts/" aria-label="Контакты">
-								<img src="<?php echo $config->urls->templates; ?>assets/icons/contacts.svg" alt="" aria-hidden="true" />
+							<a class="icon-btn tour-header-action" href="/contacts/" aria-label="Контакты">
+								<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/contacts.svg" alt="" aria-hidden="true" />
 							</a>
 						</div>
 					</div>

@@ -26,6 +26,10 @@ $modules = wire('modules');
 $templates = wire('templates');
 /** @var Log $log */
 $log = wire('log');
+$toLower = static function(string $value): string {
+	$value = trim($value);
+	return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+};
 
 /**
  * Create missing field with given type/settings.
@@ -94,8 +98,13 @@ $tourDurationField = $ensureField('tour_duration', 'FieldtypeText', 'Длите�
 $tourGroupField = $ensureField('tour_group', 'FieldtypeText', 'Группа тура');
 $tourSeasonField = $ensureField('tour_season', 'FieldtypeText', 'Сезон тура');
 $tourDifficultyField = $ensureField('tour_difficulty', 'FieldtypeText', 'Сложность тура');
+$tourDifficultyLevelField = $ensureField('tour_difficulty_level', 'FieldtypeOptions', 'Сложность тура (список)', [
+	'inputfieldClass' => 'InputfieldSelect',
+]);
 $tourAgeField = $ensureField('tour_age', 'FieldtypeText', 'Возраст тура');
 $tourIncludedField = $ensureField('tour_included', 'FieldtypeTextarea', 'Что включено (по строкам)');
+$tourIncludedItemTextField = $ensureField('tour_included_item_text', 'FieldtypeText', 'Что включено: пункт');
+$tourIncludedItemsField = $ensureField('tour_included_items', 'FieldtypeRepeater', 'Что включено: тезисы');
 $tourCoverImageField = $ensureField('tour_cover_image', 'FieldtypeImage', 'Обложка тура', [
 	'maxFiles' => 1,
 	'extensions' => 'jpg jpeg png gif webp',
@@ -202,10 +211,72 @@ if($tourDayImagesField && $tourDayImagesField->id) {
 }
 
 if(
+	$tourDifficultyLevelField &&
+	$tourDifficultyLevelField->id &&
+	$tourDifficultyLevelField->type instanceof FieldtypeOptions
+) {
+	$difficultyOptions = $tourDifficultyLevelField->type->getOptions($tourDifficultyLevelField);
+	$normalizedCurrentTitles = [];
+	foreach($difficultyOptions as $option) {
+		$normalizedCurrentTitles[] = $toLower((string) $option->title);
+	}
+
+	$normalizedExpectedTitles = ['базовая', 'средняя', 'высокая'];
+	if($normalizedCurrentTitles !== $normalizedExpectedTitles) {
+		$newOptions = wire(new SelectableOptionArray());
+		$newOptions->setField($tourDifficultyLevelField);
+
+		$items = [
+			['value' => 'basic', 'title' => 'Базовая'],
+			['value' => 'medium', 'title' => 'Средняя'],
+			['value' => 'high', 'title' => 'Высокая'],
+		];
+
+		foreach($items as $sort => $item) {
+			$option = wire(new SelectableOption());
+			$option->set('sort', $sort);
+			$option->set('value', $item['value']);
+			$option->set('title', $item['title']);
+			$newOptions->add($option);
+		}
+
+		$tourDifficultyLevelField->type->setOptions($tourDifficultyLevelField, $newOptions);
+		$log->save('actual-cards-setup', "Updated options for field 'tour_difficulty_level'.");
+	}
+
+	if($tourDifficultyField && $tourDifficultyField->id) {
+		$difficultyOptions = $tourDifficultyLevelField->type->getOptions($tourDifficultyLevelField);
+		$difficultyOptionIds = [];
+		foreach($difficultyOptions as $option) {
+			$key = $toLower((string) $option->title);
+			if($key !== '') {
+				$difficultyOptionIds[$key] = (int) $option->id;
+			}
+		}
+
+		$tourPages = wire('pages')->find('template=tour, include=all');
+		foreach($tourPages as $tourPage) {
+			$currentValue = $tourPage->getUnformatted('tour_difficulty_level');
+			$hasSelectedDifficulty = $currentValue instanceof SelectableOptionArray && $currentValue->count();
+			if($hasSelectedDifficulty) continue;
+
+			$legacyValue = trim((string) $tourPage->getUnformatted('tour_difficulty'));
+			if($legacyValue === '') continue;
+
+			$legacyKey = $toLower($legacyValue);
+			if(!isset($difficultyOptionIds[$legacyKey])) continue;
+
+			$tourPage->setAndSave('tour_difficulty_level', $difficultyOptionIds[$legacyKey]);
+		}
+	}
+}
+
+if(
 	(!$actualCardsField || !$actualCardsField->id) &&
 	(!$hotToursCardsField || !$hotToursCardsField->id) &&
 	(!$dagestanPlacesCardsField || !$dagestanPlacesCardsField->id) &&
-	(!$tourDaysField || !$tourDaysField->id)
+	(!$tourDaysField || !$tourDaysField->id) &&
+	(!$tourIncludedItemsField || !$tourIncludedItemsField->id)
 ) return;
 
 /** @var FieldtypeRepeater|null $repeaterType */
@@ -303,6 +374,28 @@ if($tourDaysField && $tourDaysField->id) {
 	}
 }
 
+if($tourIncludedItemsField && $tourIncludedItemsField->id) {
+	$tourIncludedRepeaterTemplate = $repeaterType->_getRepeaterTemplate($tourIncludedItemsField);
+	if($tourIncludedRepeaterTemplate && $tourIncludedRepeaterTemplate->id) {
+		$tourIncludedFieldgroup = $tourIncludedRepeaterTemplate->fieldgroup;
+		$tourIncludedRepeaterFields = [$tourIncludedItemTextField];
+		$tourIncludedChanged = false;
+
+		foreach($tourIncludedRepeaterFields as $field) {
+			if(!$field || !$field->id) continue;
+			if(!$tourIncludedFieldgroup->has($field)) {
+				$tourIncludedFieldgroup->add($field);
+				$tourIncludedChanged = true;
+			}
+		}
+
+		if($tourIncludedChanged) {
+			$tourIncludedFieldgroup->save();
+			$log->save('actual-cards-setup', "Updated repeater fieldgroup '{$tourIncludedFieldgroup->name}'.");
+		}
+	}
+}
+
 $homeTemplate = $templates->get('home');
 if($homeTemplate && $homeTemplate->id) {
 	$homeFieldgroup = $homeTemplate->fieldgroup;
@@ -340,9 +433,10 @@ if($tourTemplate && $tourTemplate->id) {
 		$tourDurationField,
 		$tourGroupField,
 		$tourSeasonField,
-		$tourDifficultyField,
+		$tourDifficultyLevelField,
 		$tourAgeField,
 		$tourIncludedField,
+		$tourIncludedItemsField,
 		$tourCoverImageField,
 		$tourDaysField,
 	];
@@ -355,7 +449,7 @@ if($tourTemplate && $tourTemplate->id) {
 		}
 	}
 
-	$tourFieldsToRemove = ['tour_subtitle', 'tour_transfer'];
+	$tourFieldsToRemove = ['tour_subtitle', 'tour_transfer', 'tour_difficulty'];
 	foreach($tourFieldsToRemove as $fieldName) {
 		$field = $fields->get($fieldName);
 		if($field && $field->id && $tourFieldgroup->has($field)) {

@@ -37,3 +37,10 @@
 2026-02-14 12:27:26	admin	http://skfo.ddev.site/tur-po-dagestanu/	Created field 'tour_days'.
 2026-02-14 12:27:26	admin	http://skfo.ddev.site/tur-po-dagestanu/	Updated repeater fieldgroup 'repeater_tour_days'.
 2026-02-14 12:27:26	admin	http://skfo.ddev.site/tur-po-dagestanu/	Updated fields on template 'tour'.
+2026-02-16 16:27:22	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'tour_included_item_text'.
+2026-02-16 16:27:22	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'tour_included_items'.
+2026-02-16 16:27:22	admin	http://skfo.ddev.site/processwire/?login=1	Updated repeater fieldgroup 'repeater_tour_included_items'.
+2026-02-16 16:27:22	admin	http://skfo.ddev.site/processwire/?login=1	Updated fields on template 'tour'.
+2026-02-16 18:13:06	admin	http://skfo.ddev.site/tur-po-dagestanu/	Created field 'tour_difficulty_level'.
+2026-02-16 18:13:06	admin	http://skfo.ddev.site/tur-po-dagestanu/	Updated options for field 'tour_difficulty_level'.
+2026-02-16 18:13:06	admin	http://skfo.ddev.site/tur-po-dagestanu/	Updated fields on template 'tour'.

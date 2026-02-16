@@ -7,3 +7,4 @@
 2026-02-13 10:15:50	admin	http://skfo.ddev.site/processwire/?login=1	Installed module 'InputfieldRepeater'
 2026-02-13 10:15:50	admin	http://skfo.ddev.site/processwire/?login=1	Installed module 'FieldtypeRepeater'
 2026-02-14 11:57:15	admin	http://skfo.ddev.site/processwire/setup/template/edit?id=46	Installed module 'InputfieldTextTags'
+2026-02-16 18:13:06	admin	http://skfo.ddev.site/tur-po-dagestanu/	Installed module 'FieldtypeOptions'

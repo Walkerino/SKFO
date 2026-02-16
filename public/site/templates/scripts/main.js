@@ -45,6 +45,52 @@ const initHeroTabs = () => {
   });
 };
 
+const initTourNavTabs = () => {
+  const tabs = document.querySelector(".tour-nav-group");
+  if (!tabs) return;
+
+  const indicator = tabs.querySelector(".tour-nav-indicator");
+  const hover = tabs.querySelector(".tour-nav-hover");
+  const links = Array.from(tabs.querySelectorAll(".tour-nav-link"));
+  if (!indicator || !hover || links.length === 0) return;
+
+  const setIndicator = (el, target) => {
+    const rect = el.getBoundingClientRect();
+    const parent = tabs.getBoundingClientRect();
+    const offset = rect.left - parent.left;
+    target.style.width = `${rect.width}px`;
+    target.style.transform = `translateX(${offset}px)`;
+  };
+
+  const setActive = (el) => {
+    links.forEach((link) => link.classList.toggle("is-active", link === el));
+    setIndicator(el, indicator);
+  };
+
+  const active = tabs.querySelector(".tour-nav-link.is-active") || links[0];
+  setActive(active);
+
+  links.forEach((link) => {
+    link.addEventListener("mouseenter", () => {
+      setIndicator(link, hover);
+      hover.style.opacity = "1";
+    });
+    link.addEventListener("focus", () => {
+      setIndicator(link, hover);
+      hover.style.opacity = "1";
+    });
+  });
+
+  tabs.addEventListener("mouseleave", () => {
+    hover.style.opacity = "0";
+  });
+
+  window.addEventListener("resize", () => {
+    const current = tabs.querySelector(".tour-nav-link.is-active") || links[0];
+    setIndicator(current, indicator);
+  });
+};
+
 const initPeoplePicker = () => {
   const field = document.querySelector(".hero-field-people");
   if (!field) return;
@@ -273,10 +319,75 @@ const initDagestanSlider = () => {
   update();
 };
 
+const initTourDaysAccordion = () => {
+  const cards = Array.from(document.querySelectorAll(".tour-day-card"));
+  if (cards.length === 0) return;
+
+  cards.forEach((card) => {
+    const toggle = card.querySelector(".tour-day-toggle");
+    const icon = card.querySelector(".tour-day-toggle-icon");
+    const body = card.querySelector(".tour-day-body");
+    if (!toggle || !icon || !body) return;
+
+    card.classList.remove("is-open");
+    toggle.setAttribute("aria-expanded", "false");
+    icon.textContent = "+";
+
+    toggle.addEventListener("click", () => {
+      const willOpen = !card.classList.contains("is-open");
+      card.classList.toggle("is-open", willOpen);
+      toggle.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      icon.textContent = willOpen ? "−" : "+";
+    });
+
+    const gallery = card.querySelector(".tour-day-images");
+    const prevBtn = card.querySelector(".tour-day-gallery-prev");
+    const nextBtn = card.querySelector(".tour-day-gallery-next");
+    if (!gallery || !prevBtn || !nextBtn) return;
+
+    const step = () => {
+      const first = gallery.querySelector(".tour-day-image");
+      if (!first) return 240;
+      const width = first.getBoundingClientRect().width;
+      const styles = window.getComputedStyle(gallery);
+      const gap = parseFloat(styles.columnGap || styles.gap || "0");
+      return width + gap;
+    };
+
+    const updateButtons = () => {
+      const maxScroll = gallery.scrollWidth - gallery.clientWidth;
+      const left = gallery.scrollLeft;
+      const canPrev = left > 2;
+      const canNext = left < maxScroll - 2;
+      prevBtn.disabled = !canPrev;
+      nextBtn.disabled = !canNext;
+      const wrapper = card.querySelector(".tour-day-gallery");
+      if (wrapper) {
+        wrapper.classList.toggle("has-prev", canPrev);
+        wrapper.classList.toggle("has-next", canNext);
+      }
+    };
+
+    prevBtn.addEventListener("click", () => {
+      gallery.scrollBy({ left: -step(), behavior: "smooth" });
+    });
+
+    nextBtn.addEventListener("click", () => {
+      gallery.scrollBy({ left: step(), behavior: "smooth" });
+    });
+
+    gallery.addEventListener("scroll", updateButtons, { passive: true });
+    window.addEventListener("resize", updateButtons);
+    updateButtons();
+  });
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   initHeroTabs();
+  initTourNavTabs();
   initPeoplePicker();
   initJournalSlider();
   initDagestanSlider();
   initHotToursSlider();
+  initTourDaysAccordion();
 });
