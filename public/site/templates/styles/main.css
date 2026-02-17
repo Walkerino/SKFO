@@ -59,7 +59,7 @@ body {
   margin: 0;
   font-family: "Inter", "Arial", sans-serif;
   color: var(--gray-800);
-  background: var(--gray-100);
+  background: #EBEBEB;
 }
 
 a {
@@ -814,6 +814,293 @@ a {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
+}
+
+.reviews-page {
+  background: #f2f4f8;
+  min-height: 100vh;
+  padding-bottom: 56px;
+}
+
+.reviews-hero {
+  position: relative;
+  background: #1f52b2;
+  min-height: 480px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.reviews-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("../assets/patterns/hero-pattern.svg") center / 1000px repeat;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.reviews-hero .container {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.reviews-title {
+  margin: 0;
+  color: #ffffff;
+  font-family: "Ruberoid", sans-serif;
+  font-weight: 300;
+  font-style: normal;
+  font-size: 64px;
+  line-height: 1.2;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  text-align: center;
+  -webkit-text-stroke: 2.5px #ffffff;
+
+  margin-top: 60px;
+}
+
+.reviews-content {
+  margin-top: -20px;
+}
+
+.reviews-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(0, 0.82fr);
+  gap: 26px;
+  align-items: start;
+  margin-top: 85px;
+}
+
+.reviews-list-card,
+.reviews-form-card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 30px 34px;
+  height: 878px;
+}
+
+.reviews-list {
+  display: grid;
+  gap: 14px;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+}
+
+.reviews-form-card {
+  overflow-y: auto;
+}
+
+.review-item {
+  border-radius: 18px;
+  background: #f6f8fc;
+  padding: 18px 20px;
+}
+
+.review-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.review-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  flex: 0 0 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-family: "Inter", sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.review-avatar.is-blue {
+  background: #2f8ce6;
+}
+
+.review-avatar.is-yellow {
+  background: #e7b535;
+}
+
+.review-avatar.is-gray {
+  background: #8d96a3;
+}
+
+.review-meta {
+  display: grid;
+  gap: 1px;
+}
+
+.review-author {
+  margin: 0;
+  font-family: "Inter", sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 110%;
+  color: #121826;
+}
+
+.review-stars {
+  display: inline-block;
+  color: #f3a314;
+  letter-spacing: 0.06em;
+  font-size: 18px;
+}
+
+.review-text {
+  margin: 16px 0 0;
+  font-size: 18px;
+  font-family: "Inter", sans-serif;
+  line-height: 110%;
+  color: #000000;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.reviews-form-title {
+  margin: 0;
+  font-family: "Ruberoid", sans-serif;
+  font-size: 34px;
+  font-weight: 600;
+  color: #0c131d;
+}
+
+.reviews-form {
+  margin-top: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.reviews-field {
+  display: grid;
+  gap: 8px;
+}
+
+.reviews-field > span {
+  font-family: "Inter", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 0;
+  color: #737373;
+}
+
+.reviews-field input[type="text"],
+.reviews-field textarea {
+  width: 100%;
+  border: 1px solid #d9e0f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-family: "Inter", sans-serif;
+  font-size: 16px;
+  color: #1b2a42;
+  outline: none;
+}
+
+.reviews-field input[type="text"]::placeholder,
+.reviews-field textarea::placeholder {
+  font-family: "Inter", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 0;
+  color: #737373;
+}
+
+.reviews-field input[type="text"]:focus,
+.reviews-field textarea:focus {
+  border-color: #1f52b2;
+  box-shadow: 0 0 0 3px rgba(31, 82, 178, 0.12);
+}
+
+.reviews-field textarea {
+  resize: vertical;
+  min-height: 454px;
+}
+
+.reviews-stars-input {
+  display: inline-flex;
+  flex-direction: row-reverse;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.reviews-stars-input input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.reviews-stars-input label {
+  font-size: 0;
+  line-height: 0;
+  color: #d4d9e4;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+}
+
+.reviews-stars-input label::before {
+  content: "★";
+  display: block;
+  font-size: 33px;
+  line-height: 1;
+}
+
+.reviews-stars-input label:hover,
+.reviews-stars-input label:hover ~ label,
+.reviews-stars-input input:checked ~ label {
+  color: #f3a314;
+}
+
+.reviews-submit {
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #ff610c 0%, #ef990f 100%);
+  color: #ffffff;
+  padding: 12px 18px;
+  font-size: 18px;
+  font-weight: 700;
+  font-family: "Inter", sans-serif;
+  cursor: pointer;
+  height: 50px;
+
+  margin-top: 50px;
+}
+
+.review-message {
+  margin-top: 14px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.review-message.is-success {
+  background: #e8f5e9;
+  color: #1d6d35;
+}
+
+.review-message.is-error {
+  background: #ffe9e9;
+  color: #b03838;
 }
 
 .main-nav {
@@ -1767,7 +2054,7 @@ h6,
 }
 
 .site-footer {
-  background: #efefef;
+  background: #ffffff;
   padding: 86px 0 90px;
 }
 
@@ -2022,6 +2309,48 @@ h6,
   .tour-day-image {
     flex-basis: 180px;
     min-height: 110px;
+  }
+
+  .reviews-hero {
+    min-height: 360px;
+    padding: 0;
+  }
+
+
+  .reviews-content {
+    margin-top: 0;
+  }
+
+  .reviews-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .reviews-list-card,
+  .reviews-form-card {
+    padding: 22px 20px;
+    height: auto;
+  }
+
+  .reviews-list {
+    height: auto;
+  }
+
+
+
+  .review-avatar {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+    font-size: 18px;
+  }
+
+  .reviews-form-title {
+    font-size: 30px;
+  }
+
+  .reviews-submit {
+    width: 100%;
   }
 
   .header-row {

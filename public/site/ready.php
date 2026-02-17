@@ -463,3 +463,39 @@ if($tourTemplate && $tourTemplate->id) {
 		$log->save('actual-cards-setup', "Updated fields on template 'tour'.");
 	}
 }
+
+$reviewsTemplate = $templates->get('reviews');
+if(!$reviewsTemplate || !$reviewsTemplate->id) {
+	$basicTemplate = $templates->get('basic-page');
+	if($basicTemplate && $basicTemplate->id && $basicTemplate->fieldgroup) {
+		$reviewsTemplate = new Template();
+		$reviewsTemplate->name = 'reviews';
+		$reviewsTemplate->label = 'Отзывы';
+		$reviewsTemplate->fieldgroup = $basicTemplate->fieldgroup;
+		$templates->save($reviewsTemplate);
+		$log->save('actual-cards-setup', "Created template 'reviews'.");
+	} else {
+		$log->save('actual-cards-setup', "Cannot create template 'reviews': template 'basic-page' not found.");
+	}
+}
+
+if($reviewsTemplate && $reviewsTemplate->id) {
+	$reviewsPage = $pages->get('/reviews/');
+	if(!$reviewsPage || !$reviewsPage->id) {
+		$homePage = $pages->get('/');
+		if($homePage && $homePage->id) {
+			$reviewsPage = new Page();
+			$reviewsPage->template = $reviewsTemplate;
+			$reviewsPage->parent = $homePage;
+			$reviewsPage->name = 'reviews';
+			$reviewsPage->title = 'Отзывы';
+			$pages->save($reviewsPage);
+			$log->save('actual-cards-setup', "Created page '/reviews/'.");
+		}
+	} elseif($reviewsPage->template && $reviewsPage->template->name !== 'reviews') {
+		$reviewsPage->of(false);
+		$reviewsPage->template = $reviewsTemplate;
+		$pages->save($reviewsPage);
+		$log->save('actual-cards-setup', "Updated page '/reviews/' template to 'reviews'.");
+	}
+}

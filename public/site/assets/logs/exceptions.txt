@@ -3,3 +3,5 @@
 2026-02-13 10:19:23	admin	http://skfo.ddev.site/	Method Pageimage::count does not exist or is not callable in this context (/wire/core/Wire.php:563)
 2026-02-13 10:19:24	admin	http://skfo.ddev.site/	Method Pageimage::count does not exist or is not callable in this context (/wire/core/Wire.php:563)
 2026-02-13 10:19:34	admin	http://skfo.ddev.site/	Method Pageimage::count does not exist or is not callable in this context (/wire/core/Wire.php:563)
+2026-02-17 18:10:33	guest	http://skfo.ddev.site/reviews/	This request was aborted because it appears to be forged. (/wire/core/SessionCSRF.php:194)
+2026-02-17 18:11:03	admin	http://skfo.ddev.site/reviews/	This request was aborted because it appears to be forged. (/wire/core/SessionCSRF.php:194)

@@ -10,6 +10,15 @@
 
 ?>
 
+<?php
+$requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+$isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
+if ($page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest) {
+	require __DIR__ . '/reviews.php';
+	return;
+}
+?>
+
 <div id="content">
 	Basic page content 
 </div>	

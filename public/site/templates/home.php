@@ -21,32 +21,32 @@
 				<div class="hero-tabs-group" role="tablist">
 					<span class="tab-indicator" aria-hidden="true"></span>
 					<span class="tab-hover" aria-hidden="true"></span>
-					<button class="hero-tab is-active" type="button" role="tab" aria-selected="true">
+					<a class="hero-tab is-active" href="/" role="tab" aria-selected="true">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Туры</span>
-					</button>
-					<button class="hero-tab" type="button" role="tab" aria-selected="false">
+					</a>
+					<a class="hero-tab" href="/hotels/" role="tab" aria-selected="false">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/hotel.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Отели</span>
-					</button>
-					<button class="hero-tab" type="button" role="tab" aria-selected="false">
+					</a>
+					<a class="hero-tab" href="/reviews/" role="tab" aria-selected="false">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Отзывы</span>
-					</button>
-					<button class="hero-tab" type="button" role="tab" aria-selected="false">
+					</a>
+					<a class="hero-tab" href="/regions/" role="tab" aria-selected="false">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Регионы</span>
-					</button>
-					<button class="hero-tab" type="button" role="tab" aria-selected="false">
+					</a>
+					<a class="hero-tab" href="/articles/" role="tab" aria-selected="false">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/journal.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Статьи</span>
-					</button>
+					</a>
 				</div>
-				<button class="hero-tab hero-tab-forum" type="button" aria-label="Форум">
+				<a class="hero-tab hero-tab-forum" href="/forum/" aria-label="Форум">
 					<img src="<?php echo $config->urls->templates; ?>assets/icons/forum.svg" alt="" aria-hidden="true" />
 					<span>Форум</span>
 					<img class="hero-tab-external" src="<?php echo $config->urls->templates; ?>assets/icons/external_site.svg" alt="" aria-hidden="true" />
-				</button>
+				</a>
 			</div>
 			<form class="hero-search" action="#" method="get">
 				<div class="hero-search-fields">

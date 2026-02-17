@@ -2,3 +2,6 @@
 2026-02-13 10:15:50	admin	http://skfo.ddev.site/processwire/login/	Successful login for 'admin'
 2026-02-14 10:47:33	admin	http://skfo.ddev.site/processwire/login/	Successful login for 'admin'
 2026-02-16 16:27:22	admin	http://skfo.ddev.site/processwire/login/	Successful login for 'admin'
+2026-02-17 17:55:06	admin	http://skfo.ddev.site/processwire/login/	Successful login for 'admin'
+2026-02-17 18:10:33	?	?	User 'admin' - Error: Session fingerprint changed (IP address or useragent) (IP: 172.19.0.5)
+2026-02-17 18:11:00	admin	http://skfo.ddev.site/processwire/login/	Successful login for 'admin'

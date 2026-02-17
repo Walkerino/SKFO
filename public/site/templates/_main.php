@@ -23,7 +23,13 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		['label' => 'Форум', 'url' => '/forum/'],
 	];
 
-	$isTourTemplate = $page->template && $page->template->name === 'tour';
+	$templateName = $page->template ? $page->template->name : '';
+	$requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+	$isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
+	$isReviewsPage = $page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest;
+	$isTourTemplate = in_array($templateName, ['tour', 'reviews'], true) || $isReviewsPage;
+	$isTourNavActive = $templateName === 'tour';
+	$isReviewsNavActive = $templateName === 'reviews' || $isReviewsPage;
 
 ?><!DOCTYPE html>
 <html lang="ru">
@@ -44,7 +50,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 							<div class="tour-header-nav tour-nav-group" role="tablist">
 								<span class="tour-nav-indicator" aria-hidden="true"></span>
 								<span class="tour-nav-hover" aria-hidden="true"></span>
-								<a class="tour-header-link tour-nav-link is-active" href="/tours/">
+								<a class="tour-header-link tour-nav-link<?php echo $isTourNavActive ? ' is-active' : ''; ?>" href="<?php echo $home->url; ?>">
 									<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
 									<span class="tour-nav-text">Туры</span>
 								</a>
@@ -52,7 +58,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 									<img src="<?php echo $config->urls->templates; ?>assets/icons/hotel.svg" alt="" aria-hidden="true" />
 									<span class="tour-nav-text">Отели</span>
 								</a>
-								<a class="tour-header-link tour-nav-link" href="/reviews/">
+								<a class="tour-header-link tour-nav-link<?php echo $isReviewsNavActive ? ' is-active' : ''; ?>" href="/reviews/">
 									<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
 									<span class="tour-nav-text">Отзывы</span>
 								</a>
@@ -132,7 +138,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 					<a href="/terms/">Правила использования сайта</a>
 				</nav>
 				<div class="footer-sections" aria-label="Разделы">
-					<a class="footer-section-item" href="/tours/">
+					<a class="footer-section-item" href="<?php echo $home->url; ?>">
 						<span class="footer-section-icon"><img src="<?php echo $config->urls->templates; ?>assets/icons/tour-footer.svg" alt="" aria-hidden="true" /></span>
 						<span class="footer-section-text">
 							<span class="footer-section-title">Туры</span>

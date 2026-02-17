@@ -44,3 +44,5 @@
 2026-02-16 18:13:06	admin	http://skfo.ddev.site/tur-po-dagestanu/	Created field 'tour_difficulty_level'.
 2026-02-16 18:13:06	admin	http://skfo.ddev.site/tur-po-dagestanu/	Updated options for field 'tour_difficulty_level'.
 2026-02-16 18:13:06	admin	http://skfo.ddev.site/tur-po-dagestanu/	Updated fields on template 'tour'.
+2026-02-17 18:00:05	admin	http://skfo.ddev.site/http404/reviews/	Created template 'reviews'.
+2026-02-17 18:00:05	admin	http://skfo.ddev.site/http404/reviews/	Created page '/reviews/'.
