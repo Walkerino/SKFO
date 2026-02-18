@@ -26,10 +26,15 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$templateName = $page->template ? $page->template->name : '';
 	$requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
 	$isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
+	$isRegionsRequest = preg_match('#^/regions(?:/|$)#', (string) $requestPath) === 1;
 	$isReviewsPage = $page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest;
-	$isTourTemplate = in_array($templateName, ['tour', 'reviews'], true) || $isReviewsPage;
+	$isRegionsPage = $page->name === 'regions' || $page->path === '/regions/' || $templateName === 'region' || $isRegionsRequest;
+	$isTourTemplate = in_array($templateName, ['tour', 'reviews', 'regions', 'region'], true) || $isReviewsPage || $isRegionsPage;
 	$isTourNavActive = $templateName === 'tour';
 	$isReviewsNavActive = $templateName === 'reviews' || $isReviewsPage;
+	$isRegionsNavActive = in_array($templateName, ['regions', 'region'], true) || $isRegionsPage;
+	$mainCssPath = $config->paths->templates . 'styles/main.css';
+	$mainCssVersion = is_file($mainCssPath) ? filemtime($mainCssPath) : null;
 
 ?><!DOCTYPE html>
 <html lang="ru">
@@ -37,7 +42,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		<meta http-equiv="content-type" content="text/html; charset=utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title><?php echo $page->title; ?> | SKFO.RU</title>
-		<link rel="stylesheet" type="text/css" href="<?php echo $config->urls->templates; ?>styles/main.css" />
+		<link rel="stylesheet" type="text/css" href="<?php echo $config->urls->templates; ?>styles/main.css<?php echo $mainCssVersion ? '?v=' . (int) $mainCssVersion : ''; ?>" />
 	</head>
 		<body id="html-body">
 			<?php if($isTourTemplate): ?>
@@ -62,7 +67,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 									<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
 									<span class="tour-nav-text">Отзывы</span>
 								</a>
-								<a class="tour-header-link tour-nav-link" href="/regions/">
+								<a class="tour-header-link tour-nav-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/">
 									<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 									<span class="tour-nav-text">Регионы</span>
 								</a>

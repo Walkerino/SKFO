@@ -6,3 +6,5 @@
 2026-02-14 12:27:26	admin	http://skfo.ddev.site/tur-po-dagestanu/	Deleted field "tour_transfer" data in 1 row(s) from 1 page(s) using template "tour". [page-by-page] (Fields)
 2026-02-14 12:28:42	admin	http://skfo.ddev.site/processwire/page/edit/?id=1038&field=tour_days&repeater_add=1	Populated initial created/modified dates for 'tour_day_images' (FieldtypeImage)
 2026-02-16 18:13:06	admin	http://skfo.ddev.site/tur-po-dagestanu/	Deleted field "tour_difficulty" data in 1 row(s) from 1 page(s) using template "tour". [page-by-page] (Fields)
+2026-02-18 11:06:03	admin	http://skfo.ddev.site/processwire/	Populated initial created/modified dates for 'region_card_image' (FieldtypeImage)
+2026-02-18 11:16:08	admin	http://skfo.ddev.site/processwire/page/edit/?id=1052&s=1&c=1	Removed 'region_card_image' temp file(s) for page /processwire/repeaters/for-field-133/for-page-1052/1771401963-4582-7/ - rectangle_7-5.png (Pageimages)

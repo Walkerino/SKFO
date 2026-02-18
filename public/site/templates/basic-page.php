@@ -13,8 +13,13 @@
 <?php
 $requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
 $isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
+$isRegionsRequest = $requestPath === '/regions' || $requestPath === '/regions/';
 if ($page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest) {
 	require __DIR__ . '/reviews.php';
+	return;
+}
+if ($page->name === 'regions' || $page->path === '/regions/' || $isRegionsRequest) {
+	require __DIR__ . '/regions.php';
 	return;
 }
 ?>

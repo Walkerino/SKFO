@@ -1103,6 +1103,191 @@ a {
   color: #b03838;
 }
 
+.regions-page {
+  background: #ebebeb;
+  min-height: 100vh;
+}
+
+.regions-content {
+  padding: 74px 0 128px;
+}
+
+.regions-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  justify-items: center;
+  gap: 24px 20px;
+  align-items: start;
+}
+
+.regions-card {
+  width: 368px;
+  height: 403px;
+  margin: 0;
+  border-radius: 28px;
+  background: #ffffff;
+  padding: 16px 16px 22px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.regions-card--center {
+  grid-column: 2;
+}
+
+.regions-card-media {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 14px;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+}
+
+.regions-card-media--placeholder {
+  position: relative;
+  overflow: hidden;
+  background-image: linear-gradient(135deg, #6f95bc 0%, #85abd1 50%, #aac9e2 100%);
+}
+
+.regions-card-media--placeholder::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(125deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+}
+
+.regions-card-media--placeholder::after {
+  content: "Заглушка";
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(14, 36, 74, 0.45);
+  color: #ffffff;
+  font-family: "Inter", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.regions-card-title {
+  margin-top: 18px;
+  margin-bottom: 3px;
+  color: #121826;
+  font-family: "Inter", sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.05;
+  width: 300px;
+}
+
+.regions-card-subtitle {
+  margin: 0;
+  color: #747474;
+  font-family: "Inter", sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.1;
+  white-space: pre-line;
+
+  margin-bottom: 30px;
+  width: 210px;
+}
+
+.regions-card-btn {
+  margin-top: auto;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 127px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  color: #ffffff;
+  background: linear-gradient(90deg, #ff700d 0%, #f2960f 100%);
+  font-family: "Inter", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+
+  border: 1px solid #00056233;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.regions-card-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 18px rgba(242, 122, 26, 0.28);
+  background: linear-gradient(90deg, #ff7b21 0%, #f5a322 100%);
+}
+
+.regions-card-btn:focus-visible {
+  outline: 2px solid rgba(255, 123, 33, 0.55);
+  outline-offset: 2px;
+}
+
+.regions-card-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 5px 10px rgba(242, 122, 26, 0.24);
+}
+
+.region-placeholder {
+  max-width: 760px;
+  margin: 0 auto;
+  border-radius: 28px;
+  background: #ffffff;
+  padding: 48px 32px;
+  text-align: center;
+}
+
+.region-placeholder-text {
+  margin: 0;
+  color: #2b3040;
+  font-family: "Inter", sans-serif;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.region-hero-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.region-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  min-width: 127px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid #00056233;
+  background: linear-gradient(90deg, #ff700d 0%, #f2960f 100%);
+  color: #ffffff;
+  font-family: "Inter", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.region-back-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 18px rgba(242, 122, 26, 0.28);
+  background: linear-gradient(90deg, #ff7b21 0%, #f5a322 100%);
+}
+
+.region-back-btn:focus-visible {
+  outline: 2px solid rgba(255, 123, 33, 0.55);
+  outline-offset: 2px;
+}
+
 .main-nav {
   margin-top: 16px;
 }
@@ -2321,6 +2506,12 @@ h6,
     margin-top: 0;
   }
 
+  .region-back-btn {
+    min-height: 36px;
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+
   .reviews-layout {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -2351,6 +2542,33 @@ h6,
 
   .reviews-submit {
     width: 100%;
+  }
+
+  .regions-content {
+    padding: 34px 0 64px;
+  }
+
+  .regions-grid {
+    grid-template-columns: 1fr;
+    justify-content: center;
+    gap: 14px;
+  }
+
+  .regions-card {
+    width: min(428px, 100%);
+    height: auto;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
+  .regions-card--center {
+    grid-column: auto;
+  }
+
+
+  .regions-card-subtitle {
+    min-height: 0;
+    margin-bottom: 14px;
   }
 
   .header-row {

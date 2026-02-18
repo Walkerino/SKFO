@@ -46,3 +46,19 @@
 2026-02-16 18:13:06	admin	http://skfo.ddev.site/tur-po-dagestanu/	Updated fields on template 'tour'.
 2026-02-17 18:00:05	admin	http://skfo.ddev.site/http404/reviews/	Created template 'reviews'.
 2026-02-17 18:00:05	admin	http://skfo.ddev.site/http404/reviews/	Created page '/reviews/'.
+2026-02-18 11:06:03	admin	http://skfo.ddev.site/processwire/	Created field 'region_card_title'.
+2026-02-18 11:06:03	admin	http://skfo.ddev.site/processwire/	Created field 'region_card_description'.
+2026-02-18 11:06:03	admin	http://skfo.ddev.site/processwire/	Created field 'region_card_image'.
+2026-02-18 11:06:03	admin	http://skfo.ddev.site/processwire/	Created field 'region_cards'.
+2026-02-18 11:06:03	admin	http://skfo.ddev.site/processwire/	Updated repeater fieldgroup 'repeater_region_cards'.
+2026-02-18 11:06:03	admin	http://skfo.ddev.site/processwire/	Updated fields on template 'basic-page'.
+2026-02-18 11:06:03	admin	http://skfo.ddev.site/processwire/	Created page '/regions/'.
+2026-02-18 11:06:03	admin	http://skfo.ddev.site/processwire/	Seeded field 'region_cards' on page '/regions/'.
+2026-02-18 11:24:49	admin	http://skfo.ddev.site/regions/	Created template 'region'.
+2026-02-18 11:24:49	admin	http://skfo.ddev.site/regions/	Created region page '/regions/kabardino-balkarskaya-respublika/'.
+2026-02-18 11:24:49	admin	http://skfo.ddev.site/regions/	Created region page '/regions/karachaevo-cherkesskaya-respublika/'.
+2026-02-18 11:24:49	admin	http://skfo.ddev.site/regions/	Created region page '/regions/respublika-dagestan/'.
+2026-02-18 11:24:49	admin	http://skfo.ddev.site/regions/	Created region page '/regions/respublika-ingushetiya/'.
+2026-02-18 11:24:49	admin	http://skfo.ddev.site/regions/	Created region page '/regions/respublika-severnaya-osetiya/'.
+2026-02-18 11:24:49	admin	http://skfo.ddev.site/regions/	Created region page '/regions/stavropolskiy-kray/'.
+2026-02-18 11:24:49	admin	http://skfo.ddev.site/regions/	Created region page '/regions/chechenskaya-respublika/'.

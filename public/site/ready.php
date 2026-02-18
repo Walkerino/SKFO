@@ -91,6 +91,14 @@ $dagestanPlaceImageField = $ensureField('dagestan_place_image', 'FieldtypeImage'
 ]);
 $dagestanPlacesCardsField = $ensureField('dagestan_places_cards', 'FieldtypeRepeater', 'Карточки блока "Что насчёт Дагестана?"');
 
+$regionCardTitleField = $ensureField('region_card_title', 'FieldtypeText', 'Заголовок карточки региона');
+$regionCardDescriptionField = $ensureField('region_card_description', 'FieldtypeTextarea', 'Описание карточки региона');
+$regionCardImageField = $ensureField('region_card_image', 'FieldtypeImage', 'Фото карточки региона', [
+	'maxFiles' => 1,
+	'extensions' => 'jpg jpeg png gif webp',
+]);
+$regionCardsField = $ensureField('region_cards', 'FieldtypeRepeater', 'Карточки страницы "Регионы"');
+
 $tourRegionField = $ensureField('tour_region', 'FieldtypeText', 'Регион тура');
 $tourDescriptionField = $ensureField('tour_description', 'FieldtypeTextarea', 'Описание тура');
 $tourPriceField = $ensureField('tour_price', 'FieldtypeText', 'Цена тура');
@@ -173,6 +181,26 @@ if($dagestanPlaceImageField && $dagestanPlaceImageField->id) {
 	if($dagestanPlaceImageChanged) {
 		$fields->save($dagestanPlaceImageField);
 		$log->save('actual-cards-setup', "Updated field 'dagestan_place_image' settings.");
+	}
+}
+
+if($regionCardImageField && $regionCardImageField->id) {
+	$regionCardImageChanged = false;
+
+	if((int) $regionCardImageField->get('maxFiles') !== 1) {
+		$regionCardImageField->set('maxFiles', 1);
+		$regionCardImageChanged = true;
+	}
+
+	$regionCardExtensions = trim((string) $regionCardImageField->get('extensions'));
+	if($regionCardExtensions === '') {
+		$regionCardImageField->set('extensions', 'jpg jpeg png gif webp');
+		$regionCardImageChanged = true;
+	}
+
+	if($regionCardImageChanged) {
+		$fields->save($regionCardImageField);
+		$log->save('actual-cards-setup', "Updated field 'region_card_image' settings.");
 	}
 }
 
@@ -275,6 +303,7 @@ if(
 	(!$actualCardsField || !$actualCardsField->id) &&
 	(!$hotToursCardsField || !$hotToursCardsField->id) &&
 	(!$dagestanPlacesCardsField || !$dagestanPlacesCardsField->id) &&
+	(!$regionCardsField || !$regionCardsField->id) &&
 	(!$tourDaysField || !$tourDaysField->id) &&
 	(!$tourIncludedItemsField || !$tourIncludedItemsField->id)
 ) return;
@@ -348,6 +377,28 @@ if($dagestanPlacesCardsField && $dagestanPlacesCardsField->id) {
 		if($dagestanChanged) {
 			$dagestanFieldgroup->save();
 			$log->save('actual-cards-setup', "Updated repeater fieldgroup '{$dagestanFieldgroup->name}'.");
+		}
+	}
+}
+
+if($regionCardsField && $regionCardsField->id) {
+	$regionsRepeaterTemplate = $repeaterType->_getRepeaterTemplate($regionCardsField);
+	if($regionsRepeaterTemplate && $regionsRepeaterTemplate->id) {
+		$regionsFieldgroup = $regionsRepeaterTemplate->fieldgroup;
+		$regionsRepeaterFields = [$regionCardTitleField, $regionCardDescriptionField, $regionCardImageField];
+		$regionsChanged = false;
+
+		foreach($regionsRepeaterFields as $field) {
+			if(!$field || !$field->id) continue;
+			if(!$regionsFieldgroup->has($field)) {
+				$regionsFieldgroup->add($field);
+				$regionsChanged = true;
+			}
+		}
+
+		if($regionsChanged) {
+			$regionsFieldgroup->save();
+			$log->save('actual-cards-setup', "Updated repeater fieldgroup '{$regionsFieldgroup->name}'.");
 		}
 	}
 }
@@ -461,6 +512,141 @@ if($tourTemplate && $tourTemplate->id) {
 	if($tourChanged) {
 		$tourFieldgroup->save();
 		$log->save('actual-cards-setup', "Updated fields on template 'tour'.");
+	}
+}
+
+$regionsPageDefaults = [
+	[
+		'slug' => 'kabardino-balkarskaya-respublika',
+		'title' => "Кабардино-Балкарская\nРеспублика",
+		'description' => "Эльбрус и ущелья",
+	],
+	[
+		'slug' => 'karachaevo-cherkesskaya-respublika',
+		'title' => "Карачаево-Черкесская\nРеспублика",
+		'description' => "Домбай и Архыз",
+	],
+	[
+		'slug' => 'respublika-dagestan',
+		'title' => 'Республика Дагестан',
+		'description' => 'Каньоны, аулы и море впечатлений',
+	],
+	[
+		'slug' => 'respublika-ingushetiya',
+		'title' => 'Республика Ингушетия',
+		'description' => 'Башни, легенды и горные долины',
+	],
+	[
+		'slug' => 'respublika-severnaya-osetiya',
+		'title' => "Республика\nСеверная Осетия",
+		'description' => 'Перевалы и древние тропы',
+	],
+	[
+		'slug' => 'stavropolskiy-kray',
+		'title' => 'Ставропольский край',
+		'description' => 'Курорты, парки и мягкий южный ритм',
+	],
+	[
+		'slug' => 'chechenskaya-respublika',
+		'title' => 'Чеченская Республика',
+		'description' => 'Горные дороги и мощные виды',
+	],
+];
+
+$regionDetailTemplate = $templates->get('region');
+if(!$regionDetailTemplate || !$regionDetailTemplate->id) {
+	$basicTemplate = $templates->get('basic-page');
+	if($basicTemplate && $basicTemplate->id && $basicTemplate->fieldgroup) {
+		$regionDetailTemplate = new Template();
+		$regionDetailTemplate->name = 'region';
+		$regionDetailTemplate->label = 'Регион';
+		$regionDetailTemplate->fieldgroup = $basicTemplate->fieldgroup;
+		$templates->save($regionDetailTemplate);
+		$log->save('actual-cards-setup', "Created template 'region'.");
+	} else {
+		$log->save('actual-cards-setup', "Cannot create template 'region': template 'basic-page' not found.");
+	}
+}
+
+$regionsPage = $pages->get('/regions/');
+$currentPage = wire('page');
+$isAdminRequest = $currentPage && $currentPage->template && $currentPage->template->name === 'admin';
+$regionsTemplate = null;
+if($regionsPage && $regionsPage->id && $regionsPage->template && $regionsPage->template->id) {
+	$regionsTemplate = $regionsPage->template;
+} else {
+	$regionsTemplate = $templates->get('regions');
+	if(!$regionsTemplate || !$regionsTemplate->id) {
+		$regionsTemplate = $templates->get('basic-page');
+	}
+}
+
+if($regionsTemplate && $regionsTemplate->id && $regionCardsField && $regionCardsField->id) {
+	$regionsPageFieldgroup = $regionsTemplate->fieldgroup;
+	if($regionsPageFieldgroup && !$regionsPageFieldgroup->has($regionCardsField)) {
+		$regionsPageFieldgroup->add($regionCardsField);
+		$regionsPageFieldgroup->save();
+		$log->save('actual-cards-setup', "Updated fields on template '{$regionsTemplate->name}'.");
+	}
+}
+
+if((!$regionsPage || !$regionsPage->id) && $regionsTemplate && $regionsTemplate->id) {
+	$homePage = $pages->get('/');
+	if($homePage && $homePage->id) {
+		$regionsPage = new Page();
+		$regionsPage->template = $regionsTemplate;
+		$regionsPage->parent = $homePage;
+		$regionsPage->name = 'regions';
+		$regionsPage->title = 'Регионы';
+		$pages->save($regionsPage);
+		$log->save('actual-cards-setup', "Created page '/regions/'.");
+	}
+}
+
+if($regionsPage && $regionsPage->id && $regionDetailTemplate && $regionDetailTemplate->id) {
+	foreach($regionsPageDefaults as $item) {
+		$slug = trim((string) ($item['slug'] ?? ''));
+		$title = trim(str_replace("\n", ' ', (string) ($item['title'] ?? '')));
+		if($slug === '' || $title === '') continue;
+
+		$regionPath = $regionsPage->path . $slug . '/';
+		$regionPage = $pages->get($regionPath);
+
+		if(!$regionPage || !$regionPage->id) {
+			$regionPage = new Page();
+			$regionPage->template = $regionDetailTemplate;
+			$regionPage->parent = $regionsPage;
+			$regionPage->name = $slug;
+			$regionPage->title = $title;
+			$pages->save($regionPage);
+			$log->save('actual-cards-setup', "Created region page '{$regionPath}'.");
+		} elseif($regionPage->template && $regionPage->template->name !== 'region') {
+			$regionPage->of(false);
+			$regionPage->template = $regionDetailTemplate;
+			$pages->save($regionPage);
+			$log->save('actual-cards-setup', "Updated template for region page '{$regionPath}'.");
+		}
+	}
+}
+
+if(!$isAdminRequest && $regionsPage && $regionsPage->id && $regionCardsField && $regionCardsField->id) {
+	$regionsPage = $pages->get((int) $regionsPage->id);
+	if($regionsPage && $regionsPage->id && $regionsPage->hasField('region_cards')) {
+		$regionsCards = $regionsPage->getUnformatted('region_cards');
+		$regionsCardsCount = $regionsCards instanceof PageArray ? $regionsCards->count() : 0;
+
+		if($regionsCardsCount === 0) {
+			$regionsPage->of(false);
+			foreach($regionsPageDefaults as $item) {
+				$card = $regionsPage->region_cards->getNew();
+				$card->of(false);
+				$card->set('region_card_title', $item['title']);
+				$card->set('region_card_description', $item['description']);
+				$regionsPage->region_cards->add($card);
+			}
+			$regionsPage->save('region_cards');
+			$log->save('actual-cards-setup', "Seeded field 'region_cards' on page '/regions/'.");
+		}
 	}
 }
 
