@@ -62,3 +62,51 @@
 2026-02-18 11:24:49	admin	http://skfo.ddev.site/regions/	Created region page '/regions/respublika-severnaya-osetiya/'.
 2026-02-18 11:24:49	admin	http://skfo.ddev.site/regions/	Created region page '/regions/stavropolskiy-kray/'.
 2026-02-18 11:24:49	admin	http://skfo.ddev.site/regions/	Created region page '/regions/chechenskaya-respublika/'.
+2026-02-18 16:20:41	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_adventure_title'.
+2026-02-18 16:20:41	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_adventure_price'.
+2026-02-18 16:20:41	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_adventure_image'.
+2026-02-18 16:20:41	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_adventures_cards'.
+2026-02-18 16:20:41	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_place_title'.
+2026-02-18 16:20:41	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_place_text'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_place_image'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_places_cards'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_articles_heading'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_article_title'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_article_date'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_article_topic'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_article_url'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_article_image'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_article_is_fresh'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_articles_cards'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_forum_title'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_forum_subtitle'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_forum_button_text'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Created field 'region_forum_image'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Updated repeater fieldgroup 'repeater_region_adventures_cards'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Updated repeater fieldgroup 'repeater_region_places_cards'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Updated repeater fieldgroup 'repeater_region_articles_cards'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/?login=1	Updated fields on template 'region'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/page/?login=1	Updated fields on template 'region'.
+2026-02-18 16:20:42	admin	http://skfo.ddev.site/processwire/page/?login=1	Updated fields on template 'basic-page'.
+2026-02-18 16:22:28	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_adventures_cards' on page '/regions/kabardino-balkarskaya-respublika/'.
+2026-02-18 16:22:28	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_places_cards' on page '/regions/kabardino-balkarskaya-respublika/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_articles_cards' on page '/regions/kabardino-balkarskaya-respublika/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_adventures_cards' on page '/regions/karachaevo-cherkesskaya-respublika/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_places_cards' on page '/regions/karachaevo-cherkesskaya-respublika/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_articles_cards' on page '/regions/karachaevo-cherkesskaya-respublika/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_adventures_cards' on page '/regions/respublika-dagestan/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_places_cards' on page '/regions/respublika-dagestan/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_articles_cards' on page '/regions/respublika-dagestan/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_adventures_cards' on page '/regions/respublika-ingushetiya/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_places_cards' on page '/regions/respublika-ingushetiya/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_articles_cards' on page '/regions/respublika-ingushetiya/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_adventures_cards' on page '/regions/respublika-severnaya-osetiya/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_places_cards' on page '/regions/respublika-severnaya-osetiya/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_articles_cards' on page '/regions/respublika-severnaya-osetiya/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_adventures_cards' on page '/regions/stavropolskiy-kray/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_places_cards' on page '/regions/stavropolskiy-kray/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_articles_cards' on page '/regions/stavropolskiy-kray/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_adventures_cards' on page '/regions/chechenskaya-respublika/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_places_cards' on page '/regions/chechenskaya-respublika/'.
+2026-02-18 16:22:29	admin	http://skfo.ddev.site/http404/favicon.ico	Seeded field 'region_articles_cards' on page '/regions/chechenskaya-respublika/'.
+2026-02-18 16:33:42	admin	http://skfo.ddev.site/processwire/page/edit/?id=1075	Updated fields on template 'region'.

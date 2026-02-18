@@ -18,6 +18,19 @@ if(!defined("PROCESSWIRE")) die();
 $user = wire('user');
 if(!$user || !$user->isSuperuser()) return;
 
+/** @var Page|null $currentPage */
+$currentPage = wire('page');
+$isAdminRequest = $currentPage && $currentPage->template && $currentPage->template->name === 'admin';
+if(!$isAdminRequest) return;
+
+/** @var WireInput $input */
+$input = wire('input');
+if(strtoupper($input->requestMethod()) === 'POST') return;
+
+/** @var Config $config */
+$config = wire('config');
+$config->useLazyLoading = false;
+
 /** @var Fields $fields */
 $fields = wire('fields');
 /** @var Modules $modules */
@@ -98,6 +111,34 @@ $regionCardImageField = $ensureField('region_card_image', 'FieldtypeImage', 'Ф�
 	'extensions' => 'jpg jpeg png gif webp',
 ]);
 $regionCardsField = $ensureField('region_cards', 'FieldtypeRepeater', 'Карточки страницы "Регионы"');
+
+$regionAdventureTitleField = $ensureField('region_adventure_title', 'FieldtypeText', 'Регион: приключение (заголовок)');
+$regionAdventurePriceField = $ensureField('region_adventure_price', 'FieldtypeText', 'Регион: приключение (цена)');
+$regionAdventureImageField = $ensureField('region_adventure_image', 'FieldtypeImage', 'Регион: приключение (фото)', [
+	'maxFiles' => 1,
+	'extensions' => 'jpg jpeg png gif webp',
+]);
+$regionAdventuresCardsField = $ensureField('region_adventures_cards', 'FieldtypeRepeater', 'Регион: блок "На встречу к приключениям"');
+
+$regionPlaceTitleField = $ensureField('region_place_title', 'FieldtypeText', 'Регион: место (заголовок)');
+$regionPlaceTextField = $ensureField('region_place_text', 'FieldtypeTextarea', 'Регион: место (описание)');
+$regionPlaceImageField = $ensureField('region_place_image', 'FieldtypeImage', 'Регион: место (фото)', [
+	'maxFiles' => 1,
+	'extensions' => 'jpg jpeg png gif webp',
+]);
+$regionPlacesCardsField = $ensureField('region_places_cards', 'FieldtypeRepeater', 'Регион: блок интересных мест');
+
+$regionArticlesHeadingField = $ensureField('region_articles_heading', 'FieldtypeText', 'Регион: заголовок блока статей');
+$regionArticleTitleField = $ensureField('region_article_title', 'FieldtypeText', 'Регион: статья (заголовок)');
+$regionArticleDateField = $ensureField('region_article_date', 'FieldtypeDatetime', 'Регион: статья (дата публикации)');
+$regionArticleTopicField = $ensureField('region_article_topic', 'FieldtypeText', 'Регион: статья (тематика)');
+$regionArticleUrlField = $ensureField('region_article_url', 'FieldtypeText', 'Регион: статья (ссылка)');
+$regionArticleImageField = $ensureField('region_article_image', 'FieldtypeImage', 'Регион: статья (фото)', [
+	'maxFiles' => 1,
+	'extensions' => 'jpg jpeg png gif webp',
+]);
+$regionArticleFreshField = $ensureField('region_article_is_fresh', 'FieldtypeCheckbox', 'Регион: статья (плашка "Свежая статья")');
+$regionArticlesCardsField = $ensureField('region_articles_cards', 'FieldtypeRepeater', 'Регион: блок "Интересное о регионе"');
 
 $tourRegionField = $ensureField('tour_region', 'FieldtypeText', 'Регион тура');
 $tourDescriptionField = $ensureField('tour_description', 'FieldtypeTextarea', 'Описание тура');
@@ -204,6 +245,66 @@ if($regionCardImageField && $regionCardImageField->id) {
 	}
 }
 
+if($regionAdventureImageField && $regionAdventureImageField->id) {
+	$regionAdventureImageChanged = false;
+
+	if((int) $regionAdventureImageField->get('maxFiles') !== 1) {
+		$regionAdventureImageField->set('maxFiles', 1);
+		$regionAdventureImageChanged = true;
+	}
+
+	$regionAdventureExtensions = trim((string) $regionAdventureImageField->get('extensions'));
+	if($regionAdventureExtensions === '') {
+		$regionAdventureImageField->set('extensions', 'jpg jpeg png gif webp');
+		$regionAdventureImageChanged = true;
+	}
+
+	if($regionAdventureImageChanged) {
+		$fields->save($regionAdventureImageField);
+		$log->save('actual-cards-setup', "Updated field 'region_adventure_image' settings.");
+	}
+}
+
+if($regionPlaceImageField && $regionPlaceImageField->id) {
+	$regionPlaceImageChanged = false;
+
+	if((int) $regionPlaceImageField->get('maxFiles') !== 1) {
+		$regionPlaceImageField->set('maxFiles', 1);
+		$regionPlaceImageChanged = true;
+	}
+
+	$regionPlaceExtensions = trim((string) $regionPlaceImageField->get('extensions'));
+	if($regionPlaceExtensions === '') {
+		$regionPlaceImageField->set('extensions', 'jpg jpeg png gif webp');
+		$regionPlaceImageChanged = true;
+	}
+
+	if($regionPlaceImageChanged) {
+		$fields->save($regionPlaceImageField);
+		$log->save('actual-cards-setup', "Updated field 'region_place_image' settings.");
+	}
+}
+
+if($regionArticleImageField && $regionArticleImageField->id) {
+	$regionArticleImageChanged = false;
+
+	if((int) $regionArticleImageField->get('maxFiles') !== 1) {
+		$regionArticleImageField->set('maxFiles', 1);
+		$regionArticleImageChanged = true;
+	}
+
+	$regionArticleExtensions = trim((string) $regionArticleImageField->get('extensions'));
+	if($regionArticleExtensions === '') {
+		$regionArticleImageField->set('extensions', 'jpg jpeg png gif webp');
+		$regionArticleImageChanged = true;
+	}
+
+	if($regionArticleImageChanged) {
+		$fields->save($regionArticleImageField);
+		$log->save('actual-cards-setup', "Updated field 'region_article_image' settings.");
+	}
+}
+
 if($tourCoverImageField && $tourCoverImageField->id) {
 	$tourCoverChanged = false;
 
@@ -304,6 +405,9 @@ if(
 	(!$hotToursCardsField || !$hotToursCardsField->id) &&
 	(!$dagestanPlacesCardsField || !$dagestanPlacesCardsField->id) &&
 	(!$regionCardsField || !$regionCardsField->id) &&
+	(!$regionAdventuresCardsField || !$regionAdventuresCardsField->id) &&
+	(!$regionPlacesCardsField || !$regionPlacesCardsField->id) &&
+	(!$regionArticlesCardsField || !$regionArticlesCardsField->id) &&
 	(!$tourDaysField || !$tourDaysField->id) &&
 	(!$tourIncludedItemsField || !$tourIncludedItemsField->id)
 ) return;
@@ -399,6 +503,79 @@ if($regionCardsField && $regionCardsField->id) {
 		if($regionsChanged) {
 			$regionsFieldgroup->save();
 			$log->save('actual-cards-setup', "Updated repeater fieldgroup '{$regionsFieldgroup->name}'.");
+		}
+	}
+}
+
+if($regionAdventuresCardsField && $regionAdventuresCardsField->id) {
+	$regionAdventuresRepeaterTemplate = $repeaterType->_getRepeaterTemplate($regionAdventuresCardsField);
+	if($regionAdventuresRepeaterTemplate && $regionAdventuresRepeaterTemplate->id) {
+		$regionAdventuresFieldgroup = $regionAdventuresRepeaterTemplate->fieldgroup;
+		$regionAdventuresRepeaterFields = [$regionAdventureTitleField, $regionAdventurePriceField, $regionAdventureImageField];
+		$regionAdventuresChanged = false;
+
+		foreach($regionAdventuresRepeaterFields as $field) {
+			if(!$field || !$field->id) continue;
+			if(!$regionAdventuresFieldgroup->has($field)) {
+				$regionAdventuresFieldgroup->add($field);
+				$regionAdventuresChanged = true;
+			}
+		}
+
+		if($regionAdventuresChanged) {
+			$regionAdventuresFieldgroup->save();
+			$log->save('actual-cards-setup', "Updated repeater fieldgroup '{$regionAdventuresFieldgroup->name}'.");
+		}
+	}
+}
+
+if($regionPlacesCardsField && $regionPlacesCardsField->id) {
+	$regionPlacesRepeaterTemplate = $repeaterType->_getRepeaterTemplate($regionPlacesCardsField);
+	if($regionPlacesRepeaterTemplate && $regionPlacesRepeaterTemplate->id) {
+		$regionPlacesFieldgroup = $regionPlacesRepeaterTemplate->fieldgroup;
+		$regionPlacesRepeaterFields = [$regionPlaceTitleField, $regionPlaceTextField, $regionPlaceImageField];
+		$regionPlacesChanged = false;
+
+		foreach($regionPlacesRepeaterFields as $field) {
+			if(!$field || !$field->id) continue;
+			if(!$regionPlacesFieldgroup->has($field)) {
+				$regionPlacesFieldgroup->add($field);
+				$regionPlacesChanged = true;
+			}
+		}
+
+		if($regionPlacesChanged) {
+			$regionPlacesFieldgroup->save();
+			$log->save('actual-cards-setup', "Updated repeater fieldgroup '{$regionPlacesFieldgroup->name}'.");
+		}
+	}
+}
+
+if($regionArticlesCardsField && $regionArticlesCardsField->id) {
+	$regionArticlesRepeaterTemplate = $repeaterType->_getRepeaterTemplate($regionArticlesCardsField);
+	if($regionArticlesRepeaterTemplate && $regionArticlesRepeaterTemplate->id) {
+		$regionArticlesFieldgroup = $regionArticlesRepeaterTemplate->fieldgroup;
+		$regionArticlesRepeaterFields = [
+			$regionArticleTitleField,
+			$regionArticleDateField,
+			$regionArticleTopicField,
+			$regionArticleUrlField,
+			$regionArticleImageField,
+			$regionArticleFreshField,
+		];
+		$regionArticlesChanged = false;
+
+		foreach($regionArticlesRepeaterFields as $field) {
+			if(!$field || !$field->id) continue;
+			if(!$regionArticlesFieldgroup->has($field)) {
+				$regionArticlesFieldgroup->add($field);
+				$regionArticlesChanged = true;
+			}
+		}
+
+		if($regionArticlesChanged) {
+			$regionArticlesFieldgroup->save();
+			$log->save('actual-cards-setup', "Updated repeater fieldgroup '{$regionArticlesFieldgroup->name}'.");
 		}
 	}
 }
@@ -568,9 +745,45 @@ if(!$regionDetailTemplate || !$regionDetailTemplate->id) {
 	}
 }
 
+if($regionDetailTemplate && $regionDetailTemplate->id) {
+	$regionFieldgroup = $regionDetailTemplate->fieldgroup;
+	$regionTemplateFields = [
+		$regionAdventuresCardsField,
+		$regionPlacesCardsField,
+		$regionArticlesHeadingField,
+		$regionArticlesCardsField,
+	];
+	$regionTemplateChanged = false;
+
+	foreach($regionTemplateFields as $field) {
+		if(!$field || !$field->id) continue;
+		if(!$regionFieldgroup->has($field)) {
+			$regionFieldgroup->add($field);
+			$regionTemplateChanged = true;
+		}
+	}
+
+	$regionFieldsToRemove = [
+		'region_forum_title',
+		'region_forum_subtitle',
+		'region_forum_button_text',
+		'region_forum_image',
+	];
+	foreach($regionFieldsToRemove as $fieldName) {
+		$field = $fields->get($fieldName);
+		if($field && $field->id && $regionFieldgroup->has($field)) {
+			$regionFieldgroup->remove($field);
+			$regionTemplateChanged = true;
+		}
+	}
+
+	if($regionTemplateChanged) {
+		$regionFieldgroup->save();
+		$log->save('actual-cards-setup', "Updated fields on template 'region'.");
+	}
+}
+
 $regionsPage = $pages->get('/regions/');
-$currentPage = wire('page');
-$isAdminRequest = $currentPage && $currentPage->template && $currentPage->template->name === 'admin';
 $regionsTemplate = null;
 if($regionsPage && $regionsPage->id && $regionsPage->template && $regionsPage->template->id) {
 	$regionsTemplate = $regionsPage->template;
@@ -620,16 +833,132 @@ if($regionsPage && $regionsPage->id && $regionDetailTemplate && $regionDetailTem
 			$regionPage->title = $title;
 			$pages->save($regionPage);
 			$log->save('actual-cards-setup', "Created region page '{$regionPath}'.");
-		} elseif($regionPage->template && $regionPage->template->name !== 'region') {
-			$regionPage->of(false);
-			$regionPage->template = $regionDetailTemplate;
-			$pages->save($regionPage);
-			$log->save('actual-cards-setup', "Updated template for region page '{$regionPath}'.");
+			} elseif($regionPage->template && $regionPage->template->name !== 'region') {
+				$regionPage->of(false);
+				$regionPage->template = $regionDetailTemplate;
+				$pages->save($regionPage);
+				$log->save('actual-cards-setup', "Updated template for region page '{$regionPath}'.");
+			}
+
+			if($isAdminRequest && $regionPage && $regionPage->id) {
+				$regionPage = $pages->get((int) $regionPage->id);
+				if(!$regionPage || !$regionPage->id) continue;
+
+				$regionPage->of(false);
+
+				if($regionPage->hasField('region_articles_heading')) {
+					$currentHeading = trim((string) $regionPage->getUnformatted('region_articles_heading'));
+					if($currentHeading === '') {
+						$regionPage->setAndSave('region_articles_heading', 'Интересное о ' . $title);
+					}
+				}
+
+				if($regionPage->hasField('region_adventures_cards')) {
+					$adventureItems = $regionPage->getUnformatted('region_adventures_cards');
+					$adventureCount = $adventureItems instanceof PageArray ? $adventureItems->count() : 0;
+
+					if($adventureCount === 0) {
+						$adventureDefaults = [
+							['title' => "Открыть лучшие маршруты {$title}", 'price' => 'от 15 000₽'],
+							['title' => "Увидеть знаковые места {$title}", 'price' => 'от 12 500₽'],
+							['title' => "Запланировать активный уикенд в {$title}", 'price' => 'от 13 000₽'],
+							['title' => "Выбрать семейный тур по {$title}", 'price' => 'от 10 000₽'],
+							['title' => "Собрать насыщенный маршрут по {$title}", 'price' => 'от 11 500₽'],
+						];
+
+						foreach($adventureDefaults as $adventureDefault) {
+							$card = $regionPage->region_adventures_cards->getNew();
+							$card->of(false);
+							$card->set('region_adventure_title', (string) ($adventureDefault['title'] ?? ''));
+							$card->set('region_adventure_price', (string) ($adventureDefault['price'] ?? ''));
+							$regionPage->region_adventures_cards->add($card);
+						}
+
+						$regionPage->save('region_adventures_cards');
+						$log->save('actual-cards-setup', "Seeded field 'region_adventures_cards' on page '{$regionPath}'.");
+					}
+				}
+
+				if($regionPage->hasField('region_places_cards')) {
+					$placeItems = $regionPage->getUnformatted('region_places_cards');
+					$placeCount = $placeItems instanceof PageArray ? $placeItems->count() : 0;
+
+					if($placeCount === 0) {
+						$placeDefaults = [
+							[
+								'title' => "Главная достопримечательность {$title}",
+								'text' => 'Одна из самых узнаваемых локаций региона, которую стоит увидеть в первую очередь.',
+							],
+							[
+								'title' => "Панорамный маршрут {$title}",
+								'text' => 'Живописный маршрут с красивыми видами и удобным доступом для путешествий.',
+							],
+						];
+
+						foreach($placeDefaults as $placeDefault) {
+							$card = $regionPage->region_places_cards->getNew();
+							$card->of(false);
+							$card->set('region_place_title', (string) ($placeDefault['title'] ?? ''));
+							$card->set('region_place_text', (string) ($placeDefault['text'] ?? ''));
+							$regionPage->region_places_cards->add($card);
+						}
+
+						$regionPage->save('region_places_cards');
+						$log->save('actual-cards-setup', "Seeded field 'region_places_cards' on page '{$regionPath}'.");
+					}
+				}
+
+				if($regionPage->hasField('region_articles_cards')) {
+					$articleItems = $regionPage->getUnformatted('region_articles_cards');
+					$articleCount = $articleItems instanceof PageArray ? $articleItems->count() : 0;
+
+					if($articleCount === 0) {
+						$articleDefaults = [
+							[
+								'title' => "Как подготовиться к путешествию в {$title}",
+								'topic' => 'Советы туристам',
+								'date' => strtotime('2026-02-01'),
+								'is_fresh' => 1,
+							],
+							[
+								'title' => 'Душа Кавказа в поэзии и традициях',
+								'topic' => 'Культура и традиции',
+								'date' => strtotime('2025-12-22'),
+								'is_fresh' => 0,
+							],
+							[
+								'title' => 'Горнолыжный сезон: советы и лайфхаки',
+								'topic' => 'Советы туристам',
+								'date' => strtotime('2025-12-16'),
+								'is_fresh' => 0,
+							],
+							[
+								'title' => "Что взять с собой в поездку по {$title}",
+								'topic' => 'Полезные подборки',
+								'date' => strtotime('2025-12-08'),
+								'is_fresh' => 0,
+							],
+						];
+
+						foreach($articleDefaults as $articleDefault) {
+							$card = $regionPage->region_articles_cards->getNew();
+							$card->of(false);
+							$card->set('region_article_title', (string) ($articleDefault['title'] ?? ''));
+							$card->set('region_article_topic', (string) ($articleDefault['topic'] ?? ''));
+							$card->set('region_article_date', (int) ($articleDefault['date'] ?? 0));
+							$card->set('region_article_is_fresh', (int) ($articleDefault['is_fresh'] ?? 0));
+							$regionPage->region_articles_cards->add($card);
+						}
+
+						$regionPage->save('region_articles_cards');
+						$log->save('actual-cards-setup', "Seeded field 'region_articles_cards' on page '{$regionPath}'.");
+					}
+				}
+			}
 		}
 	}
-}
 
-if(!$isAdminRequest && $regionsPage && $regionsPage->id && $regionCardsField && $regionCardsField->id) {
+if($isAdminRequest && $regionsPage && $regionsPage->id && $regionCardsField && $regionCardsField->id) {
 	$regionsPage = $pages->get((int) $regionsPage->id);
 	if($regionsPage && $regionsPage->id && $regionsPage->hasField('region_cards')) {
 		$regionsCards = $regionsPage->getUnformatted('region_cards');

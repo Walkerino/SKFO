@@ -1177,7 +1177,7 @@ a {
 
 .regions-card-title {
   margin-top: 18px;
-  margin-bottom: 3px;
+  margin-bottom: 5px;
   color: #121826;
   font-family: "Inter", sans-serif;
   font-size: 22px;
@@ -1874,6 +1874,137 @@ h6,
   background: url("../assets/icons/location_on.svg") center / contain no-repeat;
 }
 
+.section--region-articles {
+  padding-top: 40px;
+}
+
+.region-articles-title {
+  margin: 0 0 18px;
+  font-family: "Ruberoid", "Inter", "Arial", sans-serif;
+  font-size: 56px;
+  font-weight: 600;
+  line-height: 1;
+  color: #1f2433;
+}
+
+.region-articles-card {
+  background: #ffffff;
+  border-radius: 28px;
+  padding: 30px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.07fr) minmax(0, 1fr);
+  gap: 122px;
+}
+
+.region-article {
+  color: #1f2433;
+  transition: transform 180ms ease;
+}
+
+.region-article:hover {
+  transform: translateY(-2px);
+}
+
+.region-article--lead {
+  display: block;
+}
+
+.region-article-media {
+  position: relative;
+  border-radius: 18px;
+  min-height: 245px;
+  background: linear-gradient(135deg, #111827, #1f2937);
+  background-size: cover;
+  background-position: center;
+
+  margin-bottom: 20px;
+}
+
+.region-article-badge {
+  position: absolute;
+  top: -9px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #ff610c 0%, #ef990f 100%);
+  color: #ffffff;
+  font-family: "Inter", "Arial", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 10px 18px rgba(240, 132, 28, 0.35);
+}
+
+.region-article-badge::before {
+  content: "";
+  width: 11px;
+  height: 11px;
+  background: url("../assets/icons/fire.svg") center / contain no-repeat;
+  flex: 0 0 11px;
+}
+
+.region-article-content {
+  padding-top: 14px;
+}
+
+.region-article-date {
+  /* margin-top: 20px; */
+  display: block;
+  color: #747474;
+  font-family: "Inter", "Arial", sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.region-article-title {
+  margin: 6px 0 0;
+  color: #121826;
+  font-family: "Inter", "Arial", sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.region-article-topic {
+  margin: 6px 0 0;
+  color: #747474;
+  font-family: "Inter", "Arial", sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.region-article-list {
+  display: grid;
+  gap: 12px;
+}
+
+.region-article--side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 97px;
+  gap: 60px;
+  align-items: center;
+}
+
+.region-article--side .region-article-content {
+  padding-top: 0;
+}
+
+
+.region-article-side-thumb {
+  width: 97px;
+  height: 97px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #111827, #1f2937);
+  background-size: cover;
+  background-position: center;
+}
+
 .section--journal {
   padding-top: 40px;
 }
@@ -2094,6 +2225,9 @@ h6,
   border-radius: 12px;
   height: 156px;
   background: linear-gradient(135deg, #111827, #1f2937);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .hot-tour-body {
@@ -2709,6 +2843,57 @@ h6,
   .actual-card-footer {
     top: 18px;
     left: 18px;
+  }
+
+  .section--region-articles {
+    padding-top: 28px;
+  }
+
+  .region-articles-title {
+    margin-bottom: 14px;
+    font-size: 36px;
+    line-height: 1.1;
+  }
+
+
+  .region-article-media {
+    min-height: 180px;
+  }
+
+  .region-article-badge {
+    top: 10px;
+    right: 10px;
+  }
+
+  .region-article-date,
+  .region-article--side .region-article-date {
+    font-size: 16px;
+  }
+
+  .region-article-title,
+  .region-article--side .region-article-title {
+    font-size: 33px;
+    line-height: 1.08;
+  }
+
+  .region-article-topic,
+  .region-article--side .region-article-topic {
+    font-size: 22px;
+  }
+
+  .region-article-list {
+    gap: 10px;
+  }
+
+  .region-article--side {
+    grid-template-columns: minmax(0, 1fr) 76px;
+    gap: 12px;
+  }
+
+  .region-article-side-thumb {
+    width: 76px;
+    height: 76px;
+    border-radius: 14px;
   }
 
   .tag-location {
