@@ -27,12 +27,15 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
 	$isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
 	$isRegionsRequest = preg_match('#^/regions(?:/|$)#', (string) $requestPath) === 1;
+	$isArticlesRequest = preg_match('#^/articles(?:/|$)#', (string) $requestPath) === 1;
 	$isReviewsPage = $page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest;
 	$isRegionsPage = $page->name === 'regions' || $page->path === '/regions/' || $templateName === 'region' || $isRegionsRequest;
-	$isTourTemplate = in_array($templateName, ['tour', 'reviews', 'regions', 'region'], true) || $isReviewsPage || $isRegionsPage;
+	$isArticlesPage = $page->name === 'articles' || $page->path === '/articles/' || $isArticlesRequest;
+	$isTourTemplate = in_array($templateName, ['tour', 'reviews', 'regions', 'region', 'articles'], true) || $isReviewsPage || $isRegionsPage || $isArticlesPage;
 	$isTourNavActive = $templateName === 'tour';
 	$isReviewsNavActive = $templateName === 'reviews' || $isReviewsPage;
 	$isRegionsNavActive = in_array($templateName, ['regions', 'region'], true) || $isRegionsPage;
+	$isArticlesNavActive = $templateName === 'articles' || $isArticlesPage;
 	$mainCssPath = $config->paths->templates . 'styles/main.css';
 	$mainCssVersion = is_file($mainCssPath) ? filemtime($mainCssPath) : null;
 
@@ -71,7 +74,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 									<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 									<span class="tour-nav-text">Регионы</span>
 								</a>
-								<a class="tour-header-link tour-nav-link" href="/articles/">
+								<a class="tour-header-link tour-nav-link<?php echo $isArticlesNavActive ? ' is-active' : ''; ?>" href="/articles/">
 									<img src="<?php echo $config->urls->templates; ?>assets/icons/journal.svg" alt="" aria-hidden="true" />
 									<span class="tour-nav-text">Статьи</span>
 								</a>

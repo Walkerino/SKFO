@@ -241,6 +241,7 @@
 	</section>
 
 	<section class="section section--journal">
+		<?php $homeJournalArticleUrl = '/articles/?article=kak-podgotovitsya-k-pervomu-puteshestviyu-v-dagestan&from=home&back=%2F'; ?>
 		<div class="container">
 			<div class="journal-card">
 				<div class="journal-card-header">
@@ -248,10 +249,10 @@
 					<p class="journal-subtitle">
 						Читайте и планируйте поездки </br> по гайдам, маршрутам, советам
 					</p>
-					<button class="journal-button" type="button">Выбрать статью</button>
+					<a class="journal-button" href="/articles/">Выбрать статью</a>
 				</div>
 				<div class="journal-articles" aria-live="polite">
-					<article class="journal-article">
+					<a class="journal-article" href="<?php echo $homeJournalArticleUrl; ?>">
 						<div class="journal-article-image journal-article-image--1"></div>
 						<div class="journal-article-content">
 							<div class="journal-article-meta">
@@ -262,7 +263,7 @@
 							</h3>
 							<span class="journal-article-tag">Советы туристам</span>
 						</div>
-					</article>
+					</a>
 
 					<article class="journal-article-second"></article>
 				</div>

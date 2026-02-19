@@ -14,12 +14,17 @@
 $requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
 $isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
 $isRegionsRequest = $requestPath === '/regions' || $requestPath === '/regions/';
+$isArticlesRequest = $requestPath === '/articles' || $requestPath === '/articles/';
 if ($page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest) {
 	require __DIR__ . '/reviews.php';
 	return;
 }
 if ($page->name === 'regions' || $page->path === '/regions/' || $isRegionsRequest) {
 	require __DIR__ . '/regions.php';
+	return;
+}
+if ($page->name === 'articles' || $page->path === '/articles/' || $isArticlesRequest) {
+	require __DIR__ . '/articles.php';
 	return;
 }
 ?>

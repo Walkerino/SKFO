@@ -45,6 +45,66 @@ $formatRussianDate = static function(int $timestamp): string {
 	return trim("{$day} {$monthLabel} {$year}");
 };
 
+$transliterateRu = static function(string $value): string {
+	$map = [
+		'а' => 'a', 'б' => 'b', 'в' => 'v', 'г' => 'g', 'д' => 'd', 'е' => 'e', 'ё' => 'e', 'ж' => 'zh',
+		'з' => 'z', 'и' => 'i', 'й' => 'y', 'к' => 'k', 'л' => 'l', 'м' => 'm', 'н' => 'n', 'о' => 'o',
+		'п' => 'p', 'р' => 'r', 'с' => 's', 'т' => 't', 'у' => 'u', 'ф' => 'f', 'х' => 'h', 'ц' => 'ts',
+		'ч' => 'ch', 'ш' => 'sh', 'щ' => 'sch', 'ъ' => '', 'ы' => 'y', 'ь' => '', 'э' => 'e', 'ю' => 'yu', 'я' => 'ya',
+		'А' => 'a', 'Б' => 'b', 'В' => 'v', 'Г' => 'g', 'Д' => 'd', 'Е' => 'e', 'Ё' => 'e', 'Ж' => 'zh',
+		'З' => 'z', 'И' => 'i', 'Й' => 'y', 'К' => 'k', 'Л' => 'l', 'М' => 'm', 'Н' => 'n', 'О' => 'o',
+		'П' => 'p', 'Р' => 'r', 'С' => 's', 'Т' => 't', 'У' => 'u', 'Ф' => 'f', 'Х' => 'h', 'Ц' => 'ts',
+		'Ч' => 'ch', 'Ш' => 'sh', 'Щ' => 'sch', 'Ъ' => '', 'Ы' => 'y', 'Ь' => '', 'Э' => 'e', 'Ю' => 'yu', 'Я' => 'ya',
+	];
+	return strtr($value, $map);
+};
+
+$slugifyArticle = static function(string $value) use ($transliterateRu): string {
+	$value = trim($value);
+	if ($value === '') return '';
+	$value = $transliterateRu($value);
+	$value = function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+	$value = preg_replace('/[^a-z0-9]+/i', '-', $value) ?? $value;
+	$value = trim($value, '-');
+	return $value;
+};
+
+$appendArticleQuery = static function(string $url, array $params): string {
+	$parts = parse_url($url);
+	if ($parts === false) return $url;
+
+	$queryParams = [];
+	if (!empty($parts['query'])) {
+		parse_str((string) $parts['query'], $queryParams);
+	}
+	foreach ($params as $key => $value) {
+		$key = trim((string) $key);
+		$value = trim((string) $value);
+		if ($key === '' || $value === '') continue;
+		$queryParams[$key] = $value;
+	}
+
+	$path = (string) ($parts['path'] ?? '/articles/');
+	$query = count($queryParams) ? '?' . http_build_query($queryParams, '', '&', PHP_QUERY_RFC3986) : '';
+	$fragment = isset($parts['fragment']) && $parts['fragment'] !== '' ? '#' . (string) $parts['fragment'] : '';
+	return $path . $query . $fragment;
+};
+
+$buildArticleUrl = static function(string $title, string $url = '', string $source = '', string $back = '') use ($slugifyArticle, $appendArticleQuery): string {
+	$url = trim($url);
+	if ($url !== '' && $url !== '/articles' && $url !== '/articles/') {
+		$articleUrl = $url;
+	} else {
+		$slug = $slugifyArticle($title);
+		$articleUrl = $slug === '' ? '/articles/' : '/articles/?article=' . rawurlencode($slug);
+	}
+
+	return $appendArticleQuery($articleUrl, [
+		'from' => $source,
+		'back' => $back,
+	]);
+};
+
 $regionProfiles = [
 	'dagestan' => [
 		'label' => 'Республика Дагестан',
@@ -444,7 +504,7 @@ if ($page->hasField('region_articles_cards') && $page->region_articles_cards->co
 			'datetime' => $timestamp > 0 ? date('Y-m-d', $timestamp) : '',
 			'topic' => $topic,
 			'image' => $imageUrl,
-			'url' => $url !== '' ? $url : '/articles/',
+			'url' => $buildArticleUrl($title, $url, 'region', (string) $page->url),
 			'is_fresh' => $isFresh,
 		];
 	}
@@ -458,7 +518,7 @@ if (!count($regionArticles)) {
 			'datetime' => '2026-02-01',
 			'topic' => 'Советы туристам',
 			'image' => $config->urls->templates . 'assets/image1.png',
-			'url' => '/articles/',
+			'url' => $buildArticleUrl("Как подготовиться к первому путешествию в {$regionLabel}", '', 'region', (string) $page->url),
 			'is_fresh' => true,
 		],
 		[
@@ -467,7 +527,7 @@ if (!count($regionArticles)) {
 			'datetime' => '2025-12-22',
 			'topic' => 'Культура и традиции',
 			'image' => $config->urls->templates . 'assets/image1.png',
-			'url' => '/articles/',
+			'url' => $buildArticleUrl('Душа Кавказа в поэзии и традициях', '', 'region', (string) $page->url),
 			'is_fresh' => false,
 		],
 		[
@@ -476,7 +536,7 @@ if (!count($regionArticles)) {
 			'datetime' => '2025-12-16',
 			'topic' => 'Советы туристам',
 			'image' => $config->urls->templates . 'assets/image1.png',
-			'url' => '/articles/',
+			'url' => $buildArticleUrl('Горнолыжный сезон: советы и лайфхаки', '', 'region', (string) $page->url),
 			'is_fresh' => false,
 		],
 		[
@@ -485,7 +545,7 @@ if (!count($regionArticles)) {
 			'datetime' => '2025-12-08',
 			'topic' => 'Полезные подборки',
 			'image' => $config->urls->templates . 'assets/image1.png',
-			'url' => '/articles/',
+			'url' => $buildArticleUrl('Что взять с собой в поездку по региону', '', 'region', (string) $page->url),
 			'is_fresh' => false,
 		],
 	];
