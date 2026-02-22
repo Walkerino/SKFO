@@ -160,6 +160,75 @@ const initPeoplePicker = () => {
   });
 };
 
+const initWhereFieldAutoGrow = () => {
+  const field = document.querySelector(".hero-field-where");
+  if (!field) return;
+
+  const input = field.querySelector("input[name='where']");
+  const fields = document.querySelector(".hero-search-fields");
+  if (!input || !fields) return;
+
+  const inputStyles = window.getComputedStyle(input);
+  const fieldStyles = window.getComputedStyle(field);
+  const baseInputWidth = Math.ceil(parseFloat(inputStyles.width)) || 150;
+  const baseFieldMinWidth = Math.ceil(parseFloat(fieldStyles.minWidth)) || Math.ceil(field.getBoundingClientRect().width);
+
+  const measure = document.createElement("span");
+  measure.style.position = "absolute";
+  measure.style.visibility = "hidden";
+  measure.style.whiteSpace = "pre";
+  measure.style.left = "-9999px";
+  measure.style.top = "0";
+  measure.style.font = inputStyles.font;
+  measure.style.fontFamily = inputStyles.fontFamily;
+  measure.style.fontSize = inputStyles.fontSize;
+  measure.style.fontWeight = inputStyles.fontWeight;
+  measure.style.letterSpacing = inputStyles.letterSpacing;
+  document.body.appendChild(measure);
+
+  const paddingLeft = parseFloat(fieldStyles.paddingLeft) || 0;
+  const paddingRight = parseFloat(fieldStyles.paddingRight) || 0;
+  const gap = parseFloat(fieldStyles.columnGap || fieldStyles.gap) || 12;
+  const textBuffer = 18;
+  const icon = field.querySelector("img");
+  const iconWidth = icon ? Math.ceil(icon.getBoundingClientRect().width) : 18;
+
+  const reset = () => {
+    input.style.width = "";
+    field.style.minWidth = "";
+  };
+
+  const update = () => {
+    const isStacked = window.getComputedStyle(fields).flexDirection === "column";
+    if (isStacked) {
+      reset();
+      return;
+    }
+
+    const value = input.value.trim();
+    if (!value) {
+      reset();
+      return;
+    }
+
+    measure.textContent = value;
+    const textWidth = Math.ceil(measure.getBoundingClientRect().width);
+    const targetInputWidth = Math.max(baseInputWidth, textWidth + textBuffer);
+    input.style.width = `${targetInputWidth}px`;
+
+    const targetFieldMinWidth = Math.max(
+      baseFieldMinWidth,
+      Math.ceil(targetInputWidth + iconWidth + gap + paddingLeft + paddingRight)
+    );
+    field.style.minWidth = `${targetFieldMinWidth}px`;
+  };
+
+  input.addEventListener("input", update);
+  input.addEventListener("change", update);
+  window.addEventListener("resize", update);
+  update();
+};
+
 const initJournalSlider = () => {
   const slider = document.querySelector(".journal-card");
   if (!slider) return;
@@ -386,6 +455,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initHeroTabs();
   initTourNavTabs();
   initPeoplePicker();
+  initWhereFieldAutoGrow();
   initJournalSlider();
   initDagestanSlider();
   initHotToursSlider();

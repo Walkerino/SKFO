@@ -79,7 +79,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 									<span class="tour-nav-text">Статьи</span>
 								</a>
 							</div>
-							<a class="tour-header-link tour-nav-link tour-header-link--forum" href="/forum/">
+							<a class="tour-header-link tour-nav-link tour-nav-link--forum" href="/forum/">
 								<img src="<?php echo $config->urls->templates; ?>assets/icons/forum.svg" alt="" aria-hidden="true" />
 								<span class="tour-nav-text">Форум</span>
 							</a>

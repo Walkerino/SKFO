@@ -8,6 +8,50 @@
 // See the Markup Regions documentation:
 // https://processwire.com/docs/front-end/output/markup-regions/
 
+$normalizeRegionOption = static function(string $value): string {
+	$value = trim(str_replace(["\r", "\n"], ' ', $value));
+	$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+	return $value;
+};
+
+$regionOptions = [];
+$regionOptionKeys = [];
+
+$addRegionOption = static function(string $value) use (&$regionOptions, &$regionOptionKeys, $normalizeRegionOption): void {
+	$normalizedValue = $normalizeRegionOption($value);
+	if ($normalizedValue === '') return;
+
+	$key = function_exists('mb_strtolower') ? mb_strtolower($normalizedValue, 'UTF-8') : strtolower($normalizedValue);
+	if (isset($regionOptionKeys[$key])) return;
+
+	$regionOptionKeys[$key] = true;
+	$regionOptions[] = $normalizedValue;
+};
+
+$regionsPage = $pages->get('/regions/');
+if ($regionsPage && $regionsPage->id && $regionsPage->hasField('region_cards') && $regionsPage->region_cards->count()) {
+	foreach ($regionsPage->region_cards as $card) {
+		$title = $card->hasField('region_card_title') ? (string) $card->region_card_title : '';
+		$addRegionOption($title);
+	}
+}
+
+if (!count($regionOptions)) {
+	foreach (
+		[
+			'Кабардино-Балкарская Республика',
+			'Карачаево-Черкесская Республика',
+			'Республика Дагестан',
+			'Республика Ингушетия',
+			'Республика Северная Осетия',
+			'Ставропольский край',
+			'Чеченская Республика',
+		] as $regionTitle
+	) {
+		$addRegionOption($regionTitle);
+	}
+}
+
 ?>
 
 <div id="content">
@@ -50,7 +94,7 @@
 			</div>
 			<form class="hero-search" action="#" method="get">
 				<div class="hero-search-fields">
-					<label class="hero-field">
+					<label class="hero-field hero-field-where">
 						<span class="sr-only">Куда</span>
 						<input type="text" name="where" placeholder="Куда" list="city-list" />
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
@@ -74,16 +118,9 @@
 					</label>
 				</div>
 				<datalist id="city-list">
-					<option value="Москва"></option>
-					<option value="Санкт-Петербург"></option>
-					<option value="Сочи"></option>
-					<option value="Кисловодск"></option>
-					<option value="Пятигорск"></option>
-					<option value="Владикавказ"></option>
-					<option value="Грозный"></option>
-					<option value="Махачкала"></option>
-					<option value="Нальчик"></option>
-					<option value="Ессентуки"></option>
+					<?php foreach ($regionOptions as $regionOption): ?>
+						<option value="<?php echo $sanitizer->entities($regionOption); ?>"></option>
+					<?php endforeach; ?>
 				</datalist>
 				<button class="search-btn" type="submit">Найти туры</button>
 			</form>

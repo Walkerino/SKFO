@@ -193,7 +193,7 @@ a {
   min-width: 0;
   width: fit-content;
   height: 62px;
-  background: rgba(19, 68, 176, 0.5);
+  background: rgba(7, 20, 60, 0.35);
   border-radius: 19px;
   padding: 6px 10px;
   gap: 7px;
@@ -208,7 +208,7 @@ a {
   top: 6px;
   height: 50px;
   border-radius: 8px;
-  transition: transform 180ms ease, width 180ms ease, opacity 180ms ease;
+  transition: none;
   z-index: 0;
 }
 
@@ -253,9 +253,9 @@ a {
 
 .tour-header .tour-nav-link--forum {
   min-width: 132px;
-  height: 51px;
+  height: 62px;
   background: rgba(7, 20, 60, 0.35);
-  border-radius: 13px;
+  border-radius: 19px;
 }
 
 .tour-header .tour-nav-link.is-active {
@@ -1772,7 +1772,7 @@ h6,
   left: 0;
   height: 64px;
   border-radius: 14px;
-  transition: transform 180ms ease, width 180ms ease, opacity 180ms ease;
+  transition: none;
   font-family: "Inter", "Arial", sans-serif;
   font-weight: 600;
   font-size: 18px;
