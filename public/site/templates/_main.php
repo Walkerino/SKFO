@@ -38,6 +38,11 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$isArticlesNavActive = $templateName === 'articles' || $isArticlesPage;
 	$mainCssPath = $config->paths->templates . 'styles/main.css';
 	$mainCssVersion = is_file($mainCssPath) ? filemtime($mainCssPath) : null;
+	$authUser = isset($skfoAuthUser) && is_array($skfoAuthUser) ? $skfoAuthUser : null;
+	$isAuthLoggedIn = $authUser !== null;
+	$profileLinkAttrs = $isAuthLoggedIn ? '' : ' data-auth-open';
+	$authCsrfTokenName = $session->CSRF->getTokenName();
+	$authCsrfTokenValue = $session->CSRF->getTokenValue();
 
 ?><!DOCTYPE html>
 <html lang="ru">
@@ -85,10 +90,10 @@ $home = $pages->get('/'); /** @var HomePage $home */
 							</a>
 						</nav>
 						<div class="tour-header-actions">
-							<a class="icon-btn tour-header-action" href="/profile/" aria-label="Профиль">
+							<a class="icon-btn tour-header-action" href="/profile/" aria-label="Профиль"<?php echo $profileLinkAttrs; ?>>
 								<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/profile.svg" alt="" aria-hidden="true" />
 							</a>
-							<a class="icon-btn tour-header-action" href="/contacts/" aria-label="Контакты">
+							<a class="icon-btn tour-header-action" href="/contacts/" aria-label="Контакты" data-contacts-open>
 								<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/contacts.svg" alt="" aria-hidden="true" />
 							</a>
 						</div>
@@ -97,14 +102,14 @@ $home = $pages->get('/'); /** @var HomePage $home */
 			<?php else: ?>
 				<header class="site-header site-header--overlay" id="site-header">
 					<div class="container header-row">
-						<a class="icon-btn" href="/profile/" aria-label="Профиль">
+						<a class="icon-btn" href="/profile/" aria-label="Профиль"<?php echo $profileLinkAttrs; ?>>
 							<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/profile.svg" alt="" aria-hidden="true" />
 							<span>Профиль</span>
 						</a>
 						<a class="logo" href="<?php echo $home->url; ?>" aria-label="SKFO.RU">
 							<img class="logo-img" src="<?php echo $config->urls->templates; ?>assets/icons/logo.svg" alt="SKFO.RU" />
 						</a>
-						<a class="icon-btn" href="/contacts/" aria-label="Контакты">
+						<a class="icon-btn" href="/contacts/" aria-label="Контакты" data-contacts-open>
 							<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/contacts.svg" alt="" aria-hidden="true" />
 							<span>Контакты</span>
 						</a>
@@ -184,6 +189,73 @@ $home = $pages->get('/'); /** @var HomePage $home */
 				</div>
 			</div>
 		</footer>
+
+		<?php if (!$isAuthLoggedIn): ?>
+			<div class="auth-modal" id="auth-modal" hidden data-auth-api-url="<?php echo $sanitizer->entities((string) $page->url); ?>" data-csrf-name="<?php echo $sanitizer->entities($authCsrfTokenName); ?>" data-csrf-value="<?php echo $sanitizer->entities($authCsrfTokenValue); ?>">
+				<div class="auth-modal-backdrop" data-auth-close></div>
+				<div class="auth-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+					<button class="auth-modal-close" type="button" aria-label="Закрыть" data-auth-close>×</button>
+					<div class="auth-pane is-active" data-auth-pane="login">
+						<h2 class="auth-title" id="auth-modal-title">Войдите в профиль</h2>
+						<p class="auth-subtitle">Чтобы хранить билеты в одном месте и обращаться в поддержку</p>
+						<form class="auth-form" data-auth-form="login">
+							<label class="auth-field">
+								<input type="email" name="email" placeholder="Email" autocomplete="email" required />
+								<button class="auth-code-btn" type="button" data-auth-send-code>получить код</button>
+							</label>
+							<label class="auth-field">
+								<input type="text" name="code" placeholder="Код из письма" autocomplete="one-time-code" inputmode="numeric" maxlength="6" required />
+							</label>
+							<button class="auth-submit-btn" type="submit">Войти</button>
+						</form>
+						<p class="auth-switch-row">Еще нет профиля? <button type="button" class="auth-switch-link" data-auth-switch="register">Регистрация</button></p>
+					</div>
+					<div class="auth-pane" data-auth-pane="register">
+						<h2 class="auth-title">Регистрация</h2>
+						<p class="auth-subtitle">Создайте профиль за минуту</p>
+						<form class="auth-form" data-auth-form="register">
+							<label class="auth-field">
+								<input type="text" name="name" placeholder="Имя" autocomplete="name" required />
+							</label>
+							<label class="auth-field">
+								<input type="email" name="email" placeholder="Email" autocomplete="email" required />
+								<button class="auth-code-btn" type="button" data-auth-send-code>получить код</button>
+							</label>
+							<label class="auth-field">
+								<input type="text" name="code" placeholder="Код из письма" autocomplete="one-time-code" inputmode="numeric" maxlength="6" required />
+							</label>
+							<button class="auth-submit-btn" type="submit">Регистрация</button>
+						</form>
+						<p class="auth-switch-row">Уже есть профиль? <button type="button" class="auth-switch-link" data-auth-switch="login">Войти</button></p>
+					</div>
+					<p class="auth-message" data-auth-message aria-live="polite"></p>
+				</div>
+			</div>
+		<?php endif; ?>
+
+		<div class="auth-modal contacts-modal" id="contacts-modal" hidden>
+			<div class="auth-modal-backdrop" data-contacts-close></div>
+			<div class="auth-modal-dialog contacts-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="contacts-modal-title">
+				<button class="auth-modal-close" type="button" aria-label="Закрыть" data-contacts-close>×</button>
+				<h2 class="auth-title" id="contacts-modal-title">Контакты</h2>
+				<p class="contacts-subtitle">При наличии вопросов, пожалуйста, обратитесь на почту или по номеру телефона.</p>
+				<p class="contacts-hours">Ежедневно 10:00-20:00 (МСК)</p>
+				<div class="contacts-actions">
+					<a class="contacts-action-btn" href="tel:+79000000000">
+						<span class="contacts-action-icon" aria-hidden="true">
+							<img src="<?php echo $config->urls->templates; ?>assets/icons/contacts-call.svg" alt="" />
+						</span>
+						<span>Позвонить</span>
+					</a>
+					<a class="contacts-action-btn" href="mailto:info@skfo.ru">
+						<span class="contacts-action-icon" aria-hidden="true">
+							<img src="<?php echo $config->urls->templates; ?>assets/icons/contacts-mail.svg" alt="" />
+						</span>
+						<span>Написать</span>
+					</a>
+				</div>
+			</div>
+		</div>
 
 		<script src="<?php echo $config->urls->templates; ?>scripts/main.js"></script>
 	</body>

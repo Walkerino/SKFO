@@ -15,6 +15,9 @@ $requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH)
 $isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
 $isRegionsRequest = $requestPath === '/regions' || $requestPath === '/regions/';
 $isArticlesRequest = $requestPath === '/articles' || $requestPath === '/articles/';
+$isHotelsRequest = preg_match('#^/hotels(?:/|$)#', (string) $requestPath) === 1;
+$isHotelsSearchRequest = trim((string) $input->get('search_hotels')) === '1';
+$isProfileRequest = $requestPath === '/profile' || $requestPath === '/profile/';
 if ($page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest) {
 	require __DIR__ . '/reviews.php';
 	return;
@@ -25,6 +28,14 @@ if ($page->name === 'regions' || $page->path === '/regions/' || $isRegionsReques
 }
 if ($page->name === 'articles' || $page->path === '/articles/' || $isArticlesRequest) {
 	require __DIR__ . '/articles.php';
+	return;
+}
+if ($page->name === 'hotels' || $page->path === '/hotels/' || $isHotelsRequest || $isHotelsSearchRequest) {
+	require __DIR__ . '/hotels.php';
+	return;
+}
+if ($page->name === 'profile' || $page->path === '/profile/' || $isProfileRequest) {
+	require __DIR__ . '/profile.php';
 	return;
 }
 ?>

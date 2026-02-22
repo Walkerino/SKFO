@@ -92,71 +92,135 @@ const initTourNavTabs = () => {
 };
 
 const initPeoplePicker = () => {
-  const field = document.querySelector(".hero-field-people");
-  if (!field) return;
+  const fields = Array.from(document.querySelectorAll(".hero-field-people"));
+  if (fields.length === 0) return;
 
-  const input = field.querySelector("input");
-  const popover = field.querySelector(".people-popover");
-  const countEl = field.querySelector(".people-count");
-  const minusBtn = field.querySelector("[data-action='minus']");
-  const plusBtn = field.querySelector("[data-action='plus']");
-  if (!input || !popover || !countEl || !minusBtn || !plusBtn) return;
-
-  let count = 1;
-
-  const formatLabel = (value) => {
-    if (value % 10 === 1 && value % 100 !== 11) return `${value} человек`;
-    if (value % 10 >= 2 && value % 10 <= 4 && (value % 100 < 10 || value % 100 >= 20)) {
-      return `${value} человека`;
-    }
-    return `${value} человек`;
+  const formatLabel = (value, singular, few, many) => {
+    const mod10 = value % 10;
+    const mod100 = value % 100;
+    if (mod10 === 1 && mod100 !== 11) return `${value} ${singular}`;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return `${value} ${few}`;
+    return `${value} ${many}`;
   };
 
-  const setCount = (value) => {
-    count = Math.max(1, value);
-    countEl.textContent = String(count);
-    input.value = formatLabel(count);
-  };
+  const pickers = [];
 
-  const open = () => {
-    popover.classList.add("is-open");
-    popover.setAttribute("aria-hidden", "false");
-  };
+  fields.forEach((field) => {
+    const input = field.querySelector('input:not([type="hidden"])');
+    const hiddenInput = field.querySelector('input[type="hidden"]');
+    const popover = field.querySelector(".people-popover");
+    const countEl = field.querySelector(".people-count");
+    const minusBtn = field.querySelector("[data-action='minus']");
+    const plusBtn = field.querySelector("[data-action='plus']");
+    if (!input || !popover || !countEl || !minusBtn || !plusBtn) return;
 
-  const close = () => {
-    popover.classList.remove("is-open");
-    popover.setAttribute("aria-hidden", "true");
-  };
+    const min = Math.max(1, Number(field.dataset.peopleMin) || 1);
+    const rawMax = Number(field.dataset.peopleMax);
+    const max = Number.isFinite(rawMax) && rawMax >= min ? rawMax : 50;
+    const singular = field.dataset.peopleUnitSingular || "человек";
+    const few = field.dataset.peopleUnitFew || "человека";
+    const many = field.dataset.peopleUnitMany || "человек";
 
-  setCount(count);
+    const valueFromInput = Number(String(input.value || "").replace(/\D+/g, ""));
+    const valueFromHidden = hiddenInput ? Number(hiddenInput.value) : NaN;
+    let count = Number.isFinite(valueFromHidden) && valueFromHidden > 0 ? valueFromHidden : valueFromInput;
+    if (!Number.isFinite(count) || count < min) count = min;
+    if (count > max) count = max;
 
-  input.addEventListener("click", (event) => {
-    event.stopPropagation();
-    open();
+    const setCount = (value) => {
+      count = Math.max(min, Math.min(max, value));
+      countEl.textContent = String(count);
+      input.value = formatLabel(count, singular, few, many);
+      if (hiddenInput) hiddenInput.value = String(count);
+    };
+
+    const open = () => {
+      popover.classList.add("is-open");
+      popover.setAttribute("aria-hidden", "false");
+    };
+
+    const close = () => {
+      popover.classList.remove("is-open");
+      popover.setAttribute("aria-hidden", "true");
+    };
+
+    pickers.push({ field, open, close, isOpen: () => popover.classList.contains("is-open") });
+    setCount(count);
+
+    input.addEventListener("click", (event) => {
+      event.stopPropagation();
+      pickers.forEach((picker) => {
+        if (picker.field !== field) picker.close();
+      });
+      open();
+    });
+
+    field.addEventListener("click", (event) => {
+      if (event.target instanceof Element && event.target.closest(".people-popover")) return;
+      event.stopPropagation();
+      pickers.forEach((picker) => {
+        if (picker.field !== field) picker.close();
+      });
+      open();
+    });
+
+    minusBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      setCount(count - 1);
+    });
+
+    plusBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      setCount(count + 1);
+    });
   });
 
-  field.addEventListener("click", (event) => {
-    if (event.target === input) return;
-    event.stopPropagation();
-    open();
-  });
-
-  minusBtn.addEventListener("click", (event) => {
-    event.stopPropagation();
-    setCount(count - 1);
-  });
-
-  plusBtn.addEventListener("click", (event) => {
-    event.stopPropagation();
-    setCount(count + 1);
-  });
-
-  document.addEventListener("click", () => {
-    close();
+  document.addEventListener("click", (event) => {
+    pickers.forEach((picker) => {
+      if (!(event.target instanceof Node) || !picker.field.contains(event.target)) {
+        picker.close();
+      }
+    });
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") close();
+    if (event.key !== "Escape") return;
+    pickers.forEach((picker) => {
+      if (picker.isOpen()) picker.close();
+    });
+  });
+};
+
+const initHotelDateFields = () => {
+  const dateInputs = Array.from(document.querySelectorAll("input[data-hotel-date]"));
+  if (dateInputs.length === 0) return;
+
+  dateInputs.forEach((input) => {
+    const setTextMode = () => {
+      if (input.value.trim()) return;
+      input.type = "text";
+    };
+
+    if (!input.value.trim()) {
+      input.type = "text";
+    }
+
+    input.addEventListener("focus", () => {
+      if (input.type !== "date") input.type = "date";
+    });
+
+    input.addEventListener("click", () => {
+      if (input.type !== "date") input.type = "date";
+      if (typeof input.showPicker === "function") {
+        try {
+          input.showPicker();
+        } catch (error) {
+          // Ignore unsupported browsers.
+        }
+      }
+    });
+
+    input.addEventListener("blur", setTextMode);
   });
 };
 
@@ -227,6 +291,332 @@ const initWhereFieldAutoGrow = () => {
   input.addEventListener("change", update);
   window.addEventListener("resize", update);
   update();
+};
+
+const lockModalScroll = () => {
+  document.body.classList.add("auth-modal-open");
+};
+
+const unlockModalScroll = () => {
+  const hasOpenModal = document.querySelector(".auth-modal.is-open");
+  if (!hasOpenModal) {
+    document.body.classList.remove("auth-modal-open");
+  }
+};
+
+const initAuthModal = () => {
+  const modal = document.querySelector("#auth-modal");
+  if (!modal) return;
+
+  const backdrop = modal.querySelector(".auth-modal-backdrop");
+  const closeButtons = Array.from(modal.querySelectorAll("[data-auth-close]"));
+  const messageEl = modal.querySelector("[data-auth-message]");
+  const apiUrl = modal.dataset.authApiUrl || window.location.pathname;
+  const csrfName = modal.dataset.csrfName || "";
+  const csrfValue = modal.dataset.csrfValue || "";
+  const forms = Array.from(modal.querySelectorAll("[data-auth-form]"));
+  const paneByMode = {
+    login: modal.querySelector('[data-auth-pane="login"]'),
+    register: modal.querySelector('[data-auth-pane="register"]'),
+  };
+  let activeMode = "login";
+
+  const setMessage = (text, type = "info") => {
+    if (!messageEl) return;
+    messageEl.textContent = text || "";
+    messageEl.classList.remove("is-error", "is-success");
+    if (type === "error") messageEl.classList.add("is-error");
+    if (type === "success") messageEl.classList.add("is-success");
+  };
+
+  const setPane = (mode) => {
+    activeMode = mode === "register" ? "register" : "login";
+    Object.entries(paneByMode).forEach(([paneMode, pane]) => {
+      if (!pane) return;
+      pane.classList.toggle("is-active", paneMode === activeMode);
+    });
+    setMessage("");
+  };
+
+  const openModal = (mode = "login") => {
+    setPane(mode);
+    modal.hidden = false;
+    window.requestAnimationFrame(() => {
+      modal.classList.add("is-open");
+      lockModalScroll();
+    });
+
+    const targetPane = paneByMode[activeMode];
+    const firstInput = targetPane ? targetPane.querySelector("input") : null;
+    if (firstInput) firstInput.focus();
+  };
+
+  const closeModal = () => {
+    modal.classList.remove("is-open");
+    window.setTimeout(() => {
+      if (!modal.classList.contains("is-open")) {
+        modal.hidden = true;
+      }
+      unlockModalScroll();
+    }, 160);
+  };
+
+  const sendRequest = async (action, payload) => {
+    const params = new URLSearchParams();
+    params.set("auth_action", action);
+    Object.entries(payload).forEach(([key, value]) => {
+      params.set(key, String(value ?? ""));
+    });
+    if (csrfName && csrfValue) {
+      params.set(csrfName, csrfValue);
+    }
+
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "X-Requested-With": "XMLHttpRequest",
+        Accept: "application/json",
+      },
+      body: params.toString(),
+      credentials: "same-origin",
+    });
+
+    let data = null;
+    try {
+      data = await response.json();
+    } catch (error) {
+      data = null;
+    }
+
+    if (!data || typeof data !== "object") {
+      throw new Error("Сервер вернул некорректный ответ.");
+    }
+
+    if (!response.ok || !data.ok) {
+      throw new Error(data.message || "Не удалось выполнить запрос.");
+    }
+
+    return data;
+  };
+
+  const setBusy = (form, busy) => {
+    form.classList.toggle("is-busy", busy);
+    const submitBtn = form.querySelector(".auth-submit-btn");
+    if (submitBtn instanceof HTMLButtonElement) {
+      submitBtn.disabled = busy;
+    }
+
+    const codeInput = form.querySelector('input[name="code"]');
+    if (codeInput instanceof HTMLInputElement) {
+      codeInput.readOnly = busy;
+      if (busy) {
+        codeInput.setAttribute("aria-busy", "true");
+      } else {
+        codeInput.removeAttribute("aria-busy");
+      }
+    }
+  };
+
+  const setupCooldown = (button, seconds) => {
+    const total = Number(seconds) || 60;
+    let left = total;
+    button.disabled = true;
+    button.dataset.defaultLabel = button.dataset.defaultLabel || button.textContent || "получить код";
+    button.textContent = `${left} сек`;
+
+    const timer = window.setInterval(() => {
+      left -= 1;
+      if (left <= 0) {
+        window.clearInterval(timer);
+        button.disabled = false;
+        button.textContent = button.dataset.defaultLabel || "получить код";
+        return;
+      }
+      button.textContent = `${left} сек`;
+    }, 1000);
+  };
+
+  forms.forEach((form) => {
+    const mode = form.dataset.authForm === "register" ? "register" : "login";
+    const emailInput = form.querySelector('input[name="email"]');
+    const nameInput = form.querySelector('input[name="name"]');
+    const codeInput = form.querySelector('input[name="code"]');
+    const sendCodeBtn = form.querySelector("[data-auth-send-code]");
+    const submitBtn = form.querySelector(".auth-submit-btn");
+    if (!emailInput || !codeInput || !sendCodeBtn || !submitBtn) return;
+
+    codeInput.addEventListener("input", () => {
+      codeInput.value = codeInput.value.replace(/\D+/g, "").slice(0, 6);
+    });
+
+    sendCodeBtn.addEventListener("click", async () => {
+      const payload = {
+        mode,
+        email: emailInput.value.trim(),
+      };
+      if (mode === "register" && nameInput) {
+        payload.name = nameInput.value.trim();
+      }
+
+      sendCodeBtn.disabled = true;
+      try {
+        const data = await sendRequest("send_code", payload);
+        const debugCode = data.data && data.data.debug_code ? String(data.data.debug_code) : "";
+        const successMessage = debugCode
+          ? `${data.message || "Код отправлен на почту."} Тестовый код: ${debugCode}`
+          : data.message || "Код отправлен на почту.";
+        setMessage(successMessage, "success");
+        setupCooldown(sendCodeBtn, (data.data && data.data.cooldown) || 60);
+        codeInput.focus();
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Не удалось отправить код.", "error");
+        sendCodeBtn.disabled = false;
+      }
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const payload = {
+        mode,
+        email: emailInput.value.trim(),
+        code: codeInput.value.trim(),
+      };
+      if (mode === "register" && nameInput) {
+        payload.name = nameInput.value.trim();
+      }
+
+      setBusy(form, true);
+      try {
+        const data = await sendRequest("verify_code", payload);
+        setMessage(data.message || "Успешный вход.", "success");
+        const redirect = (data.data && data.data.redirect) || "/profile/";
+        window.setTimeout(() => {
+          window.location.href = redirect;
+        }, 250);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Не удалось подтвердить код.", "error");
+      } finally {
+        setBusy(form, false);
+      }
+    });
+  });
+
+  Array.from(document.querySelectorAll("[data-auth-open]")).forEach((trigger) => {
+    trigger.addEventListener("click", (event) => {
+      event.preventDefault();
+      const mode = trigger.getAttribute("data-auth-mode") || "login";
+      openModal(mode);
+    });
+  });
+
+  Array.from(modal.querySelectorAll("[data-auth-switch]")).forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = btn.getAttribute("data-auth-switch") || "login";
+      setPane(mode);
+    });
+  });
+
+  if (backdrop) {
+    backdrop.addEventListener("click", closeModal);
+  }
+  closeButtons.forEach((btn) => btn.addEventListener("click", closeModal));
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modal.classList.contains("is-open")) {
+      closeModal();
+    }
+  });
+};
+
+const initContactsModal = () => {
+  const modal = document.querySelector("#contacts-modal");
+  if (!modal) return;
+
+  const backdrop = modal.querySelector(".auth-modal-backdrop");
+  const closeButtons = Array.from(modal.querySelectorAll("[data-contacts-close]"));
+  const openButtons = Array.from(document.querySelectorAll("[data-contacts-open]"));
+  if (openButtons.length === 0) return;
+
+  const openModal = () => {
+    modal.hidden = false;
+    window.requestAnimationFrame(() => {
+      modal.classList.add("is-open");
+      lockModalScroll();
+    });
+  };
+
+  const closeModal = () => {
+    modal.classList.remove("is-open");
+    window.setTimeout(() => {
+      if (!modal.classList.contains("is-open")) {
+        modal.hidden = true;
+      }
+      unlockModalScroll();
+    }, 160);
+  };
+
+  openButtons.forEach((trigger) => {
+    trigger.addEventListener("click", (event) => {
+      event.preventDefault();
+      openModal();
+    });
+  });
+
+  if (backdrop) {
+    backdrop.addEventListener("click", closeModal);
+  }
+  closeButtons.forEach((button) => button.addEventListener("click", closeModal));
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modal.classList.contains("is-open")) {
+      closeModal();
+    }
+  });
+};
+
+const initAuthLogout = () => {
+  const button = document.querySelector("[data-auth-logout]");
+  if (!button) return;
+
+  button.addEventListener("click", async () => {
+    const apiUrl = button.getAttribute("data-auth-api-url") || window.location.pathname;
+    const csrfName = button.getAttribute("data-csrf-name") || "";
+    const csrfValue = button.getAttribute("data-csrf-value") || "";
+
+    const params = new URLSearchParams();
+    params.set("auth_action", "logout");
+    if (csrfName && csrfValue) {
+      params.set(csrfName, csrfValue);
+    }
+
+    button.disabled = true;
+    try {
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+          "X-Requested-With": "XMLHttpRequest",
+          Accept: "application/json",
+        },
+        body: params.toString(),
+        credentials: "same-origin",
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data || !data.ok) {
+        throw new Error((data && data.message) || "Не удалось выйти из аккаунта.");
+      }
+
+      const redirect = (data.data && data.data.redirect) || "/";
+      window.location.href = redirect;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Не удалось выйти из аккаунта.";
+      window.alert(message);
+      button.disabled = false;
+    }
+  });
 };
 
 const initJournalSlider = () => {
@@ -455,7 +845,11 @@ document.addEventListener("DOMContentLoaded", () => {
   initHeroTabs();
   initTourNavTabs();
   initPeoplePicker();
+  initHotelDateFields();
   initWhereFieldAutoGrow();
+  initAuthModal();
+  initContactsModal();
+  initAuthLogout();
   initJournalSlider();
   initDagestanSlider();
   initHotToursSlider();
