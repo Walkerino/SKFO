@@ -68,3 +68,5 @@
 2026-02-22 17:37:17	guest	http://skfo.ddev.site/	auth send_code mail error: SMTP configured, but required vars are missing: host/user/pass/from_email.
 2026-02-22 17:37:30	guest	http://skfo.ddev.site/	auth send_code mail error: SMTP configured, but required vars are missing: host/user/pass/from_email.
 2026-02-22 17:38:03	guest	http://skfo.ddev.site/	auth send_code mail error: SMTP configured, but required vars are missing: host/user/pass/from_email.
+2026-02-23 12:03:29	?	/?/	Uncaught Error: Call to undefined function wire() in Command line code:1 Stack trace: #0 {main}   thrown
+2026-02-23 12:03:35	?	/?/	Uncaught Error: Call to a member function get() on null in Command line code:1 Stack trace: #0 {main}   thrown
