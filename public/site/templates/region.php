@@ -346,9 +346,35 @@ $matchesCurrentRegion = static function(string $value) use ($normalizeRegion, $r
 };
 
 $homePage = $pages->get('/');
+$tourUrlByTitle = [];
+$tourPagesForLinks = $pages->find('template=tour, include=all, sort=title, limit=500');
+foreach ($tourPagesForLinks as $tourPageForLink) {
+	if (!$tourPageForLink instanceof Page) continue;
+	$tourTitleForLink = trim((string) $tourPageForLink->title);
+	if ($tourTitleForLink === '') continue;
+	$tourUrlByTitle[$toLower($tourTitleForLink)] = (string) $tourPageForLink->url;
+}
 
 $adventureCards = [];
-if ($page->hasField('region_adventures_cards') && $page->region_adventures_cards->count()) {
+if ($page->hasField('region_featured_tours') && $page->region_featured_tours->count()) {
+	foreach ($page->region_featured_tours as $tourPage) {
+		if (!$tourPage instanceof Page) continue;
+		$imageUrl = $tourPage->hasField('tour_cover_image') ? $getImageUrlFromValue($tourPage->getUnformatted('tour_cover_image')) : '';
+		$title = trim((string) $tourPage->title);
+		$price = $tourPage->hasField('tour_price') ? trim((string) $tourPage->tour_price) : '';
+		if ($title === '' && $price === '' && $imageUrl === '') continue;
+
+		$adventureCards[] = [
+			'title' => $title,
+			'region' => $regionLabel,
+			'price' => $price,
+			'image' => $imageUrl,
+			'url' => (string) $tourPage->url,
+		];
+	}
+}
+
+if (!count($adventureCards) && $page->hasField('region_adventures_cards') && $page->region_adventures_cards->count()) {
 	foreach ($page->region_adventures_cards as $card) {
 		$imageUrl = '';
 		if ($card->hasField('region_adventure_image')) {
@@ -364,6 +390,7 @@ if ($page->hasField('region_adventures_cards') && $page->region_adventures_cards
 			'region' => $regionLabel,
 			'price' => $price,
 			'image' => $imageUrl,
+			'url' => isset($tourUrlByTitle[$toLower($title)]) ? $tourUrlByTitle[$toLower($title)] : '',
 		];
 	}
 }
@@ -387,6 +414,7 @@ if (!count($adventureCards) && $homePage && $homePage->id && $homePage->hasField
 			'region' => $regionLabel,
 			'price' => $price,
 			'image' => $imageUrl,
+			'url' => isset($tourUrlByTitle[$toLower($title)]) ? $tourUrlByTitle[$toLower($title)] : '',
 		];
 	}
 }
@@ -398,12 +426,29 @@ if (!count($adventureCards)) {
 			'region' => $regionLabel,
 			'price' => trim((string) ($card['price'] ?? '')),
 			'image' => trim((string) ($card['image'] ?? '')),
+			'url' => isset($tourUrlByTitle[$toLower(trim((string) ($card['title'] ?? '')))]) ? $tourUrlByTitle[$toLower(trim((string) ($card['title'] ?? '')))] : '',
 		];
 	}
 }
 
 $interestingPlaces = [];
-if ($page->hasField('region_places_cards') && $page->region_places_cards->count()) {
+if ($page->hasField('region_featured_places') && $page->region_featured_places->count()) {
+	foreach ($page->region_featured_places as $placePage) {
+		if (!$placePage instanceof Page) continue;
+		$imageUrl = $placePage->hasField('place_image') ? $getImageUrlFromValue($placePage->getUnformatted('place_image')) : '';
+		$title = trim((string) $placePage->title);
+		$text = $placePage->hasField('place_summary') ? trim((string) $placePage->place_summary) : '';
+		if ($title === '' && $text === '' && $imageUrl === '') continue;
+
+		$interestingPlaces[] = [
+			'title' => $title,
+			'text' => $text,
+			'image' => $imageUrl,
+		];
+	}
+}
+
+if (!count($interestingPlaces) && $page->hasField('region_places_cards') && $page->region_places_cards->count()) {
 	foreach ($page->region_places_cards as $card) {
 		$imageUrl = '';
 		if ($card->hasField('region_place_image')) {
@@ -474,7 +519,28 @@ if (!count($interestingPlaces)) {
 }
 
 $regionArticles = [];
-if ($page->hasField('region_articles_cards') && $page->region_articles_cards->count()) {
+if ($page->hasField('region_featured_articles') && $page->region_featured_articles->count()) {
+	foreach ($page->region_featured_articles as $articlePage) {
+		if (!$articlePage instanceof Page) continue;
+		$imageUrl = $articlePage->hasField('article_cover_image') ? $getImageUrlFromValue($articlePage->getUnformatted('article_cover_image')) : '';
+		$timestamp = $articlePage->hasField('article_publish_date') ? (int) $articlePage->getUnformatted('article_publish_date') : 0;
+		$title = trim((string) $articlePage->title);
+		$topic = $articlePage->hasField('article_topic') ? trim((string) $articlePage->article_topic) : '';
+		if ($title === '' && $topic === '' && $imageUrl === '' && $timestamp <= 0) continue;
+
+		$regionArticles[] = [
+			'title' => $title,
+			'date' => $timestamp > 0 ? $formatRussianDate($timestamp) : '',
+			'datetime' => $timestamp > 0 ? date('Y-m-d', $timestamp) : '',
+			'topic' => $topic,
+			'image' => $imageUrl,
+			'url' => $buildArticleUrl($title, '/articles/?article=' . rawurlencode((string) $articlePage->name), 'region', (string) $page->url),
+			'is_fresh' => false,
+		];
+	}
+}
+
+if (!count($regionArticles) && $page->hasField('region_articles_cards') && $page->region_articles_cards->count()) {
 	foreach ($page->region_articles_cards as $card) {
 		$imageUrl = '';
 		if ($card->hasField('region_article_image')) {
@@ -593,12 +659,18 @@ $forumImageUrl = $config->urls->templates . 'assets/image1.png';
 					<?php foreach ($adventureCards as $card): ?>
 						<?php
 							$backgroundStyle = '';
+							$cardUrl = trim((string) ($card['url'] ?? ''));
+							$isCardLink = $cardUrl !== '';
 							if (!empty($card['image'])) {
 								$image = htmlspecialchars((string) $card['image'], ENT_QUOTES, 'UTF-8');
 								$backgroundStyle = " style=\"background-image: url('{$image}');\"";
 							}
 						?>
-						<article class="hot-tour-card">
+						<?php if ($isCardLink): ?>
+							<a class="hot-tour-card" href="<?php echo $sanitizer->entities($cardUrl); ?>" aria-label="<?php echo $sanitizer->entities((string) $card['title']); ?>">
+						<?php else: ?>
+							<article class="hot-tour-card">
+						<?php endif; ?>
 							<div class="hot-tour-image"<?php echo $backgroundStyle; ?>></div>
 							<div class="hot-tour-body">
 								<h3 class="hot-tour-title"><?php echo $sanitizer->entities((string) $card['title']); ?></h3>
@@ -607,7 +679,11 @@ $forumImageUrl = $config->urls->templates . 'assets/image1.png';
 									<span class="hot-tour-price"><?php echo $sanitizer->entities((string) $card['price']); ?></span>
 								</div>
 							</div>
-						</article>
+						<?php if ($isCardLink): ?>
+							</a>
+						<?php else: ?>
+							</article>
+						<?php endif; ?>
 					<?php endforeach; ?>
 				</div>
 			</div>

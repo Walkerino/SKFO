@@ -52,6 +52,12 @@ if (!count($regionOptions)) {
 	}
 }
 
+$getImageUrlFromValue = static function($imageValue): string {
+	if ($imageValue instanceof Pageimage) return $imageValue->url;
+	if ($imageValue instanceof Pageimages && $imageValue->count()) return $imageValue->first()->url;
+	return '';
+};
+
 ?>
 
 <div id="content">
@@ -131,7 +137,21 @@ if (!count($regionOptions)) {
 			<?php
 			$dagestanPlacesCards = [];
 
-			if ($page->hasField('dagestan_places_cards') && $page->dagestan_places_cards->count()) {
+			if ($page->hasField('home_featured_places') && $page->home_featured_places->count()) {
+				foreach ($page->home_featured_places as $placePage) {
+					if (!$placePage instanceof Page) continue;
+					$imageUrl = $placePage->hasField('place_image') ? $getImageUrlFromValue($placePage->getUnformatted('place_image')) : '';
+					$title = trim((string) $placePage->title);
+					if ($title === '' && $imageUrl === '') continue;
+
+					$dagestanPlacesCards[] = [
+						'title' => $title,
+						'image' => $imageUrl,
+					];
+				}
+			}
+
+			if (!count($dagestanPlacesCards) && $page->hasField('dagestan_places_cards') && $page->dagestan_places_cards->count()) {
 				foreach ($page->dagestan_places_cards as $card) {
 					$imageUrl = '';
 					if ($card->hasField('dagestan_place_image')) {
@@ -216,7 +236,25 @@ if (!count($regionOptions)) {
 		<?php
 		$actualCards = [];
 
-			if ($page->hasField('actual_cards') && $page->actual_cards->count()) {
+			if ($page->hasField('home_actual_places') && $page->home_actual_places->count()) {
+				foreach ($page->home_actual_places as $placePage) {
+					if (!$placePage instanceof Page) continue;
+					$imageUrl = $placePage->hasField('place_image') ? $getImageUrlFromValue($placePage->getUnformatted('place_image')) : '';
+					$text = $placePage->hasField('place_summary') ? trim((string) $placePage->place_summary) : '';
+					$region = $placePage->hasField('place_region') ? trim((string) $placePage->place_region) : '';
+					$title = trim((string) $placePage->title);
+					if ($title === '' && $text === '' && $imageUrl === '') continue;
+
+					$actualCards[] = [
+						'title' => $title,
+						'text' => $text,
+						'region' => $region,
+						'image' => $imageUrl,
+					];
+				}
+			}
+
+			if (!count($actualCards) && $page->hasField('actual_cards') && $page->actual_cards->count()) {
 				foreach ($page->actual_cards as $card) {
 					$imageUrl = '';
 					if ($card->hasField('card_image')) {
@@ -278,7 +316,71 @@ if (!count($regionOptions)) {
 	</section>
 
 	<section class="section section--journal">
-		<?php $homeJournalArticleUrl = '/articles/?article=kak-podgotovitsya-k-pervomu-puteshestviyu-v-dagestan&from=home&back=%2F'; ?>
+		<?php
+		$mapHomeJournalArticle = static function(Page $articlePage) use ($getImageUrlFromValue): array {
+			$timestamp = $articlePage->hasField('article_publish_date') ? (int) $articlePage->getUnformatted('article_publish_date') : 0;
+			return [
+				'title' => trim((string) $articlePage->title),
+				'topic' => $articlePage->hasField('article_topic') ? trim((string) $articlePage->article_topic) : '',
+				'date' => $timestamp > 0 ? date('d.m.Y', $timestamp) : '',
+				'image' => $articlePage->hasField('article_cover_image') ? $getImageUrlFromValue($articlePage->getUnformatted('article_cover_image')) : '',
+				'url' => '/articles/?' . http_build_query([
+					'article' => (string) $articlePage->name,
+					'from' => 'home',
+					'back' => '/',
+				], '', '&', PHP_QUERY_RFC3986),
+			];
+		};
+
+		$homeJournalArticles = [];
+		$homeJournalSlugs = [];
+		$addHomeJournalArticle = static function(array $item) use (&$homeJournalArticles, &$homeJournalSlugs): void {
+			$title = trim((string) ($item['title'] ?? ''));
+			if ($title === '') return;
+
+			$url = trim((string) ($item['url'] ?? ''));
+			$slugKey = '';
+			if ($url !== '') {
+				$urlQuery = parse_url($url, PHP_URL_QUERY);
+				if (is_string($urlQuery) && $urlQuery !== '') {
+					parse_str($urlQuery, $params);
+					$slugKey = trim((string) ($params['article'] ?? ''));
+				}
+			}
+			if ($slugKey === '') {
+				$slugKey = function_exists('mb_strtolower') ? mb_strtolower($title, 'UTF-8') : strtolower($title);
+			}
+			if ($slugKey !== '' && isset($homeJournalSlugs[$slugKey])) return;
+
+			if ($slugKey !== '') $homeJournalSlugs[$slugKey] = true;
+			$homeJournalArticles[] = $item;
+		};
+
+		if ($page->hasField('home_featured_articles') && $page->home_featured_articles->count()) {
+			foreach ($page->home_featured_articles as $articlePage) {
+				if (!$articlePage instanceof Page || !$articlePage->id) continue;
+				$addHomeJournalArticle($mapHomeJournalArticle($articlePage));
+			}
+		}
+
+		if (count($homeJournalArticles) < 2) {
+			$catalogArticlePages = $pages->find('template=article, include=all, sort=-article_publish_date, limit=10');
+			foreach ($catalogArticlePages as $articlePage) {
+				if (!$articlePage instanceof Page || !$articlePage->id) continue;
+				$addHomeJournalArticle($mapHomeJournalArticle($articlePage));
+			}
+		}
+
+		if (!count($homeJournalArticles)) {
+			$homeJournalArticles[] = [
+				'title' => 'Как подготовиться к первому путешествию в Дагестан',
+				'topic' => 'Советы туристам',
+				'date' => '22.12.2025',
+				'image' => '',
+				'url' => '/articles/?article=kak-podgotovitsya-k-pervomu-puteshestviyu-v-dagestan&from=home&back=%2F',
+			];
+		}
+		?>
 		<div class="container">
 			<div class="journal-card">
 				<div class="journal-card-header">
@@ -289,20 +391,29 @@ if (!count($regionOptions)) {
 					<a class="journal-button" href="/articles/">Выбрать статью</a>
 				</div>
 				<div class="journal-articles" aria-live="polite">
-					<a class="journal-article" href="<?php echo $homeJournalArticleUrl; ?>">
-						<div class="journal-article-image journal-article-image--1"></div>
-						<div class="journal-article-content">
-							<div class="journal-article-meta">
-								<span class="journal-article-date">22 Дек 2025</span>
+					<?php foreach ($homeJournalArticles as $index => $homeJournalArticle): ?>
+						<a class="journal-article<?php echo $index === 0 ? ' is-active' : ''; ?>" href="<?php echo $sanitizer->entities((string) $homeJournalArticle['url']); ?>">
+							<?php
+							$journalImageStyle = '';
+							$journalImageClass = '';
+							if (trim((string) $homeJournalArticle['image']) !== '') {
+								$journalImage = htmlspecialchars((string) $homeJournalArticle['image'], ENT_QUOTES, 'UTF-8');
+								$journalImageStyle = " style=\"background-image: url('{$journalImage}');\"";
+								$journalImageClass = ' has-image';
+							}
+							?>
+							<div class="journal-article-image journal-article-image--1<?php echo $journalImageClass; ?>"<?php echo $journalImageStyle; ?>></div>
+							<div class="journal-article-content">
+								<div class="journal-article-meta">
+									<span class="journal-article-date"><?php echo $sanitizer->entities((string) $homeJournalArticle['date']); ?></span>
+								</div>
+								<h3 class="journal-article-title">
+									<?php echo $sanitizer->entities((string) $homeJournalArticle['title']); ?>
+								</h3>
+								<span class="journal-article-tag"><?php echo $sanitizer->entities((string) $homeJournalArticle['topic']); ?></span>
 							</div>
-							<h3 class="journal-article-title">
-								Как подготовиться к первому путешествию в Дагестан
-							</h3>
-							<span class="journal-article-tag">Советы туристам</span>
-						</div>
-					</a>
-
-					<article class="journal-article-second"></article>
+						</a>
+					<?php endforeach; ?>
 				</div>
 			</div>
 		</div>
@@ -310,9 +421,40 @@ if (!count($regionOptions)) {
 
 	<section class="section section--hot-tours">
 		<?php
+		$toLower = static function(string $value): string {
+			return function_exists('mb_strtolower') ? mb_strtolower(trim($value), 'UTF-8') : strtolower(trim($value));
+		};
+		$tourUrlByTitle = [];
+		$tourPagesForLinks = $pages->find('template=tour, include=all, sort=title, limit=500');
+		foreach ($tourPagesForLinks as $tourPageForLink) {
+			if (!$tourPageForLink instanceof Page) continue;
+			$tourTitleForLink = trim((string) $tourPageForLink->title);
+			if ($tourTitleForLink === '') continue;
+			$tourUrlByTitle[$toLower($tourTitleForLink)] = (string) $tourPageForLink->url;
+		}
+
 		$hotToursCards = [];
 
-		if ($page->hasField('hot_tours_cards') && $page->hot_tours_cards->count()) {
+		if ($page->hasField('home_featured_tours') && $page->home_featured_tours->count()) {
+			foreach ($page->home_featured_tours as $tourPage) {
+				if (!$tourPage instanceof Page) continue;
+				$imageUrl = $tourPage->hasField('tour_cover_image') ? $getImageUrlFromValue($tourPage->getUnformatted('tour_cover_image')) : '';
+				$title = trim((string) $tourPage->title);
+				$region = $tourPage->hasField('tour_region') ? trim((string) $tourPage->tour_region) : '';
+				$price = $tourPage->hasField('tour_price') ? trim((string) $tourPage->tour_price) : '';
+				if ($title === '' && $region === '' && $price === '' && $imageUrl === '') continue;
+
+				$hotToursCards[] = [
+					'title' => $title,
+					'region' => $region,
+					'price' => $price,
+					'image' => $imageUrl,
+					'url' => (string) $tourPage->url,
+				];
+			}
+		}
+
+		if (!count($hotToursCards) && $page->hasField('hot_tours_cards') && $page->hot_tours_cards->count()) {
 			foreach ($page->hot_tours_cards as $card) {
 				$imageUrl = '';
 				if ($card->hasField('hot_tour_image')) {
@@ -329,7 +471,13 @@ if (!count($regionOptions)) {
 					'region' => $card->hasField('hot_tour_region') ? trim((string) $card->hot_tour_region) : '',
 					'price' => $card->hasField('hot_tour_price') ? trim((string) $card->hot_tour_price) : '',
 					'image' => $imageUrl,
+					'url' => '',
 				];
+				$lastIndex = count($hotToursCards) - 1;
+				$lastTitleKey = $toLower((string) ($hotToursCards[$lastIndex]['title'] ?? ''));
+				if ($lastTitleKey !== '' && isset($tourUrlByTitle[$lastTitleKey])) {
+					$hotToursCards[$lastIndex]['url'] = $tourUrlByTitle[$lastTitleKey];
+				}
 			}
 		}
 
@@ -340,30 +488,35 @@ if (!count($regionOptions)) {
 					'region' => 'Чеченская Республика',
 					'price' => 'от 15 000₽',
 					'image' => '',
+					'url' => isset($tourUrlByTitle[$toLower('Посетить Аргунское ущелье')]) ? $tourUrlByTitle[$toLower('Посетить Аргунское ущелье')] : '',
 				],
 				[
 					'title' => 'Взобраться на гору Эльбрус',
 					'region' => 'Кабардино-Балкарская Республика',
 					'price' => 'от 15 000₽',
 					'image' => '',
+					'url' => isset($tourUrlByTitle[$toLower('Взобраться на гору Эльбрус')]) ? $tourUrlByTitle[$toLower('Взобраться на гору Эльбрус')] : '',
 				],
 				[
 					'title' => 'Расслабиться в Суворовских термах',
 					'region' => 'Ставропольский край',
 					'price' => 'от 15 000₽',
 					'image' => '',
+					'url' => isset($tourUrlByTitle[$toLower('Расслабиться в Суворовских термах')]) ? $tourUrlByTitle[$toLower('Расслабиться в Суворовских термах')] : '',
 				],
 				[
 					'title' => 'Умчать в Старый Кахиб',
 					'region' => 'Республика Дагестан',
 					'price' => 'от 15 000₽',
 					'image' => '',
+					'url' => isset($tourUrlByTitle[$toLower('Умчать в Старый Кахиб')]) ? $tourUrlByTitle[$toLower('Умчать в Старый Кахиб')] : '',
 				],
 				[
 					'title' => 'Заглянуть в Замок на воде Шато Эркен',
 					'region' => 'Кабардино-Балкарская Республика',
 					'price' => 'от 15 000₽',
 					'image' => '',
+					'url' => isset($tourUrlByTitle[$toLower('Заглянуть в Замок на воде Шато Эркен')]) ? $tourUrlByTitle[$toLower('Заглянуть в Замок на воде Шато Эркен')] : '',
 				],
 			];
 		}
@@ -381,12 +534,18 @@ if (!count($regionOptions)) {
 						<?php foreach ($hotToursCards as $card): ?>
 							<?php
 							$backgroundStyle = '';
+							$cardUrl = trim((string) ($card['url'] ?? ''));
+							$isCardLink = $cardUrl !== '';
 							if (!empty($card['image'])) {
 								$image = htmlspecialchars($card['image'], ENT_QUOTES, 'UTF-8');
 								$backgroundStyle = " style=\"background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.2), rgba(17, 24, 39, 0.1)), url('{$image}');\"";
 							}
 							?>
-							<article class="hot-tour-card">
+							<?php if ($isCardLink): ?>
+								<a class="hot-tour-card" href="<?php echo $sanitizer->entities($cardUrl); ?>" aria-label="<?php echo $sanitizer->entities((string) $card['title']); ?>">
+							<?php else: ?>
+								<article class="hot-tour-card">
+							<?php endif; ?>
 								<div class="hot-tour-image"<?php echo $backgroundStyle; ?>></div>
 								<div class="hot-tour-body">
 									<h3 class="hot-tour-title"><?php echo $sanitizer->entities($card['title']); ?></h3>
@@ -395,7 +554,11 @@ if (!count($regionOptions)) {
 										<span class="hot-tour-price"><?php echo $sanitizer->entities($card['price']); ?></span>
 									</div>
 								</div>
-							</article>
+							<?php if ($isCardLink): ?>
+								</a>
+							<?php else: ?>
+								</article>
+							<?php endif; ?>
 						<?php endforeach; ?>
 					</div>
 				</div>

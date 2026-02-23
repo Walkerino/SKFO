@@ -85,8 +85,54 @@ $amenityMap = [
 	'pets' => ['title' => 'Можно с питомцами', 'short' => 'Pet'],
 ];
 
+$getImageUrlFromValue = static function($imageValue): string {
+	if ($imageValue instanceof Pageimage) return $imageValue->url;
+	if ($imageValue instanceof Pageimages && $imageValue->count()) return $imageValue->first()->url;
+	return '';
+};
+
 $defaultHotelImage = $config->urls->templates . 'assets/image1.png';
-$hotelsCatalog = [
+$hotelsCatalog = [];
+
+if (isset($pages) && $pages instanceof Pages) {
+	$hotelPages = $pages->find('template=hotel, include=all, sort=title, limit=500');
+	foreach ($hotelPages as $hotelPage) {
+		$title = trim((string) $hotelPage->title);
+		if ($title === '') continue;
+
+		$priceRaw = $hotelPage->hasField('hotel_price') ? (string) $hotelPage->getUnformatted('hotel_price') : '';
+		$price = (int) preg_replace('/[^\d]+/', '', $priceRaw);
+		$ratingRaw = $hotelPage->hasField('hotel_rating') ? trim((string) $hotelPage->getUnformatted('hotel_rating')) : '';
+		$rating = is_numeric($ratingRaw) ? (float) $ratingRaw : 0.0;
+		$maxGuests = $hotelPage->hasField('hotel_max_guests') ? (int) $hotelPage->getUnformatted('hotel_max_guests') : 1;
+		if ($maxGuests < 1) $maxGuests = 1;
+
+		$amenities = [];
+		if ($hotelPage->hasField('hotel_amenities')) {
+			$amenitiesRaw = trim((string) $hotelPage->hotel_amenities);
+			$amenities = array_values(array_filter(array_map('trim', preg_split('/\R+/u', $amenitiesRaw) ?: []), static function(string $code) use ($amenityMap): bool {
+				return $code !== '' && isset($amenityMap[$code]);
+			}));
+		}
+
+		$image = $hotelPage->hasField('hotel_image') ? $getImageUrlFromValue($hotelPage->getUnformatted('hotel_image')) : '';
+		if ($image === '') $image = $defaultHotelImage;
+
+		$hotelsCatalog[] = [
+			'title' => $title,
+			'city' => $hotelPage->hasField('hotel_city') ? trim((string) $hotelPage->hotel_city) : '',
+			'region' => $hotelPage->hasField('hotel_region') ? trim((string) $hotelPage->hotel_region) : '',
+			'rating' => $rating > 0 ? $rating : 4.0,
+			'price' => $price > 0 ? $price : 10000,
+			'max_guests' => $maxGuests,
+			'amenities' => count($amenities) ? $amenities : ['wifi'],
+			'image' => $image,
+		];
+	}
+}
+
+if (!count($hotelsCatalog)) {
+	$hotelsCatalog = [
 	[
 		'title' => 'Санаторий "Виктория"',
 		'city' => 'Ессентуки',
@@ -208,6 +254,36 @@ $hotelsCatalog = [
 		'image' => $defaultHotelImage,
 	],
 ];
+}
+
+$featuredHotelOrder = [];
+if ($page->hasField('hotels_featured_refs') && $page->hotels_featured_refs->count()) {
+	$order = 0;
+	foreach ($page->hotels_featured_refs as $featuredHotelPage) {
+		if (!$featuredHotelPage instanceof Page) continue;
+		$featuredTitle = trim((string) $featuredHotelPage->title);
+		if ($featuredTitle === '') continue;
+		if (isset($featuredHotelOrder[$featuredTitle])) continue;
+		$featuredHotelOrder[$featuredTitle] = $order++;
+	}
+}
+
+if (count($featuredHotelOrder)) {
+	usort($hotelsCatalog, static function(array $a, array $b) use ($featuredHotelOrder): int {
+		$aTitle = trim((string) ($a['title'] ?? ''));
+		$bTitle = trim((string) ($b['title'] ?? ''));
+		$aPinned = array_key_exists($aTitle, $featuredHotelOrder);
+		$bPinned = array_key_exists($bTitle, $featuredHotelOrder);
+
+		if ($aPinned && $bPinned) {
+			return $featuredHotelOrder[$aTitle] <=> $featuredHotelOrder[$bTitle];
+		}
+		if ($aPinned) return -1;
+		if ($bPinned) return 1;
+
+		return strcmp($aTitle, $bTitle);
+	});
+}
 
 $searchRegion = trim((string) $input->get('where'));
 $searchCheckIn = $normalizeDateInput((string) $input->get('checkin'));

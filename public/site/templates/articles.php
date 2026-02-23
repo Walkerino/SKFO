@@ -253,8 +253,45 @@ $normalizeArticles = static function(array $articles) use ($buildArticleUrl, $ex
 	return $normalized;
 };
 
+$mapCatalogArticlePage = static function(Page $articlePage) use ($getImageUrlFromValue, $formatRussianDate): array {
+	$timestamp = $articlePage->hasField('article_publish_date') ? (int) $articlePage->getUnformatted('article_publish_date') : 0;
+	$title = trim((string) $articlePage->title);
+	$topic = $articlePage->hasField('article_topic') ? trim((string) $articlePage->article_topic) : '';
+	$image = $articlePage->hasField('article_cover_image') ? $getImageUrlFromValue($articlePage->getUnformatted('article_cover_image')) : '';
+	$content = $articlePage->hasField('article_content') ? trim((string) $articlePage->article_content) : '';
+
+	return [
+		'title' => $title,
+		'date' => $timestamp > 0 ? $formatRussianDate($timestamp) : '',
+		'datetime' => $timestamp > 0 ? date('Y-m-d', $timestamp) : '',
+		'topic' => $topic,
+		'image' => $image,
+		'url' => '/articles/?article=' . rawurlencode((string) $articlePage->name),
+		'content' => $content,
+	];
+};
+
+$catalogArticlesRaw = [];
+if (isset($pages) && $pages instanceof Pages) {
+	$catalogArticlePages = $pages->find('template=article, include=all, sort=-article_publish_date, limit=500');
+	foreach ($catalogArticlePages as $articlePage) {
+		$item = $mapCatalogArticlePage($articlePage);
+		if (trim((string) ($item['title'] ?? '')) === '') continue;
+		$catalogArticlesRaw[] = $item;
+	}
+}
+$catalogArticles = $normalizeArticles($catalogArticlesRaw);
+
 $todayArticlesRaw = [];
-if ($page->hasField('region_articles_cards') && $page->region_articles_cards->count()) {
+if ($page->hasField('articles_today_refs') && $page->articles_today_refs->count()) {
+	foreach ($page->articles_today_refs as $articlePage) {
+		if (!$articlePage instanceof Page) continue;
+		$item = $mapCatalogArticlePage($articlePage);
+		if (trim((string) ($item['title'] ?? '')) === '') continue;
+		$todayArticlesRaw[] = $item;
+	}
+}
+if (!count($todayArticlesRaw) && $page->hasField('region_articles_cards') && $page->region_articles_cards->count()) {
 	foreach ($page->region_articles_cards as $card) {
 		$imageUrl = $card->hasField('region_article_image') ? $getImageUrlFromValue($card->getUnformatted('region_article_image')) : '';
 
@@ -292,6 +329,10 @@ if ($page->hasField('region_articles_cards') && $page->region_articles_cards->co
 			'content' => $content,
 		];
 	}
+}
+
+if (!count($todayArticlesRaw) && count($catalogArticlesRaw)) {
+	$todayArticlesRaw = array_slice($catalogArticlesRaw, 0, 4);
 }
 
 if (!count($todayArticlesRaw)) {
@@ -344,8 +385,54 @@ $leadArticle = $todayArticles[0] ?? [
 ];
 $sideArticles = array_slice($todayArticles, 1, 3);
 
+$isFirstTimeTopic = static function(string $topic) use ($resolveTopicSlug, $normalizeTopic): bool {
+	if ($resolveTopicSlug($topic) === 'tips') return true;
+	return $normalizeTopic($topic) === $normalizeTopic('Советы туристам');
+};
+
+$buildArticleDedupeKey = static function(array $article) use ($extractArticleSlugFromUrl, $slugify): string {
+	$title = trim((string) ($article['title'] ?? ''));
+	$url = trim((string) ($article['url'] ?? ''));
+	$slug = $extractArticleSlugFromUrl($url);
+	if ($slug === '' && $title !== '') $slug = $slugify($title);
+	if ($slug !== '') return 'slug:' . $slug;
+	if ($title !== '') {
+		$titleKey = function_exists('mb_strtolower') ? mb_strtolower($title, 'UTF-8') : strtolower($title);
+		return 'title:' . $titleKey;
+	}
+	return '';
+};
+
 $firstTimeArticlesRaw = [];
-if ($page->hasField('article_first_time_cards') && $page->article_first_time_cards->count()) {
+$firstTimeArticleKeys = [];
+$addFirstTimeArticle = static function(array $article) use (&$firstTimeArticlesRaw, &$firstTimeArticleKeys, $buildArticleDedupeKey): void {
+	$title = trim((string) ($article['title'] ?? ''));
+	if ($title === '') return;
+
+	$key = $buildArticleDedupeKey($article);
+	if ($key !== '' && isset($firstTimeArticleKeys[$key])) return;
+
+	if ($key !== '') $firstTimeArticleKeys[$key] = true;
+	$firstTimeArticlesRaw[] = $article;
+};
+
+if ($page->hasField('articles_first_time_refs') && $page->articles_first_time_refs->count()) {
+	foreach ($page->articles_first_time_refs as $articlePage) {
+		if (!$articlePage instanceof Page) continue;
+		$item = $mapCatalogArticlePage($articlePage);
+		if (!$isFirstTimeTopic((string) ($item['topic'] ?? ''))) continue;
+		$addFirstTimeArticle($item);
+	}
+}
+
+if (count($catalogArticlesRaw)) {
+	foreach ($catalogArticlesRaw as $item) {
+		if (!$isFirstTimeTopic((string) ($item['topic'] ?? ''))) continue;
+		$addFirstTimeArticle($item);
+	}
+}
+
+if (!count($firstTimeArticlesRaw) && $page->hasField('article_first_time_cards') && $page->article_first_time_cards->count()) {
 	foreach ($page->article_first_time_cards as $card) {
 		$imageUrl = $card->hasField('article_first_time_image') ? $getImageUrlFromValue($card->getUnformatted('article_first_time_image')) : '';
 
@@ -372,16 +459,18 @@ if ($page->hasField('article_first_time_cards') && $page->article_first_time_car
 		}
 
 		if ($title === '' && $topic === '' && $imageUrl === '' && $timestamp <= 0) continue;
+		$resolvedTopic = $topic !== '' ? $topic : 'Советы туристам';
+		if (!$isFirstTimeTopic($resolvedTopic)) continue;
 
-		$firstTimeArticlesRaw[] = [
+		$addFirstTimeArticle([
 			'title' => $title,
 			'date' => $timestamp > 0 ? $formatRussianDate($timestamp) : '',
 			'datetime' => $timestamp > 0 ? date('Y-m-d', $timestamp) : '',
-			'topic' => $topic !== '' ? $topic : 'Советы туристам',
+			'topic' => $resolvedTopic,
 			'image' => $imageUrl,
 			'url' => $url,
 			'content' => $content,
-		];
+		]);
 	}
 }
 
@@ -422,7 +511,7 @@ if (!count($firstTimeArticlesRaw)) {
 	];
 }
 
-$firstTimeArticles = array_slice($normalizeArticles($firstTimeArticlesRaw), 0, 4);
+$firstTimeArticles = $normalizeArticles($firstTimeArticlesRaw);
 
 $regionCatalogRaw = [];
 if (isset($pages) && $pages instanceof Pages) {
@@ -479,7 +568,7 @@ foreach (array_merge($todayArticles, $firstTimeArticles) as $article) {
 	}
 }
 
-foreach ($regionCatalogArticles as $article) {
+foreach (array_merge($regionCatalogArticles, $catalogArticles) as $article) {
 	$slug = trim((string) ($article['slug'] ?? ''));
 	if ($slug === '') continue;
 

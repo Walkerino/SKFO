@@ -18,6 +18,7 @@ $isArticlesRequest = $requestPath === '/articles' || $requestPath === '/articles
 $isHotelsRequest = preg_match('#^/hotels(?:/|$)#', (string) $requestPath) === 1;
 $isHotelsSearchRequest = trim((string) $input->get('search_hotels')) === '1';
 $isProfileRequest = $requestPath === '/profile' || $requestPath === '/profile/';
+$isContentAdminRequest = $requestPath === '/content-admin' || $requestPath === '/content-admin/';
 if ($page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest) {
 	require __DIR__ . '/reviews.php';
 	return;
@@ -36,6 +37,10 @@ if ($page->name === 'hotels' || $page->path === '/hotels/' || $isHotelsRequest |
 }
 if ($page->name === 'profile' || $page->path === '/profile/' || $isProfileRequest) {
 	require __DIR__ . '/profile.php';
+	return;
+}
+if ($page->name === 'content-admin' || $page->path === '/content-admin/' || $isContentAdminRequest) {
+	require __DIR__ . '/content-admin.php';
 	return;
 }
 ?>

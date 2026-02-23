@@ -628,6 +628,7 @@ const initJournalSlider = () => {
 
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (prefersReducedMotion) return;
+  const autoplayDelay = 4000;
 
   let index = articles.findIndex((item) => item.classList.contains("is-active"));
   if (index === -1) index = 0;
@@ -649,14 +650,14 @@ const initJournalSlider = () => {
     index = nextIndex;
   };
 
-  let timer = window.setInterval(advance, 10000);
+  let timer = window.setInterval(advance, autoplayDelay);
 
   slider.addEventListener("mouseenter", () => {
     window.clearInterval(timer);
   });
 
   slider.addEventListener("mouseleave", () => {
-    timer = window.setInterval(advance, 10000);
+    timer = window.setInterval(advance, autoplayDelay);
   });
 };
 

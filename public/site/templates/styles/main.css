@@ -517,24 +517,28 @@ a {
   list-style: none;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 18px;
-  gap: 14px;
+  column-gap: 24px;
+  row-gap: 10px;
   font-size: 18px;
   color: #4a4f59;
 }
 
 .tour-included-list li {
-  position: relative;
-  padding-left: 20px;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .tour-included-list li::before {
   content: "";
-  position: absolute;
-  top: 0.48em;
-  left: 0;
+  position: static;
+  display: block;
   width: 10px;
   height: 10px;
+  margin-top: 0.48em;
   border-radius: 50%;
   background: #1f52b2;
 }
@@ -2667,6 +2671,7 @@ h6,
   flex: 0 0 545px;
   margin-right: 50px;
   height: 171px;
+  overflow: hidden;
 }
 
 .journal-article {
@@ -2677,29 +2682,35 @@ h6,
   grid-template-columns: 149px 1fr;
   gap: 18px;
   box-shadow: 0 18px 32px rgba(15, 34, 80, 0.28);
-  position: relative;
-  opacity: 1;
-  transform: none;
-  transition: none;
-  pointer-events: auto;
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateX(34px);
+  transition: opacity 520ms ease, transform 520ms ease;
+  pointer-events: none;
 
   height: 171px;
 }
 
 .journal-article.is-active {
   opacity: 1;
-  transform: none;
+  transform: translateX(0);
   pointer-events: auto;
+  z-index: 2;
 }
 
 .journal-article.is-exit {
-  opacity: 1;
-  transform: none;
+  opacity: 0;
+  transform: translateX(-34px);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .journal-article.is-enter {
   opacity: 1;
-  transform: none;
+  transform: translateX(0);
+  pointer-events: auto;
+  z-index: 3;
 }
 
 .journal-article-image {
@@ -2707,6 +2718,13 @@ h6,
   width: 149px;
   height: 149px;
   background: linear-gradient(135deg, #111827, #1f2937);
+  background-position: center;
+}
+
+.journal-article-image.has-image {
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-color: #eef2fb;
 }
 
 .journal-article-content {
@@ -2796,6 +2814,14 @@ h6,
   display: flex;
   flex-direction: column;
   gap: 10px;
+  text-decoration: none;
+  color: #121826;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+a.hot-tour-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(31, 82, 178, 0.16);
 }
 
 .hot-tour-image {

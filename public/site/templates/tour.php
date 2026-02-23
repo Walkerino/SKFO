@@ -5,6 +5,33 @@ $toLower = static function(string $value): string {
 	return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
 };
 
+$repairBrokenCyrillicX = static function(string $value): string {
+	$repaired = preg_replace('/(?<=\p{Cyrillic})\?\R+(?=\p{Cyrillic})/u', 'х', $value);
+	return $repaired !== null ? $repaired : $value;
+};
+
+$normalizeIncludedItemText = static function(string $value): string {
+	$line = str_replace("\xc2\xa0", ' ', $value);
+	$line = trim($line);
+	$line = preg_replace('/^\s*(?:[\x{2022}\x{2023}\x{25E6}\x{2043}\x{2219}•◦·▪●\-–—*]+|\d+[.)])\s*/u', '', $line) ?? $line;
+	$line = preg_replace('/\s+/u', ' ', $line) ?? $line;
+	return trim($line);
+};
+
+$normalizeIncludedItems = static function(array $items) use ($toLower, $normalizeIncludedItemText): array {
+	$normalized = [];
+	$seen = [];
+	foreach($items as $item) {
+		$line = $normalizeIncludedItemText((string) $item);
+		if($line === '') continue;
+		$key = $toLower($line);
+		if(isset($seen[$key])) continue;
+		$seen[$key] = true;
+		$normalized[] = $line;
+	}
+	return $normalized;
+};
+
 $tourTitle = trim((string) $page->title);
 $tourRegion = $page->hasField('tour_region') ? trim((string) $page->tour_region) : '';
 $tourDescription = $page->hasField('tour_description') ? trim((string) $page->tour_description) : '';
@@ -58,29 +85,19 @@ if ($normalizedDifficulty === 'средняя') {
 }
 
 $includedRaw = $page->hasField('tour_included') ? trim((string) $page->tour_included) : '';
-$includedItems = [];
-if ($page->hasField('tour_included_items') && $page->tour_included_items->count()) {
+$includedRaw = $repairBrokenCyrillicX($includedRaw);
+$includedItemsFromText = array_values(array_filter(array_map('trim', preg_split('/\R+/u', $includedRaw))));
+$includedItems = $normalizeIncludedItems($includedItemsFromText);
+
+if (!count($includedItems) && $page->hasField('tour_included_items') && $page->tour_included_items->count()) {
+	$includedItemsFromRepeater = [];
 	foreach ($page->tour_included_items as $itemPage) {
 		$itemText = $itemPage->hasField('tour_included_item_text') ? trim((string) $itemPage->tour_included_item_text) : '';
 		if ($itemText !== '') {
-			$includedItems[] = $itemText;
+			$includedItemsFromRepeater[] = $itemText;
 		}
 	}
-}
-
-if (!count($includedItems)) {
-	$includedItems = array_values(array_filter(array_map('trim', preg_split('/\R+/', $includedRaw))));
-}
-
-if (!count($includedItems)) {
-	$includedItems = [
-		'Проживание в гостевых домах в горах',
-		'Трехразовое питание',
-		'Входные билеты на локации',
-		'Прогулка на катере',
-		'Посещение музея в с.Гуниб',
-		'Трансфер из/в Аэропорт',
-	];
+	$includedItems = $normalizeIncludedItems($includedItemsFromRepeater);
 }
 
 $tourDays = [];
@@ -143,11 +160,13 @@ if (!count($tourDays)) {
 		<div class="container tour-overview-layout">
 			<div class="tour-included-card">
 				<h2 class="tour-section-title">Что включено</h2>
-				<ul class="tour-included-list">
-					<?php foreach ($includedItems as $item): ?>
-						<li><?php echo $sanitizer->entities($item); ?></li>
-					<?php endforeach; ?>
-				</ul>
+				<?php if (count($includedItems)): ?>
+					<ul class="tour-included-list">
+						<?php foreach ($includedItems as $item): ?>
+							<li><?php echo $sanitizer->entities($item); ?></li>
+						<?php endforeach; ?>
+					</ul>
+				<?php endif; ?>
 			</div>
 			<div class="tour-details-card">
 				<h2 class="tour-section-title">Детали тура</h2>
