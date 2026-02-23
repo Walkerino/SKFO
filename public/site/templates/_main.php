@@ -24,10 +24,12 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	];
 
 	$templateName = $page->template ? $page->template->name : '';
-	$requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
-	$isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
-	$isRegionsRequest = preg_match('#^/regions(?:/|$)#', (string) $requestPath) === 1;
-	$isArticlesRequest = preg_match('#^/articles(?:/|$)#', (string) $requestPath) === 1;
+		$requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+		$isContentAdminRequest = $requestPath === '/content-admin' || $requestPath === '/content-admin/';
+		$isContentAdminPage = $page->name === 'content-admin' || $page->path === '/content-admin/' || $isContentAdminRequest;
+		$isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
+		$isRegionsRequest = preg_match('#^/regions(?:/|$)#', (string) $requestPath) === 1;
+		$isArticlesRequest = preg_match('#^/articles(?:/|$)#', (string) $requestPath) === 1;
 	$isReviewsPage = $page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest;
 	$isRegionsPage = $page->name === 'regions' || $page->path === '/regions/' || $templateName === 'region' || $isRegionsRequest;
 	$isArticlesPage = $page->name === 'articles' || $page->path === '/articles/' || $isArticlesRequest;
@@ -38,9 +40,10 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$isArticlesNavActive = $templateName === 'articles' || $isArticlesPage;
 	$mainCssPath = $config->paths->templates . 'styles/main.css';
 	$mainCssVersion = is_file($mainCssPath) ? filemtime($mainCssPath) : null;
-	$authUser = isset($skfoAuthUser) && is_array($skfoAuthUser) ? $skfoAuthUser : null;
-	$isAuthLoggedIn = $authUser !== null;
-	$profileLinkAttrs = $isAuthLoggedIn ? '' : ' data-auth-open';
+		$authUser = isset($skfoAuthUser) && is_array($skfoAuthUser) ? $skfoAuthUser : null;
+		$isAuthLoggedIn = $authUser !== null;
+		$isCmsEditor = isset($user) && $user instanceof User && $user->isLoggedin() && ($user->isSuperuser() || $user->hasPermission('page-edit'));
+		$profileLinkAttrs = $isAuthLoggedIn ? '' : ' data-auth-open';
 	$authCsrfTokenName = $session->CSRF->getTokenName();
 	$authCsrfTokenValue = $session->CSRF->getTokenValue();
 
@@ -52,10 +55,11 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		<title><?php echo $page->title; ?> | SKFO.RU</title>
 		<link rel="stylesheet" type="text/css" href="<?php echo $config->urls->templates; ?>styles/main.css<?php echo $mainCssVersion ? '?v=' . (int) $mainCssVersion : ''; ?>" />
 	</head>
-		<body id="html-body">
-			<?php if($isTourTemplate): ?>
-				<header class="tour-header" id="site-header">
-					<div class="container tour-header-row">
+			<body id="html-body">
+				<?php if(!$isContentAdminPage): ?>
+				<?php if($isTourTemplate): ?>
+					<header class="tour-header" id="site-header">
+						<div class="container tour-header-row">
 						<a class="logo tour-header-logo" href="<?php echo $home->url; ?>" aria-label="SKFO.RU">
 							<img class="logo-img" src="<?php echo $config->urls->templates; ?>assets/icons/logo.svg" alt="SKFO.RU" />
 						</a>
@@ -89,10 +93,15 @@ $home = $pages->get('/'); /** @var HomePage $home */
 								<span class="tour-nav-text">Форум</span>
 							</a>
 						</nav>
-						<div class="tour-header-actions">
-							<a class="icon-btn tour-header-action" href="/profile/" aria-label="Профиль"<?php echo $profileLinkAttrs; ?>>
-								<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/profile.svg" alt="" aria-hidden="true" />
-							</a>
+							<div class="tour-header-actions">
+								<?php if($isCmsEditor): ?>
+									<a class="icon-btn tour-header-action" href="/content-admin/" aria-label="Контент-центр">
+										<span>CMS</span>
+									</a>
+								<?php endif; ?>
+								<a class="icon-btn tour-header-action" href="/profile/" aria-label="Профиль"<?php echo $profileLinkAttrs; ?>>
+									<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/profile.svg" alt="" aria-hidden="true" />
+								</a>
 							<a class="icon-btn tour-header-action" href="/contacts/" aria-label="Контакты" data-contacts-open>
 								<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/contacts.svg" alt="" aria-hidden="true" />
 							</a>
@@ -114,15 +123,17 @@ $home = $pages->get('/'); /** @var HomePage $home */
 							<span>Контакты</span>
 						</a>
 					</div>
-				</header>
-			<?php endif; ?>
+					</header>
+				<?php endif; ?>
+				<?php endif; ?>
 
-		<main id="content" class="site-main">
-			Default content
-		</main>
+			<main id="content" class="site-main">
+				Default content
+			</main>
 
-		<footer class="site-footer" id="site-footer">
-			<div class="container footer-layout">
+			<?php if(!$isContentAdminPage): ?>
+			<footer class="site-footer" id="site-footer">
+				<div class="container footer-layout">
 				<div class="footer-brand">
 					<div class="footer-brand-head">
 						<img class="footer-brand-logo" src="<?php echo $config->urls->templates; ?>assets/icons/logo2.svg" alt="SKFO.RU" />
@@ -187,11 +198,12 @@ $home = $pages->get('/'); /** @var HomePage $home */
 						</span>
 					</a>
 				</div>
-			</div>
-		</footer>
+				</div>
+			</footer>
+			<?php endif; ?>
 
-		<?php if (!$isAuthLoggedIn): ?>
-			<div class="auth-modal" id="auth-modal" hidden data-auth-api-url="<?php echo $sanitizer->entities((string) $page->url); ?>" data-csrf-name="<?php echo $sanitizer->entities($authCsrfTokenName); ?>" data-csrf-value="<?php echo $sanitizer->entities($authCsrfTokenValue); ?>">
+			<?php if (!$isContentAdminPage && !$isAuthLoggedIn): ?>
+				<div class="auth-modal" id="auth-modal" hidden data-auth-api-url="<?php echo $sanitizer->entities((string) $page->url); ?>" data-csrf-name="<?php echo $sanitizer->entities($authCsrfTokenName); ?>" data-csrf-value="<?php echo $sanitizer->entities($authCsrfTokenValue); ?>">
 				<div class="auth-modal-backdrop" data-auth-close></div>
 				<div class="auth-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
 					<button class="auth-modal-close" type="button" aria-label="Закрыть" data-auth-close>×</button>
@@ -230,12 +242,13 @@ $home = $pages->get('/'); /** @var HomePage $home */
 					</div>
 					<p class="auth-message" data-auth-message aria-live="polite"></p>
 				</div>
-			</div>
-		<?php endif; ?>
+				</div>
+			<?php endif; ?>
 
-		<div class="auth-modal contacts-modal" id="contacts-modal" hidden>
-			<div class="auth-modal-backdrop" data-contacts-close></div>
-			<div class="auth-modal-dialog contacts-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="contacts-modal-title">
+			<?php if(!$isContentAdminPage): ?>
+			<div class="auth-modal contacts-modal" id="contacts-modal" hidden>
+				<div class="auth-modal-backdrop" data-contacts-close></div>
+				<div class="auth-modal-dialog contacts-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="contacts-modal-title">
 				<button class="auth-modal-close" type="button" aria-label="Закрыть" data-contacts-close>×</button>
 				<h2 class="auth-title" id="contacts-modal-title">Контакты</h2>
 				<p class="contacts-subtitle">При наличии вопросов, пожалуйста, обратитесь на почту или по номеру телефона.</p>
@@ -254,9 +267,12 @@ $home = $pages->get('/'); /** @var HomePage $home */
 						<span>Написать</span>
 					</a>
 				</div>
+				</div>
 			</div>
-		</div>
+			<?php endif; ?>
 
-		<script src="<?php echo $config->urls->templates; ?>scripts/main.js"></script>
-	</body>
-</html>
+			<?php if(!$isContentAdminPage): ?>
+			<script src="<?php echo $config->urls->templates; ?>scripts/main.js"></script>
+			<?php endif; ?>
+		</body>
+	</html>
