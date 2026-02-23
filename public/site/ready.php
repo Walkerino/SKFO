@@ -37,6 +37,8 @@ $fields = wire('fields');
 $modules = wire('modules');
 /** @var Templates $templates */
 $templates = wire('templates');
+/** @var Fieldgroups $fieldgroups */
+$fieldgroups = wire('fieldgroups');
 /** @var Log $log */
 $log = wire('log');
 $toLower = static function(string $value): string {
@@ -164,6 +166,46 @@ $tourDayImagesField = $ensureField('tour_day_images', 'FieldtypeImage', 'Ден�
 	'extensions' => 'jpg jpeg png gif webp',
 ]);
 $tourDaysField = $ensureField('tour_days', 'FieldtypeRepeater', 'Информация по дням');
+
+$articleTopicField = $ensureField('article_topic', 'FieldtypeText', 'Статья: тематика');
+$articlePublishDateField = $ensureField('article_publish_date', 'FieldtypeDatetime', 'Статья: дата публикации');
+$articleCoverImageField = $ensureField('article_cover_image', 'FieldtypeImage', 'Статья: обложка', [
+	'maxFiles' => 1,
+	'extensions' => 'jpg jpeg png gif webp',
+]);
+$articleExcerptField = $ensureField('article_excerpt', 'FieldtypeTextarea', 'Статья: краткое описание');
+$articleContentField = $ensureField('article_content', 'FieldtypeTextarea', 'Статья: текст');
+
+$placeRegionField = $ensureField('place_region', 'FieldtypeText', 'Место: регион');
+$placeSummaryField = $ensureField('place_summary', 'FieldtypeTextarea', 'Место: описание');
+$placeImageField = $ensureField('place_image', 'FieldtypeImage', 'Место: фото', [
+	'maxFiles' => 1,
+	'extensions' => 'jpg jpeg png gif webp',
+]);
+
+$hotelCityField = $ensureField('hotel_city', 'FieldtypeText', 'Отель: город');
+$hotelRegionField = $ensureField('hotel_region', 'FieldtypeText', 'Отель: регион');
+$hotelRatingField = $ensureField('hotel_rating', 'FieldtypeFloat', 'Отель: рейтинг');
+$hotelPriceField = $ensureField('hotel_price', 'FieldtypeInteger', 'Отель: цена');
+$hotelMaxGuestsField = $ensureField('hotel_max_guests', 'FieldtypeInteger', 'Отель: макс. гостей');
+$hotelAmenitiesField = $ensureField('hotel_amenities', 'FieldtypeTextarea', 'Отель: удобства (по строкам)');
+$hotelImageField = $ensureField('hotel_image', 'FieldtypeImage', 'Отель: фото', [
+	'maxFiles' => 1,
+	'extensions' => 'jpg jpeg png gif webp',
+]);
+
+$homeFeaturedToursField = $ensureField('home_featured_tours', 'FieldtypePage', 'Главная: выбранные туры');
+$homeFeaturedPlacesField = $ensureField('home_featured_places', 'FieldtypePage', 'Главная: выбранные места');
+$homeActualPlacesField = $ensureField('home_actual_places', 'FieldtypePage', 'Главная: актуальные места');
+$homeFeaturedArticlesField = $ensureField('home_featured_articles', 'FieldtypePage', 'Главная: выбранные статьи');
+
+$regionFeaturedToursField = $ensureField('region_featured_tours', 'FieldtypePage', 'Регион: выбранные туры');
+$regionFeaturedPlacesField = $ensureField('region_featured_places', 'FieldtypePage', 'Регион: выбранные места');
+$regionFeaturedArticlesField = $ensureField('region_featured_articles', 'FieldtypePage', 'Регион: выбранные статьи');
+
+$articlesTodayRefsField = $ensureField('articles_today_refs', 'FieldtypePage', 'Статьи: блок "Читают сегодня"');
+$articlesFirstTimeRefsField = $ensureField('articles_first_time_refs', 'FieldtypePage', 'Статьи: блок "Впервые на Кавказе?"');
+$hotelsFeaturedRefsField = $ensureField('hotels_featured_refs', 'FieldtypePage', 'Отели: приоритетные карточки');
 
 if($imageField && $imageField->id) {
 	$imageChanged = false;
@@ -338,6 +380,70 @@ if($tourDayImagesField && $tourDayImagesField->id) {
 		$log->save('actual-cards-setup', "Updated field 'tour_day_images' settings.");
 	}
 }
+
+$catalogImageFields = [
+	'article_cover_image' => $articleCoverImageField,
+	'place_image' => $placeImageField,
+	'hotel_image' => $hotelImageField,
+];
+foreach($catalogImageFields as $fieldName => $field) {
+	if(!$field || !$field->id) continue;
+
+	$imageChanged = false;
+	if((int) $field->get('maxFiles') !== 1) {
+		$field->set('maxFiles', 1);
+		$imageChanged = true;
+	}
+
+	$extensions = trim((string) $field->get('extensions'));
+	if($extensions === '') {
+		$field->set('extensions', 'jpg jpeg png gif webp');
+		$imageChanged = true;
+	}
+
+	if($imageChanged) {
+		$fields->save($field);
+		$log->save('actual-cards-setup', "Updated field '{$fieldName}' settings.");
+	}
+}
+
+$syncPageReferenceField = static function(?Field $field, string $selector) use ($fields, $log): void {
+	if(!$field || !$field->id) return;
+	$changed = false;
+
+	if((string) $field->get('inputfieldClass') !== 'InputfieldAsmSelect') {
+		$field->set('inputfieldClass', 'InputfieldAsmSelect');
+		$changed = true;
+	}
+
+	if((string) $field->get('findPagesSelector') !== $selector) {
+		$field->set('findPagesSelector', $selector);
+		$changed = true;
+	}
+
+	if((string) $field->get('labelFieldName') !== 'title') {
+		$field->set('labelFieldName', 'title');
+		$changed = true;
+	}
+
+	if($changed) {
+		$fields->save($field);
+		$log->save('actual-cards-setup', "Updated field '{$field->name}' settings.");
+	}
+};
+
+$syncPageReferenceField($homeFeaturedToursField, 'template=tour, include=all, sort=title');
+$syncPageReferenceField($homeFeaturedPlacesField, 'template=place, include=all, sort=title');
+$syncPageReferenceField($homeActualPlacesField, 'template=place, include=all, sort=title');
+$syncPageReferenceField($homeFeaturedArticlesField, 'template=article, include=all, sort=-article_publish_date');
+
+$syncPageReferenceField($regionFeaturedToursField, 'template=tour, include=all, sort=title');
+$syncPageReferenceField($regionFeaturedPlacesField, 'template=place, include=all, sort=title');
+$syncPageReferenceField($regionFeaturedArticlesField, 'template=article, include=all, sort=-article_publish_date');
+
+$syncPageReferenceField($articlesTodayRefsField, 'template=article, include=all, sort=-article_publish_date');
+$syncPageReferenceField($articlesFirstTimeRefsField, 'template=article, include=all, sort=-article_publish_date');
+$syncPageReferenceField($hotelsFeaturedRefsField, 'template=hotel, include=all, sort=title');
 
 if(
 	$tourDifficultyLevelField &&
@@ -644,6 +750,20 @@ if($homeTemplate && $homeTemplate->id) {
 		$homeChanged = true;
 	}
 
+	$homeCatalogFields = [
+		$homeFeaturedToursField,
+		$homeFeaturedPlacesField,
+		$homeActualPlacesField,
+		$homeFeaturedArticlesField,
+	];
+	foreach($homeCatalogFields as $field) {
+		if(!$field || !$field->id) continue;
+		if(!$homeFieldgroup->has($field)) {
+			$homeFieldgroup->add($field);
+			$homeChanged = true;
+		}
+	}
+
 	if($homeChanged) {
 		$homeFieldgroup->save();
 		$log->save('actual-cards-setup', "Updated repeater fields on template 'home'.");
@@ -691,6 +811,98 @@ if($tourTemplate && $tourTemplate->id) {
 		$log->save('actual-cards-setup', "Updated fields on template 'tour'.");
 	}
 }
+
+$ensureTemplateWithFieldgroup = function(string $templateName, string $label, string $fieldgroupName) use ($templates, $fieldgroups, $log): ?Template {
+	$template = $templates->get($templateName);
+	if($template && $template->id) return $template;
+
+	$fieldgroup = $fieldgroups->get($fieldgroupName);
+	if(!$fieldgroup || !$fieldgroup->id) {
+		$fieldgroup = new Fieldgroup();
+		$fieldgroup->name = $fieldgroupName;
+		$fieldgroups->save($fieldgroup);
+	}
+
+	$template = new Template();
+	$template->name = $templateName;
+	$template->label = $label;
+	$template->fieldgroup = $fieldgroup;
+	$templates->save($template);
+	$log->save('actual-cards-setup', "Created template '{$templateName}'.");
+	return $templates->get($templateName);
+};
+
+$articleTemplate = $ensureTemplateWithFieldgroup('article', 'Статья (каталог)', 'catalog_article');
+$placeTemplate = $ensureTemplateWithFieldgroup('place', 'Место (каталог)', 'catalog_place');
+$hotelTemplate = $ensureTemplateWithFieldgroup('hotel', 'Отель (каталог)', 'catalog_hotel');
+$systemTitleField = $fields->get('title');
+
+$ensureTemplateTitleSupport = static function(?Template $template, ?Field $titleField) use ($templates, $log): void {
+	if(!$template || !$template->id || !$template->fieldgroup || !$titleField || !$titleField->id) return;
+
+	$fieldgroupChanged = false;
+	if(!$template->fieldgroup->has($titleField)) {
+		$template->fieldgroup->add($titleField);
+		$fieldgroupChanged = true;
+	}
+	if($fieldgroupChanged) {
+		$template->fieldgroup->save();
+		$log->save('actual-cards-setup', "Added system field 'title' to template '{$template->name}'.");
+	}
+
+	if((int) $template->get('noGlobal') !== 0) {
+		$template->set('noGlobal', 0);
+		$templates->save($template);
+		$log->save('actual-cards-setup', "Enabled global fields on template '{$template->name}'.");
+	}
+};
+
+$ensureTemplateTitleSupport($articleTemplate, $systemTitleField);
+$ensureTemplateTitleSupport($placeTemplate, $systemTitleField);
+$ensureTemplateTitleSupport($hotelTemplate, $systemTitleField);
+
+$syncTemplateFields = static function(?Template $template, array $templateFields, string $logName) use ($log): void {
+	if(!$template || !$template->id || !$template->fieldgroup) return;
+	$fieldgroup = $template->fieldgroup;
+	$changed = false;
+
+	foreach($templateFields as $field) {
+		if(!$field || !$field->id) continue;
+		if(!$fieldgroup->has($field)) {
+			$fieldgroup->add($field);
+			$changed = true;
+		}
+	}
+
+	if($changed) {
+		$fieldgroup->save();
+		$log->save('actual-cards-setup', $logName);
+	}
+};
+
+$syncTemplateFields($articleTemplate, [
+	$articleTopicField,
+	$articlePublishDateField,
+	$articleCoverImageField,
+	$articleExcerptField,
+	$articleContentField,
+], "Updated fields on template 'article'.");
+
+$syncTemplateFields($placeTemplate, [
+	$placeRegionField,
+	$placeSummaryField,
+	$placeImageField,
+], "Updated fields on template 'place'.");
+
+$syncTemplateFields($hotelTemplate, [
+	$hotelCityField,
+	$hotelRegionField,
+	$hotelRatingField,
+	$hotelPriceField,
+	$hotelMaxGuestsField,
+	$hotelAmenitiesField,
+	$hotelImageField,
+], "Updated fields on template 'hotel'.");
 
 $regionsPageDefaults = [
 	[
@@ -752,6 +964,9 @@ if($regionDetailTemplate && $regionDetailTemplate->id) {
 		$regionPlacesCardsField,
 		$regionArticlesHeadingField,
 		$regionArticlesCardsField,
+		$regionFeaturedToursField,
+		$regionFeaturedPlacesField,
+		$regionFeaturedArticlesField,
 	];
 	$regionTemplateChanged = false;
 
@@ -780,6 +995,25 @@ if($regionDetailTemplate && $regionDetailTemplate->id) {
 	if($regionTemplateChanged) {
 		$regionFieldgroup->save();
 		$log->save('actual-cards-setup', "Updated fields on template 'region'.");
+	}
+}
+
+$basicPageTemplate = $templates->get('basic-page');
+if($basicPageTemplate && $basicPageTemplate->id && $basicPageTemplate->fieldgroup) {
+	$basicFieldgroup = $basicPageTemplate->fieldgroup;
+	$basicChanged = false;
+	$basicCatalogFields = [$articlesTodayRefsField, $articlesFirstTimeRefsField, $hotelsFeaturedRefsField];
+	foreach($basicCatalogFields as $field) {
+		if(!$field || !$field->id) continue;
+		if(!$basicFieldgroup->has($field)) {
+			$basicFieldgroup->add($field);
+			$basicChanged = true;
+		}
+	}
+
+	if($basicChanged) {
+		$basicFieldgroup->save();
+		$log->save('actual-cards-setup', "Updated fields on template 'basic-page'.");
 	}
 }
 
@@ -976,6 +1210,67 @@ if($isAdminRequest && $regionsPage && $regionsPage->id && $regionCardsField && $
 			$regionsPage->save('region_cards');
 			$log->save('actual-cards-setup', "Seeded field 'region_cards' on page '/regions/'.");
 		}
+	}
+}
+
+$homePage = $pages->get('/');
+$contentRoot = $pages->get('/content/');
+if((!$contentRoot || !$contentRoot->id) && $homePage && $homePage->id) {
+	$rootTemplate = $templates->get('basic-page');
+	if($rootTemplate && $rootTemplate->id) {
+		$contentRoot = new Page();
+		$contentRoot->template = $rootTemplate;
+		$contentRoot->parent = $homePage;
+		$contentRoot->name = 'content';
+		$contentRoot->title = 'Каталог контента';
+		$pages->save($contentRoot);
+		$log->save('actual-cards-setup', "Created page '/content/'.");
+	}
+}
+
+$ensureCatalogSection = static function(?Page $parent, string $name, string $title, ?Template $template) use ($pages, $log): ?Page {
+	if(!$parent || !$parent->id || !$template || !$template->id) return null;
+	$path = $parent->path . $name . '/';
+	$page = $pages->get($path);
+	if($page && $page->id) {
+		if($page->template && $page->template->id !== $template->id) {
+			$page->of(false);
+			$page->template = $template;
+			$pages->save($page);
+			$log->save('actual-cards-setup', "Updated template for page '{$path}'.");
+		}
+		return $page;
+	}
+
+	$page = new Page();
+	$page->template = $template;
+	$page->parent = $parent;
+	$page->name = $name;
+	$page->title = $title;
+	$pages->save($page);
+	$log->save('actual-cards-setup', "Created page '{$path}'.");
+	return $page;
+};
+
+if($contentRoot && $contentRoot->id) {
+	$basicPageTemplate = $templates->get('basic-page');
+	$ensureCatalogSection($contentRoot, 'tours', 'Каталог туров', $basicPageTemplate);
+	$ensureCatalogSection($contentRoot, 'articles', 'Каталог статей', $basicPageTemplate);
+	$ensureCatalogSection($contentRoot, 'places', 'Каталог мест', $basicPageTemplate);
+	$ensureCatalogSection($contentRoot, 'hotels', 'Каталог отелей', $basicPageTemplate);
+}
+
+$contentAdminPage = $pages->get('/content-admin/');
+if((!$contentAdminPage || !$contentAdminPage->id) && $homePage && $homePage->id) {
+	$basicTemplate = $templates->get('basic-page');
+	if($basicTemplate && $basicTemplate->id) {
+		$contentAdminPage = new Page();
+		$contentAdminPage->template = $basicTemplate;
+		$contentAdminPage->parent = $homePage;
+		$contentAdminPage->name = 'content-admin';
+		$contentAdminPage->title = 'Контент-центр';
+		$pages->save($contentAdminPage);
+		$log->save('actual-cards-setup', "Created page '/content-admin/'.");
 	}
 }
 
