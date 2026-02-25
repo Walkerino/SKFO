@@ -33,6 +33,25 @@ $avatarClassMap = [
 	'yellow' => 'is-yellow',
 	'gray' => 'is-gray',
 ];
+$authUser = isset($skfoAuthUser) && is_array($skfoAuthUser) ? $skfoAuthUser : null;
+$isAuthLoggedIn = $authUser !== null;
+$resolveReviewAuthor = static function(?array $user): string {
+	if (!$user) return '';
+
+	$name = trim((string) ($user['name'] ?? ''));
+	if ($name !== '') return $name;
+
+	$email = trim((string) ($user['email'] ?? ''));
+	if ($email !== '') {
+		$emailName = strstr($email, '@', true);
+		if (is_string($emailName) && trim($emailName) !== '') {
+			return trim($emailName);
+		}
+		return $email;
+	}
+
+	return 'Пользователь';
+};
 
 $createReviewsTable = static function($database, string $table): void {
 	$database->exec(
@@ -58,15 +77,15 @@ $createReviewsTable = static function($database, string $table): void {
 
 $reviewError = (string) ($pullFlash($session, $flashPrefix . 'error') ?? '');
 $reviewSuccess = (string) ($pullFlash($session, $flashPrefix . 'success') ?? '');
-$reviewAuthorValue = (string) ($pullFlash($session, $flashPrefix . 'author') ?? '');
 $reviewTextValue = (string) ($pullFlash($session, $flashPrefix . 'text') ?? '');
 $reviewRatingFlash = (int) ($pullFlash($session, $flashPrefix . 'rating') ?? 0);
 if ($reviewRatingFlash >= 1 && $reviewRatingFlash <= 5) {
 	$reviewRatingValue = $reviewRatingFlash;
 }
+$reviewAuthorValue = $resolveReviewAuthor($authUser);
 
 if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'reviews_page') {
-	$reviewAuthorValue = trim((string) $input->post('review_author'));
+	$reviewAuthorValue = $resolveReviewAuthor($authUser);
 	$reviewTextValue = trim((string) $input->post('review_text'));
 	$reviewRatingValue = (int) $input->post('review_rating');
 
@@ -76,10 +95,10 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 		$csrfValid = false;
 	}
 
-	if (!$csrfValid) {
+	if (!$isAuthLoggedIn) {
+		$reviewError = 'Чтобы оставить отзыв, войдите в свой аккаунт.';
+	} elseif (!$csrfValid) {
 		$reviewError = 'Ошибка безопасности формы. Обновите страницу и попробуйте снова.';
-	} elseif ($reviewAuthorValue === '' || $textLength($reviewAuthorValue) < 2) {
-		$reviewError = 'Укажите имя (минимум 2 символа).';
 	} elseif ($reviewTextValue === '' || $textLength($reviewTextValue) < 8) {
 		$reviewError = 'Добавьте текст отзыва (минимум 8 символов).';
 	} elseif ($reviewRatingValue < 1 || $reviewRatingValue > 5) {
@@ -110,12 +129,10 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 
 	if ($reviewError !== '') {
 		$setFlash($session, $flashPrefix . 'error', $reviewError);
-		$setFlash($session, $flashPrefix . 'author', $reviewAuthorValue);
 		$setFlash($session, $flashPrefix . 'text', $reviewTextValue);
 		$setFlash($session, $flashPrefix . 'rating', $reviewRatingValue);
 	} else {
 		$setFlash($session, $flashPrefix . 'success', $reviewSuccess);
-		$session->remove($flashPrefix . 'author');
 		$session->remove($flashPrefix . 'text');
 		$session->remove($flashPrefix . 'rating');
 	}
@@ -188,32 +205,32 @@ $csrfTokenValue = $session->CSRF->getTokenValue();
 				<?php if ($reviewError !== ''): ?>
 					<div class="review-message is-error"><?php echo $sanitizer->entities($reviewError); ?></div>
 				<?php endif; ?>
+				<?php if (!$isAuthLoggedIn): ?>
+					<div class="review-message">Чтобы оставить отзыв, войдите в свой профиль.</div>
+					<button class="reviews-submit reviews-auth-submit" type="button" data-auth-open data-auth-mode="login">Войти в профиль</button>
+				<?php else: ?>
+					<form class="reviews-form" method="post" action="#reviews-form">
+						<input type="hidden" name="review_form" value="reviews_page" />
+						<input type="hidden" name="<?php echo $sanitizer->entities($csrfTokenName); ?>" value="<?php echo $sanitizer->entities($csrfTokenValue); ?>" />
 
-				<form class="reviews-form" method="post" action="#reviews-form">
-					<input type="hidden" name="review_form" value="reviews_page" />
-					<input type="hidden" name="<?php echo $sanitizer->entities($csrfTokenName); ?>" value="<?php echo $sanitizer->entities($csrfTokenValue); ?>" />
+						<label class="reviews-field">
+							<textarea name="review_text" rows="7" maxlength="3000" required placeholder="Ваш честный отзыв..." aria-label="Ваш честный отзыв"><?php echo $sanitizer->entities($reviewTextValue); ?></textarea>
+						</label>
 
-					<label class="reviews-field">
-						<input type="text" name="review_author" maxlength="120" required placeholder="Как вас зовут?" aria-label="Как вас зовут?" value="<?php echo $sanitizer->entities($reviewAuthorValue); ?>" />
-					</label>
-
-					<label class="reviews-field">
-						<textarea name="review_text" rows="7" maxlength="3000" required placeholder="Ваш честный отзыв..." aria-label="Ваш честный отзыв"><?php echo $sanitizer->entities($reviewTextValue); ?></textarea>
-					</label>
-
-					<div class="reviews-field">
-						<!-- <span>Оценка</span> -->
-						<div class="reviews-stars-input" role="radiogroup" aria-label="Оценка от 1 до 5">
-							<?php for ($i = 5; $i >= 1; $i--): ?>
-								<?php $isChecked = $reviewRatingValue === $i; ?>
-								<input id="review-rating-<?php echo $i; ?>" type="radio" name="review_rating" value="<?php echo $i; ?>"<?php echo $isChecked ? ' checked' : ''; ?> required />
-								<label for="review-rating-<?php echo $i; ?>" aria-label="<?php echo $i; ?>"></label>
-							<?php endfor; ?>
+						<div class="reviews-field">
+							<!-- <span>Оценка</span> -->
+							<div class="reviews-stars-input" role="radiogroup" aria-label="Оценка от 1 до 5">
+								<?php for ($i = 5; $i >= 1; $i--): ?>
+									<?php $isChecked = $reviewRatingValue === $i; ?>
+									<input id="review-rating-<?php echo $i; ?>" type="radio" name="review_rating" value="<?php echo $i; ?>"<?php echo $isChecked ? ' checked' : ''; ?> required />
+									<label for="review-rating-<?php echo $i; ?>" aria-label="<?php echo $i; ?>"></label>
+								<?php endfor; ?>
+							</div>
 						</div>
-					</div>
 
-					<button class="reviews-submit" type="submit">Отправить</button>
-				</form>
+						<button class="reviews-submit" type="submit">Отправить</button>
+					</form>
+				<?php endif; ?>
 			</div>
 		</div>
 	</section>

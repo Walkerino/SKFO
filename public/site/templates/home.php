@@ -106,9 +106,9 @@ $getImageUrlFromValue = static function($imageValue): string {
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 					</label>
 					<label class="hero-field">
-						<span class="sr-only">Когда</span>
-						<input type="date" name="when" placeholder="Когда" />
-						<!-- <img src="<?php echo $config->urls->templates; ?>assets/icons/when.svg" alt="" aria-hidden="true" /> -->
+						<span class="sr-only">Дата поездки</span>
+						<input type="text" name="when" placeholder="Дата поездки" data-date-input />
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/when.svg" alt="" aria-hidden="true" />
 					</label>
 					<label class="hero-field hero-field-people">
 						<span class="sr-only">С кем</span>

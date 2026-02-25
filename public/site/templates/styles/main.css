@@ -1090,6 +1090,10 @@ a {
   margin-top: 50px;
 }
 
+.reviews-auth-submit {
+  margin-top: 16px;
+}
+
 .review-message {
   margin-top: 14px;
   border-radius: 10px;
@@ -1911,6 +1915,7 @@ h6,
   cursor: pointer;
 }
 
+.hero-field input[data-date-input]::-webkit-calendar-picker-indicator,
 .hero-field input[data-hotel-date]::-webkit-calendar-picker-indicator {
   opacity: 0;
   pointer-events: none;

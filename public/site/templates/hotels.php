@@ -49,10 +49,26 @@ $toLower = static function(string $value): string {
 
 $normalizeDateInput = static function(string $value): string {
 	$value = trim($value);
+	if ($value === '') return '';
+
+	if (preg_match('/^\d{1,2}\.\d{1,2}\.\d{4}$/', $value)) {
+		[$day, $month, $year] = array_map('intval', explode('.', $value));
+		if (!checkdate($month, $day, $year)) return '';
+		return sprintf('%04d-%02d-%02d', $year, $month, $day);
+	}
+
+	if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) return '';
+	[$year, $month, $day] = array_map('intval', explode('-', $value));
+	if (!checkdate($month, $day, $year)) return '';
+	return sprintf('%04d-%02d-%02d', $year, $month, $day);
+};
+
+$formatDateForDisplay = static function(string $value): string {
+	$value = trim($value);
 	if ($value === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) return '';
-	$timestamp = strtotime($value);
-	if ($timestamp === false || $timestamp <= 0) return '';
-	return date('Y-m-d', $timestamp);
+	[$year, $month, $day] = array_map('intval', explode('-', $value));
+	if (!checkdate($month, $day, $year)) return '';
+	return sprintf('%02d.%02d.%04d', $day, $month, $year);
 };
 
 $formatPrice = static function(int $value): string {
@@ -288,11 +304,11 @@ if (count($featuredHotelOrder)) {
 $searchRegion = trim((string) $input->get('where'));
 $searchCheckIn = $normalizeDateInput((string) $input->get('checkin'));
 $searchCheckOut = $normalizeDateInput((string) $input->get('checkout'));
+$searchCheckInDisplay = $formatDateForDisplay($searchCheckIn);
+$searchCheckOutDisplay = $formatDateForDisplay($searchCheckOut);
 $searchGuests = (int) $input->get('guests');
 if ($searchGuests < 1) $searchGuests = 1;
 $searchGuestsLabel = $formatGuestLabel($searchGuests);
-$searchCheckInType = $searchCheckIn !== '' ? 'date' : 'text';
-$searchCheckOutType = $searchCheckOut !== '' ? 'date' : 'text';
 
 $isSearchSubmitted = trim((string) $input->get('search_hotels')) === '1';
 $searchError = '';
@@ -388,12 +404,12 @@ $buildPageUrl = static function(int $pageNumber) use ($page, $searchRegion, $sea
 					</label>
 					<label class="hero-field<?php echo $checkInFieldClass; ?>">
 						<span class="sr-only">Дата заезда</span>
-						<input type="<?php echo $searchCheckInType; ?>" name="checkin" placeholder="Дата заезда" value="<?php echo $sanitizer->entities($searchCheckIn); ?>" data-hotel-date />
+						<input type="text" name="checkin" placeholder="Дата заезда" value="<?php echo $sanitizer->entities($searchCheckInDisplay); ?>" data-date-input />
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/when.svg" alt="" aria-hidden="true" />
 					</label>
 					<label class="hero-field<?php echo $checkOutFieldClass; ?>">
 						<span class="sr-only">Дата выезда</span>
-						<input type="<?php echo $searchCheckOutType; ?>" name="checkout" placeholder="Дата выезда" value="<?php echo $sanitizer->entities($searchCheckOut); ?>" data-hotel-date />
+						<input type="text" name="checkout" placeholder="Дата выезда" value="<?php echo $sanitizer->entities($searchCheckOutDisplay); ?>" data-date-input />
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/when.svg" alt="" aria-hidden="true" />
 					</label>
 					<label

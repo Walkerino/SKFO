@@ -192,25 +192,80 @@ const initPeoplePicker = () => {
 };
 
 const initHotelDateFields = () => {
-  const dateInputs = Array.from(document.querySelectorAll("input[data-hotel-date]"));
+  const dateInputs = Array.from(
+    document.querySelectorAll("input[data-date-input], input[data-hotel-date]"),
+  );
   if (dateInputs.length === 0) return;
 
+  const isValidDate = (year, month, day) => {
+    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
+    if (year < 1000 || year > 9999) return false;
+    if (month < 1 || month > 12) return false;
+    if (day < 1 || day > 31) return false;
+
+    const date = new Date(year, month - 1, day);
+    return (
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    );
+  };
+
+  const parseIsoDate = (value) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (!match) return "";
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (!isValidDate(year, month, day)) return "";
+    return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  };
+
+  const parseRuDate = (value) => {
+    const match = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(value);
+    if (!match) return "";
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = Number(match[3]);
+    if (!isValidDate(year, month, day)) return "";
+    return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  };
+
+  const parseAnyDate = (value) => parseIsoDate(value) || parseRuDate(value);
+
+  const formatRuDate = (isoValue) => {
+    const iso = parseIsoDate(isoValue);
+    if (!iso) return "";
+    const [year, month, day] = iso.split("-");
+    return `${day}.${month}.${year}`;
+  };
+
   dateInputs.forEach((input) => {
-    const setTextMode = () => {
-      if (input.value.trim()) return;
+    const toTextMode = () => {
       input.type = "text";
+      const value = input.value.trim();
+      if (!value) return;
+      const iso = parseAnyDate(value);
+      if (!iso) return;
+      input.value = formatRuDate(iso);
     };
 
-    if (!input.value.trim()) {
-      input.type = "text";
-    }
+    const toDateMode = () => {
+      const value = input.value.trim();
+      const iso = parseAnyDate(value);
+      input.type = "date";
+      input.value = iso;
+    };
 
-    input.addEventListener("focus", () => {
-      if (input.type !== "date") input.type = "date";
-    });
+    toTextMode();
 
-    input.addEventListener("click", () => {
-      if (input.type !== "date") input.type = "date";
+    const setTextMode = () => {
+      window.requestAnimationFrame(toTextMode);
+    };
+
+    const openPicker = () => {
+      if (input.type !== "date") toDateMode();
+      input.focus();
       if (typeof input.showPicker === "function") {
         try {
           input.showPicker();
@@ -218,8 +273,26 @@ const initHotelDateFields = () => {
           // Ignore unsupported browsers.
         }
       }
+    };
+
+    input.addEventListener("focus", () => {
+      if (input.type !== "date") toDateMode();
     });
 
+    input.addEventListener("click", () => {
+      openPicker();
+    });
+
+    const field = input.closest(".hero-field");
+    if (field) {
+      field.addEventListener("click", (event) => {
+        if (!(event.target instanceof Element)) return;
+        if (event.target === input || event.target.closest("input") === input) return;
+        openPicker();
+      });
+    }
+
+    input.addEventListener("change", toTextMode);
     input.addEventListener("blur", setTextMode);
   });
 };

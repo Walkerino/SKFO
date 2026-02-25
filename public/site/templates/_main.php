@@ -258,13 +258,13 @@ $home = $pages->get('/'); /** @var HomePage $home */
 						<span class="contacts-action-icon" aria-hidden="true">
 							<img src="<?php echo $config->urls->templates; ?>assets/icons/contacts-call.svg" alt="" />
 						</span>
-						<span>Позвонить</span>
+						<span>+7 900 000-00-00</span>
 					</a>
 					<a class="contacts-action-btn" href="mailto:info@skfo.ru">
 						<span class="contacts-action-icon" aria-hidden="true">
 							<img src="<?php echo $config->urls->templates; ?>assets/icons/contacts-mail.svg" alt="" />
 						</span>
-						<span>Написать</span>
+						<span>skfo@pochta.ru</span>
 					</a>
 				</div>
 				</div>
