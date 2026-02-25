@@ -742,6 +742,9 @@ const initHotToursSlider = () => {
   const track = section.querySelector(".hot-tours-track");
   const prevBtn = section.querySelector(".hot-tours-prev");
   const nextBtn = section.querySelector(".hot-tours-next");
+  const moreBtn = section.querySelector(".hot-tours-more-btn");
+  const footer = section.querySelector(".hot-tours-footer");
+  const actions = section.querySelector(".hot-tours-actions");
   if (!grid || !track || !prevBtn || !nextBtn) return;
 
   const cards = Array.from(track.querySelectorAll(".hot-tour-card"));
@@ -751,9 +754,44 @@ const initHotToursSlider = () => {
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   let startIndex = 0;
+  let isExpanded = false;
 
   const update = () => {
     const visibleCount = Math.max(1, getVisibleCount());
+    const hasOverflow = cards.length > visibleCount;
+
+    if (!hasOverflow) isExpanded = false;
+    section.classList.toggle("is-expanded", hasOverflow && isExpanded);
+
+    if (footer) footer.hidden = !hasOverflow;
+    if (moreBtn) moreBtn.hidden = !hasOverflow || isExpanded;
+    if (actions) actions.hidden = !hasOverflow || isExpanded;
+
+    if (!hasOverflow) {
+      startIndex = 0;
+      track.style.transform = "";
+      track.style.transition = "";
+      grid.style.height = "";
+      prevBtn.disabled = true;
+      nextBtn.disabled = true;
+      prevBtn.classList.add("is-disabled");
+      nextBtn.classList.add("is-disabled");
+      return;
+    }
+
+    const cardHeight = Math.ceil(cards[0].getBoundingClientRect().height);
+
+    if (isExpanded) {
+      track.style.transform = "translateX(0px)";
+      track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
+      grid.style.height = `${Math.ceil(track.scrollHeight)}px`;
+      prevBtn.disabled = true;
+      nextBtn.disabled = true;
+      prevBtn.classList.add("is-disabled");
+      nextBtn.classList.add("is-disabled");
+      return;
+    }
+
     const maxStart = Math.max(0, cards.length - visibleCount);
     startIndex = Math.min(startIndex, maxStart);
     const cardWidth = cards[0].getBoundingClientRect().width;
@@ -762,27 +800,38 @@ const initHotToursSlider = () => {
     const offset = (cardWidth + gap) * startIndex;
     track.style.transform = `translateX(-${offset}px)`;
     track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
+    grid.style.height = `${cardHeight}px`;
 
-    const shouldSlide = cards.length > visibleCount;
-    prevBtn.disabled = !shouldSlide || startIndex <= 0;
-    nextBtn.disabled = !shouldSlide || startIndex >= maxStart;
+    prevBtn.disabled = startIndex <= 0;
+    nextBtn.disabled = startIndex >= maxStart;
     prevBtn.classList.toggle("is-disabled", prevBtn.disabled);
     nextBtn.classList.toggle("is-disabled", nextBtn.disabled);
   };
 
   prevBtn.addEventListener("click", () => {
+    if (isExpanded) return;
     startIndex = Math.max(0, startIndex - 1);
     update();
   });
 
   nextBtn.addEventListener("click", () => {
+    if (isExpanded) return;
     const visibleCount = Math.max(1, getVisibleCount());
     const maxStart = Math.max(0, cards.length - visibleCount);
     startIndex = Math.min(maxStart, startIndex + 1);
     update();
   });
 
+  if (moreBtn) {
+    moreBtn.addEventListener("click", () => {
+      if (isExpanded) return;
+      isExpanded = true;
+      update();
+    });
+  }
+
   window.addEventListener("resize", update);
+  window.addEventListener("load", update);
   update();
 };
 
@@ -795,6 +844,9 @@ const initDagestanSlider = () => {
   const track = section.querySelector(".places-track");
   const prevBtn = section.querySelector(".places-prev");
   const nextBtn = section.querySelector(".places-next");
+  const moreBtn = section.querySelector(".places-more-btn");
+  const footer = section.querySelector(".places-footer");
+  const actions = section.querySelector(".places-banner-actions");
   if (!banner || !grid || !track || !prevBtn || !nextBtn) return;
 
   const cards = Array.from(track.querySelectorAll(".place-card"));
@@ -804,15 +856,25 @@ const initDagestanSlider = () => {
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   let startIndex = 0;
+  let isExpanded = false;
 
   const update = () => {
-    const hasSlider = cards.length > 5;
-    banner.classList.toggle("places-banner--slider", hasSlider);
+    const visibleCount = Math.max(1, getVisibleCount());
+    const hasOverflow = cards.length > visibleCount;
+    banner.classList.toggle("places-banner--slider", hasOverflow);
 
-    if (!hasSlider) {
+    if (!hasOverflow) isExpanded = false;
+    banner.classList.toggle("is-expanded", hasOverflow && isExpanded);
+
+    if (footer) footer.hidden = !hasOverflow;
+    if (moreBtn) moreBtn.hidden = !hasOverflow || isExpanded;
+    if (actions) actions.hidden = !hasOverflow || isExpanded;
+
+    if (!hasOverflow) {
       startIndex = 0;
       track.style.transform = "";
       track.style.transition = "";
+      grid.style.height = "";
       prevBtn.disabled = true;
       nextBtn.disabled = true;
       prevBtn.classList.add("is-disabled");
@@ -820,7 +882,19 @@ const initDagestanSlider = () => {
       return;
     }
 
-    const visibleCount = Math.max(1, getVisibleCount());
+    const cardHeight = Math.ceil(cards[0].getBoundingClientRect().height);
+
+    if (isExpanded) {
+      track.style.transform = "translateX(0px)";
+      track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
+      grid.style.height = `${Math.ceil(track.scrollHeight)}px`;
+      prevBtn.disabled = true;
+      nextBtn.disabled = true;
+      prevBtn.classList.add("is-disabled");
+      nextBtn.classList.add("is-disabled");
+      return;
+    }
+
     const maxStart = Math.max(0, cards.length - visibleCount);
     startIndex = Math.min(startIndex, maxStart);
     const cardWidth = cards[0].getBoundingClientRect().width;
@@ -829,6 +903,7 @@ const initDagestanSlider = () => {
     const offset = (cardWidth + gap) * startIndex;
     track.style.transform = `translateX(-${offset}px)`;
     track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
+    grid.style.height = `${cardHeight}px`;
 
     prevBtn.disabled = startIndex <= 0;
     nextBtn.disabled = startIndex >= maxStart;
@@ -837,18 +912,29 @@ const initDagestanSlider = () => {
   };
 
   prevBtn.addEventListener("click", () => {
+    if (isExpanded) return;
     startIndex = Math.max(0, startIndex - 1);
     update();
   });
 
   nextBtn.addEventListener("click", () => {
+    if (isExpanded) return;
     const visibleCount = Math.max(1, getVisibleCount());
     const maxStart = Math.max(0, cards.length - visibleCount);
     startIndex = Math.min(maxStart, startIndex + 1);
     update();
   });
 
+  if (moreBtn) {
+    moreBtn.addEventListener("click", () => {
+      if (isExpanded) return;
+      isExpanded = true;
+      update();
+    });
+  }
+
   window.addEventListener("resize", update);
+  window.addEventListener("load", update);
   update();
 };
 

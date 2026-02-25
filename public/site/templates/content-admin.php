@@ -1,8 +1,12 @@
 <?php namespace ProcessWire;
 
-$isAllowedUser = $user && $user->isLoggedin() && ($user->isSuperuser() || $user->hasPermission('page-edit'));
+$isLoggedInCmsUser = $user && $user->isLoggedin();
+$isAllowedUser = $isLoggedInCmsUser && ($user->isSuperuser() || $user->hasPermission('page-edit'));
+if(!$isLoggedInCmsUser) {
+	$session->redirect($config->urls->admin . 'login/?continue=' . rawurlencode((string) $page->url));
+}
 if(!$isAllowedUser) {
-	throw new Wire404Exception();
+	throw new WirePermissionException('You do not have permission to access this page.');
 }
 
 $flashPrefix = 'content_admin_';

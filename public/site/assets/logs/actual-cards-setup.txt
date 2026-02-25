@@ -157,3 +157,7 @@
 2026-02-23 11:22:09	admin	http://skfo.ddev.site/processwire/?login=1	Created page '/content/articles/'.
 2026-02-23 11:22:09	admin	http://skfo.ddev.site/processwire/?login=1	Created page '/content/places/'.
 2026-02-23 11:22:09	admin	http://skfo.ddev.site/processwire/?login=1	Created page '/content/hotels/'.
+2026-02-25 20:33:01	admin	http://skfo.ddev.site/processwire/login/?login=1	Created field 'hotels_featured_refs'.
+2026-02-25 20:33:01	admin	http://skfo.ddev.site/processwire/login/?login=1	Updated field 'hotels_featured_refs' settings.
+2026-02-25 20:33:01	admin	http://skfo.ddev.site/processwire/login/?login=1	Updated fields on template 'basic-page'.
+2026-02-25 20:33:01	admin	http://skfo.ddev.site/processwire/login/?login=1	Created page '/content-admin/'.
