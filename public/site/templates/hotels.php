@@ -108,6 +108,44 @@ $getImageUrlFromValue = static function($imageValue): string {
 };
 
 $defaultHotelImage = $config->urls->templates . 'assets/image1.png';
+$defaultHotelGalleryAssets = [
+	'assets/hotels/default-hotel-1.jpg',
+	'assets/hotels/default-hotel-2.jpg',
+	'assets/hotels/default-hotel-3.jpg',
+	'assets/hotels/default-hotel-4.jpg',
+	'assets/hotels/default-hotel-5.jpg',
+	'assets/hotels/default-hotel-6.jpg',
+	'assets/hotels/default-hotel-7.jpg',
+];
+$fallbackHotelGalleryAssets = [
+	'site/assets/files/1123/a3b0fbb001a56c7f212673120328947d9d32b65d.png',
+	'site/assets/files/1127/21f93814b89fb9b949fcd2ca84eb6f5d6d03a218.png',
+	'site/assets/files/1061/rectangle_7-6.png',
+	'site/assets/files/1057/rectangle_7-1.png',
+	'site/assets/files/1058/rectangle_7.png',
+	'site/assets/files/1125/c68a00bbd5889a870651731526a0dabc912dd64e.png',
+	'site/assets/files/1126/df72bbf9803f91dae6ccae1ffda49c5b7ada217d.png',
+];
+$defaultHotelGallery = [];
+$addDefaultHotelImage = static function(string $filePath, string $urlPath) use (&$defaultHotelGallery): void {
+	if (!is_file($filePath)) return;
+	$defaultHotelGallery[] = $urlPath;
+};
+foreach ($defaultHotelGalleryAssets as $assetPath) {
+	$assetPath = ltrim($assetPath, '/');
+	$addDefaultHotelImage($config->paths->templates . $assetPath, $config->urls->templates . $assetPath);
+}
+if (!count($defaultHotelGallery)) {
+	foreach ($fallbackHotelGalleryAssets as $assetPath) {
+		$assetPath = ltrim($assetPath, '/');
+		$addDefaultHotelImage($config->paths->root . $assetPath, $config->urls->root . $assetPath);
+	}
+}
+$pickDefaultHotelImage = static function(int $index) use ($defaultHotelGallery, $defaultHotelImage): string {
+	if (!count($defaultHotelGallery)) return $defaultHotelImage;
+	$safeIndex = $index >= 0 ? $index : 0;
+	return $defaultHotelGallery[$safeIndex % count($defaultHotelGallery)];
+};
 $hotelsCatalog = [];
 
 if (isset($pages) && $pages instanceof Pages) {
@@ -132,7 +170,7 @@ if (isset($pages) && $pages instanceof Pages) {
 		}
 
 		$image = $hotelPage->hasField('hotel_image') ? $getImageUrlFromValue($hotelPage->getUnformatted('hotel_image')) : '';
-		if ($image === '') $image = $defaultHotelImage;
+		if ($image === '') $image = $pickDefaultHotelImage(count($hotelsCatalog));
 
 		$hotelsCatalog[] = [
 			'title' => $title,
@@ -270,6 +308,10 @@ if (!count($hotelsCatalog)) {
 		'image' => $defaultHotelImage,
 	],
 ];
+
+	foreach ($hotelsCatalog as $index => $hotel) {
+		$hotelsCatalog[$index]['image'] = $pickDefaultHotelImage($index);
+	}
 }
 
 $featuredHotelOrder = [];
@@ -354,6 +396,7 @@ $buildPageUrl = static function(int $pageNumber) use ($page, $searchRegion, $sea
 	$query = http_build_query($params, '', '&', PHP_QUERY_RFC3986);
 	return $page->url . ($query !== '' ? '?' . $query : '');
 };
+$forumExternalUrl = 'https://club.skfo.ru';
 ?>
 
 <div id="content" class="hotels-page">
@@ -388,7 +431,7 @@ $buildPageUrl = static function(int $pageNumber) use ($page, $searchRegion, $sea
 						<span class="hero-tab-text">Статьи</span>
 					</a>
 				</div>
-				<a class="hero-tab hero-tab-forum" href="/forum/" aria-label="Форум">
+				<a class="hero-tab hero-tab-forum" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer" aria-label="Форум">
 					<img src="<?php echo $config->urls->templates; ?>assets/icons/forum.svg" alt="" aria-hidden="true" />
 					<span>Форум</span>
 					<img class="hero-tab-external" src="<?php echo $config->urls->templates; ?>assets/icons/external_site.svg" alt="" aria-hidden="true" />

@@ -708,6 +708,7 @@ $forumTitle = 'Форум СКФО';
 $forumSubtitle = "Делимся опытом и помогаем\nдруг другу планировать поездки";
 $forumButtonText = 'Присоединиться';
 $forumImageUrl = $config->urls->templates . 'assets/image1.png';
+$forumExternalUrl = 'https://club.skfo.ru';
 ?>
 
 <div id="content" class="articles-page">
@@ -850,7 +851,7 @@ $forumImageUrl = $config->urls->templates . 'assets/image1.png';
 						<div class="forum-card-inner">
 							<h2 class="forum-title"><?php echo $sanitizer->entities($forumTitle); ?></h2>
 							<p class="forum-subtitle"><?php echo nl2br($sanitizer->entities($forumSubtitle)); ?></p>
-							<button class="forum-button" type="button"><?php echo $sanitizer->entities($forumButtonText); ?></button>
+							<a class="forum-button" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer"><?php echo $sanitizer->entities($forumButtonText); ?></a>
 						</div>
 						<img class="forum-image" src="<?php echo $sanitizer->entities($forumImageUrl); ?>" alt="<?php echo $sanitizer->entities($forumTitle); ?>" />
 					</div>

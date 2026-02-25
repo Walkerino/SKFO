@@ -57,6 +57,7 @@ $getImageUrlFromValue = static function($imageValue): string {
 	if ($imageValue instanceof Pageimages && $imageValue->count()) return $imageValue->first()->url;
 	return '';
 };
+$forumExternalUrl = 'https://club.skfo.ru';
 
 ?>
 
@@ -92,7 +93,7 @@ $getImageUrlFromValue = static function($imageValue): string {
 						<span class="hero-tab-text">Статьи</span>
 					</a>
 				</div>
-				<a class="hero-tab hero-tab-forum" href="/forum/" aria-label="Форум">
+				<a class="hero-tab hero-tab-forum" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer" aria-label="Форум">
 					<img src="<?php echo $config->urls->templates; ?>assets/icons/forum.svg" alt="" aria-hidden="true" />
 					<span>Форум</span>
 					<img class="hero-tab-external" src="<?php echo $config->urls->templates; ?>assets/icons/external_site.svg" alt="" aria-hidden="true" />
@@ -579,7 +580,7 @@ $getImageUrlFromValue = static function($imageValue): string {
 						Делимся опытом и помогаем<br />
 						друг другу планировать поездки
 					</p>
-					<button class="forum-button" type="button">Присоединиться</button>
+					<a class="forum-button" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">Присоединиться</a>
 				</div>
 				<img class="forum-image" src="<?php echo $config->urls->templates; ?>assets/image1.png" alt="Форум СКФО" />
 			</div>

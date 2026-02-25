@@ -20,13 +20,16 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		['label' => 'Отзывы', 'url' => '/reviews/'],
 		['label' => 'Регионы', 'url' => '/regions/'],
 		['label' => 'Статьи', 'url' => '/articles/'],
-		['label' => 'Форум', 'url' => '/forum/'],
+		['label' => 'Форум', 'url' => 'https://club.skfo.ru'],
 	];
+	$forumExternalUrl = 'https://club.skfo.ru';
 
 	$templateName = $page->template ? $page->template->name : '';
 		$requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
 		$isContentAdminRequest = $requestPath === '/content-admin' || $requestPath === '/content-admin/';
+		$isProfileRequest = $requestPath === '/profile' || $requestPath === '/profile/';
 		$isContentAdminPage = $page->name === 'content-admin' || $page->path === '/content-admin/' || $isContentAdminRequest;
+		$isProfilePage = $page->name === 'profile' || $page->path === '/profile/' || $isProfileRequest;
 		$isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
 		$isRegionsRequest = preg_match('#^/regions(?:/|$)#', (string) $requestPath) === 1;
 		$isArticlesRequest = preg_match('#^/articles(?:/|$)#', (string) $requestPath) === 1;
@@ -40,10 +43,32 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$isArticlesNavActive = $templateName === 'articles' || $isArticlesPage;
 	$mainCssPath = $config->paths->templates . 'styles/main.css';
 	$mainCssVersion = is_file($mainCssPath) ? filemtime($mainCssPath) : null;
-		$authUser = isset($skfoAuthUser) && is_array($skfoAuthUser) ? $skfoAuthUser : null;
-		$isAuthLoggedIn = $authUser !== null;
-		$isCmsEditor = isset($user) && $user instanceof User && $user->isLoggedin() && ($user->isSuperuser() || $user->hasPermission('page-edit'));
-		$profileLinkAttrs = $isAuthLoggedIn ? '' : ' data-auth-open';
+	$authUser = isset($skfoAuthUser) && is_array($skfoAuthUser) ? $skfoAuthUser : null;
+	$isAuthLoggedIn = $authUser !== null;
+	$isCmsEditor = isset($user) && $user instanceof User && $user->isLoggedin() && ($user->isSuperuser() || $user->hasPermission('page-edit'));
+	$profileLinkAttrs = $isAuthLoggedIn ? '' : ' data-auth-open';
+	$normalizeAuthName = static function(string $value): string {
+		$value = trim($value);
+		$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+		return $value;
+	};
+	$profileButtonLabel = 'Профиль';
+	if ($isAuthLoggedIn) {
+		$profileButtonLabel = $normalizeAuthName((string) ($authUser['name'] ?? ''));
+		if ($profileButtonLabel === '') {
+			$profileEmail = trim((string) ($authUser['email'] ?? ''));
+			if ($profileEmail !== '') {
+				$emailName = strstr($profileEmail, '@', true);
+				if (is_string($emailName) && trim($emailName) !== '') {
+					$profileButtonLabel = trim($emailName);
+				}
+			}
+		}
+		if ($profileButtonLabel === '') {
+			$profileButtonLabel = 'Профиль';
+		}
+	}
+	$profileAriaLabel = $isAuthLoggedIn ? ('Профиль: ' . $profileButtonLabel) : 'Профиль';
 	$authCsrfTokenName = $session->CSRF->getTokenName();
 	$authCsrfTokenValue = $session->CSRF->getTokenValue();
 
@@ -55,7 +80,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		<title><?php echo $page->title; ?> | SKFO.RU</title>
 		<link rel="stylesheet" type="text/css" href="<?php echo $config->urls->templates; ?>styles/main.css<?php echo $mainCssVersion ? '?v=' . (int) $mainCssVersion : ''; ?>" />
 	</head>
-			<body id="html-body">
+			<body id="html-body"<?php echo $isProfilePage ? ' class="page-profile"' : ''; ?>>
 				<?php if(!$isContentAdminPage): ?>
 				<?php if($isTourTemplate): ?>
 					<header class="tour-header" id="site-header">
@@ -88,7 +113,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 									<span class="tour-nav-text">Статьи</span>
 								</a>
 							</div>
-							<a class="tour-header-link tour-nav-link tour-nav-link--forum" href="/forum/">
+							<a class="tour-header-link tour-nav-link tour-nav-link--forum" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">
 								<img src="<?php echo $config->urls->templates; ?>assets/icons/forum.svg" alt="" aria-hidden="true" />
 								<span class="tour-nav-text">Форум</span>
 							</a>
@@ -99,7 +124,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 										<span>CMS</span>
 									</a>
 								<?php endif; ?>
-								<a class="icon-btn tour-header-action" href="/profile/" aria-label="Профиль"<?php echo $profileLinkAttrs; ?>>
+								<a class="icon-btn tour-header-action" href="/profile/" aria-label="<?php echo $sanitizer->entities($profileAriaLabel); ?>"<?php echo $profileLinkAttrs; ?>>
 									<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/profile.svg" alt="" aria-hidden="true" />
 								</a>
 							<a class="icon-btn tour-header-action" href="/contacts/" aria-label="Контакты" data-contacts-open>
@@ -111,9 +136,9 @@ $home = $pages->get('/'); /** @var HomePage $home */
 			<?php else: ?>
 				<header class="site-header site-header--overlay" id="site-header">
 					<div class="container header-row">
-						<a class="icon-btn" href="/profile/" aria-label="Профиль"<?php echo $profileLinkAttrs; ?>>
+						<a class="icon-btn" href="/profile/" aria-label="<?php echo $sanitizer->entities($profileAriaLabel); ?>"<?php echo $profileLinkAttrs; ?>>
 							<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/profile.svg" alt="" aria-hidden="true" />
-							<span>Профиль</span>
+							<span><?php echo $sanitizer->entities($profileButtonLabel); ?></span>
 						</a>
 						<a class="logo" href="<?php echo $home->url; ?>" aria-label="SKFO.RU">
 							<img class="logo-img" src="<?php echo $config->urls->templates; ?>assets/icons/logo.svg" alt="SKFO.RU" />
@@ -176,7 +201,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 							<span class="footer-section-subtitle">Места для ночлега</span>
 						</span>
 					</a>
-					<a class="footer-section-item" href="/forum/">
+					<a class="footer-section-item" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">
 						<span class="footer-section-icon"><img src="<?php echo $config->urls->templates; ?>assets/icons/forum-footer.svg" alt="" aria-hidden="true" /></span>
 						<span class="footer-section-text">
 							<span class="footer-section-title">Форум СКФО.РУ</span>
@@ -254,7 +279,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 				<p class="contacts-subtitle">При наличии вопросов, пожалуйста, обратитесь на почту или по номеру телефона.</p>
 				<p class="contacts-hours">Ежедневно 10:00-20:00 (МСК)</p>
 				<div class="contacts-actions">
-					<a class="contacts-action-btn" href="tel:+79000000000">
+					<a class="conимер, Flatacts-action-btn" href="tel:+79000000000">
 						<span class="contacts-action-icon" aria-hidden="true">
 							<img src="<?php echo $config->urls->templates; ?>assets/icons/contacts-call.svg" alt="" />
 						</span>
