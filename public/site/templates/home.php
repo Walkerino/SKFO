@@ -52,11 +52,102 @@ if (!count($regionOptions)) {
 	}
 }
 
+$toLower = static function(string $value): string {
+	$value = trim($value);
+	return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+};
+
+$formatDaysLabel = static function(int $days): string {
+	$days = max(0, $days);
+	$mod10 = $days % 10;
+	$mod100 = $days % 100;
+	if ($mod10 === 1 && $mod100 !== 11) return $days . ' день';
+	if ($mod10 >= 2 && $mod10 <= 4 && ($mod100 < 10 || $mod100 >= 20)) return $days . ' дня';
+	return $days . ' дней';
+};
+
+$normalizeTourDuration = static function(string $value) use ($formatDaysLabel): string {
+	$value = trim($value);
+	if ($value === '') return '';
+	if (preg_match('/\d+/u', $value, $matches) !== 1) return $value;
+
+	$days = (int) ($matches[0] ?? 0);
+	if ($days <= 0) return $value;
+
+	return $formatDaysLabel($days);
+};
+
 $getImageUrlFromValue = static function($imageValue): string {
 	if ($imageValue instanceof Pageimage) return $imageValue->url;
 	if ($imageValue instanceof Pageimages && $imageValue->count()) return $imageValue->first()->url;
 	return '';
 };
+
+$searchRegion = trim((string) $input->get('where'));
+$searchTripDate = trim((string) $input->get('when'));
+$searchCompanion = trim((string) $input->get('with'));
+if ($searchCompanion === '') $searchCompanion = '1 человек';
+
+$isTourSearchSubmitted = trim((string) $input->get('search_tours')) === '1';
+$regionFieldClass = $searchRegion !== '' ? ' is-filled' : '';
+$tripDateFieldClass = $searchTripDate !== '' ? ' is-filled' : '';
+$companionFieldClass = $isTourSearchSubmitted ? ' is-filled' : '';
+
+$defaultTourImage = $config->urls->templates . 'assets/image1.png';
+$toursCatalog = [];
+
+if (isset($pages) && $pages instanceof Pages) {
+	$tourPages = $pages->find('template=tour, include=all, sort=title, limit=500');
+	foreach ($tourPages as $tourPage) {
+		if (!$tourPage instanceof Page) continue;
+
+		$title = trim((string) $tourPage->title);
+		if ($title === '') continue;
+
+		$imageUrl = $tourPage->hasField('tour_cover_image') ? $getImageUrlFromValue($tourPage->getUnformatted('tour_cover_image')) : '';
+		if ($imageUrl === '') $imageUrl = $defaultTourImage;
+
+		$toursCatalog[] = [
+			'title' => $title,
+			'region' => $tourPage->hasField('tour_region') ? trim((string) $tourPage->tour_region) : '',
+			'price' => $tourPage->hasField('tour_price') ? trim((string) $tourPage->tour_price) : '',
+			'duration' => $tourPage->hasField('tour_duration') ? $normalizeTourDuration((string) $tourPage->tour_duration) : '',
+			'image' => $imageUrl,
+			'url' => (string) $tourPage->url,
+		];
+	}
+}
+
+if (!count($toursCatalog) && $page->hasField('home_featured_tours') && $page->home_featured_tours->count()) {
+	foreach ($page->home_featured_tours as $tourPage) {
+		if (!$tourPage instanceof Page) continue;
+		$title = trim((string) $tourPage->title);
+		if ($title === '') continue;
+
+		$imageUrl = $tourPage->hasField('tour_cover_image') ? $getImageUrlFromValue($tourPage->getUnformatted('tour_cover_image')) : '';
+		if ($imageUrl === '') $imageUrl = $defaultTourImage;
+
+		$toursCatalog[] = [
+			'title' => $title,
+			'region' => $tourPage->hasField('tour_region') ? trim((string) $tourPage->tour_region) : '',
+			'price' => $tourPage->hasField('tour_price') ? trim((string) $tourPage->tour_price) : '',
+			'duration' => $tourPage->hasField('tour_duration') ? $normalizeTourDuration((string) $tourPage->tour_duration) : '',
+			'image' => $imageUrl,
+			'url' => (string) $tourPage->url,
+		];
+	}
+}
+
+$filteredTours = [];
+if ($isTourSearchSubmitted) {
+	$regionNeedle = $toLower($searchRegion);
+	$filteredTours = array_values(array_filter($toursCatalog, static function(array $tour) use ($regionNeedle, $toLower): bool {
+		if ($regionNeedle === '') return true;
+		$region = $toLower(trim((string) ($tour['region'] ?? '')));
+		return strpos($region, $regionNeedle) !== false;
+	}));
+}
+
 $forumExternalUrl = 'https://club.skfo.ru';
 
 ?>
@@ -99,21 +190,22 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					<img class="hero-tab-external" src="<?php echo $config->urls->templates; ?>assets/icons/external_site.svg" alt="" aria-hidden="true" />
 				</a>
 			</div>
-			<form class="hero-search" action="#" method="get">
+			<form class="hero-search" action="<?php echo $sanitizer->entities($page->url); ?>" method="get">
+				<input type="hidden" name="search_tours" value="1" />
 				<div class="hero-search-fields">
-					<label class="hero-field hero-field-where">
+					<label class="hero-field hero-field-where<?php echo $regionFieldClass; ?>">
 						<span class="sr-only">Куда</span>
-						<input type="text" name="where" placeholder="Куда" list="city-list" />
+						<input type="text" name="where" placeholder="Регион" list="city-list" value="<?php echo $sanitizer->entities($searchRegion); ?>" />
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 					</label>
-					<label class="hero-field">
+					<label class="hero-field<?php echo $tripDateFieldClass; ?>">
 						<span class="sr-only">Дата поездки</span>
-						<input type="text" name="when" placeholder="Дата поездки" data-date-input />
+						<input type="text" name="when" placeholder="Дата поездки" data-date-input value="<?php echo $sanitizer->entities($searchTripDate); ?>" />
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/when.svg" alt="" aria-hidden="true" />
 					</label>
-					<label class="hero-field hero-field-people">
+					<label class="hero-field hero-field-people<?php echo $companionFieldClass; ?>">
 						<span class="sr-only">С кем</span>
-						<input type="text" name="with" placeholder="С кем" readonly />
+						<input type="text" name="with" placeholder="С кем" value="<?php echo $sanitizer->entities($searchCompanion); ?>" readonly />
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/human.svg" alt="" aria-hidden="true" />
 						<div class="people-popover" aria-hidden="true">
 							<div class="people-row">
@@ -133,6 +225,56 @@ $forumExternalUrl = 'https://club.skfo.ru';
 			</form>
 		</div>
 	</section>
+
+	<?php if ($isTourSearchSubmitted): ?>
+		<section class="section section--hotels-results section--home-tours-results">
+			<div class="container">
+				<h2 class="section-title home-tours-results-title">Подходящие туры</h2>
+				<?php if (count($filteredTours)): ?>
+					<div class="hotels-grid">
+						<?php foreach ($filteredTours as $tour): ?>
+							<?php
+							$tourImage = trim((string) ($tour['image'] ?? ''));
+							$tourRegion = trim((string) ($tour['region'] ?? ''));
+							$tourPrice = trim((string) ($tour['price'] ?? ''));
+							$tourDuration = trim((string) ($tour['duration'] ?? ''));
+							$tourUrl = trim((string) ($tour['url'] ?? ''));
+							if ($tourPrice === '') $tourPrice = 'Цена уточняется';
+							?>
+							<article class="hotel-card">
+								<div class="hotel-card-media"<?php echo $tourImage !== '' ? " style=\"background-image: url('" . htmlspecialchars($tourImage, ENT_QUOTES, 'UTF-8') . "');\"" : ''; ?>>
+									<!-- <?php if ($tourDuration !== ''): ?>
+										<span class="hotel-card-rating"><?php echo $sanitizer->entities($tourDuration); ?></span>
+									<?php endif; ?> -->
+								</div>
+								<h2 class="hotel-card-title"><?php echo $sanitizer->entities((string) ($tour['title'] ?? '')); ?></h2>
+								<p class="hotel-card-location"><?php echo $sanitizer->entities($tourRegion); ?></p>
+								<ul class="hotel-card-amenities" aria-label="Параметры тура">
+									<?php if ($tourDuration !== ''): ?>
+										<li class="hotel-card-amenity">
+											<span class="hotel-card-amenity-icon"><?php echo $sanitizer->entities($tourDuration); ?></span>
+										</li>
+									<?php endif; ?>
+								</ul>
+								<div class="hotel-card-footer">
+									<div class="hotel-card-price"><?php echo $sanitizer->entities($tourPrice); ?></div>
+									<?php if ($tourUrl !== ''): ?>
+										<a class="hotel-card-btn" href="<?php echo $sanitizer->entities($tourUrl); ?>">Подробнее</a>
+									<?php else: ?>
+										<button class="hotel-card-btn" type="button">Подробнее</button>
+									<?php endif; ?>
+								</div>
+							</article>
+						<?php endforeach; ?>
+					</div>
+				<?php else: ?>
+					<div class="hotels-empty">
+						По вашему запросу туры не найдены. Измените регион и попробуйте снова.
+					</div>
+				<?php endif; ?>
+			</div>
+		</section>
+	<?php endif; ?>
 
 		<section class="section section--places">
 			<?php

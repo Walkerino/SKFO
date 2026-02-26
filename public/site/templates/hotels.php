@@ -89,15 +89,23 @@ $formatGuestLabel = static function(int $count): string {
 };
 
 $amenityMap = [
-	'wifi' => ['title' => 'Wi-Fi', 'short' => 'Wi', 'icon' => 'hotel-amenity-wifi.svg'],
-	'kids' => ['title' => 'Для детей', 'short' => 'Kid', 'icon' => 'hotel-amenity-kid.svg'],
+	'wifi' => ['title' => 'Бесплатный Wi-Fi', 'short' => 'Wi', 'icon' => 'hotel-amenity-wifi.svg'],
 	'parking' => ['title' => 'Паркинг', 'short' => 'P', 'icon' => 'hotel-amenity-parking.svg'],
-	'spa' => ['title' => 'SPA', 'short' => 'SPA', 'icon' => 'hotel-amenity-spa.svg'],
-	'gym' => ['title' => 'Спортзал', 'short' => 'Gym', 'icon' => 'hotel-amenity-gym.svg'],
+	'elevator' => ['title' => 'Лифт', 'short' => 'Lift', 'icon' => 'hotel-amenity-elevator.svg'],
+	'soundproof_rooms' => ['title' => 'Звукоизолированные номера', 'short' => 'Quiet'],
+	'air_conditioning' => ['title' => 'Кондиционер', 'short' => 'A/C'],
+	'kids' => ['title' => 'Подходит для детей', 'short' => 'Kid', 'icon' => 'hotel-amenity-kid.svg'],
+	'tv' => ['title' => 'Телевизор', 'short' => 'TV'],
+	'spa' => ['title' => 'Spa-центр', 'short' => 'SPA', 'icon' => 'hotel-amenity-spa.svg'],
+	'minibar' => ['title' => 'Мини-бар', 'short' => 'Bar', 'icon' => 'hotel-amenity-minibar.svg'],
+	'breakfast' => ['title' => 'Завтрак', 'short' => 'BF', 'icon' => 'hotel-amenity-breakfast.svg'],
+	'transfer' => ['title' => 'Трансфер', 'short' => 'Tr', 'icon' => 'hotel-amenity-transfer.svg'],
+	'accessible' => ['title' => 'Удобства для людей с ограниченными возможностями', 'short' => 'A11y', 'icon' => 'hotel-amenity-accessible.svg'],
+	'gym' => ['title' => 'Спортивный зал', 'short' => 'Gym', 'icon' => 'hotel-amenity-gym.svg'],
+
+	// Legacy/fallback codes that may still exist in older hotel entries.
 	'pool' => ['title' => 'Бассейн', 'short' => 'Pool', 'icon' => 'hotel-amenity-pool.svg'],
-	'breakfast' => ['title' => 'Завтрак', 'short' => 'BF'],
 	'restaurant' => ['title' => 'Ресторан', 'short' => 'Rest'],
-	'transfer' => ['title' => 'Трансфер', 'short' => 'Tr'],
 	'pets' => ['title' => 'Можно с питомцами', 'short' => 'Pet'],
 ];
 

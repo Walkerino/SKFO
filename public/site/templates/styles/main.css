@@ -388,7 +388,7 @@ a {
   line-height: 120%;
   font-family: "Ruberoid", sans-serif;
 
-  margin-top: 14px;
+  margin-top: 10px;
 }
 
 .tour-badge img,
@@ -396,6 +396,10 @@ a {
   width: 20px;
   height: 20px;
   display: block;
+}
+
+.tour-badge span {
+  padding-top: 5px;
 }
 
 .tour-title {
@@ -588,7 +592,7 @@ a {
 .tour-book-btn {
   border: 1px;
   border-color: #00056233;
-  background: linear-gradient(90deg, #FF610C 0%, #EF990F 100%);
+  background: linear-gradient(90deg, #FF9A0C 0%, #EF560F 100%);
   color: #ffffff;
   border-radius: 10px;
   padding: 11px 47px;
@@ -1074,7 +1078,7 @@ a {
 .reviews-submit {
   border: 0;
   border-radius: 10px;
-  background: linear-gradient(90deg, #ff610c 0%, #ef990f 100%);
+  background: linear-gradient(90deg, #FF9A0C 0%, #EF560F 100%);
   color: #ffffff;
   padding: 12px 18px;
   font-size: 18px;
@@ -1180,7 +1184,7 @@ a {
 }
 
 .articles-hero-tag.is-active {
-  background: linear-gradient(90deg, #ff610c 0%, #ef990f 100%);
+  background: linear-gradient(90deg, #FF9A0C 0%, #EF560F 100%);
   border-color: transparent;
   color: #ffffff;
 }
@@ -1220,7 +1224,7 @@ a {
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  background: linear-gradient(90deg, #ff610c 0%, #ef990f 100%);
+  background: linear-gradient(90deg, #FF9A0C 0%, #EF560F 100%);
   position: relative;
 }
 
@@ -1582,7 +1586,7 @@ a {
   padding: 8px 16px;
   border-radius: 10px;
   color: #ffffff;
-  background: linear-gradient(90deg, #ff700d 0%, #f2960f 100%);
+  background: linear-gradient(90deg, #FF9A0C 0%, #EF560F 100%);
   font-family: "Inter", sans-serif;
   font-size: 14px;
   font-weight: 700;
@@ -1595,7 +1599,7 @@ a {
 .regions-card-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 18px rgba(242, 122, 26, 0.28);
-  background: linear-gradient(90deg, #ff7b21 0%, #f5a322 100%);
+  background: linear-gradient(90deg, #FF9A0C 0%, #EF560F 100%);
 }
 
 .regions-card-btn:focus-visible {
@@ -1641,7 +1645,7 @@ a {
   padding: 8px 16px;
   border-radius: 10px;
   border: 1px solid #00056233;
-  background: linear-gradient(90deg, #ff700d 0%, #f2960f 100%);
+  background: linear-gradient(90deg, #FF9A0C 0%, #EF560F 100%);
   color: #ffffff;
   font-family: "Inter", sans-serif;
   font-size: 14px;
@@ -1653,7 +1657,7 @@ a {
 .region-back-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 18px rgba(242, 122, 26, 0.28);
-  background: linear-gradient(90deg, #ff7b21 0%, #f5a322 100%);
+  background: linear-gradient(90deg, #FF9A0C 0%, #EF560F 100%);
 }
 
 .region-back-btn:focus-visible {
@@ -1982,7 +1986,7 @@ h6,
 
 .search-btn {
   border: 0;
-  background: linear-gradient(135deg, #ff610c, #ef990f);
+  background: linear-gradient(90deg, #FF9A0C 0%, #EF560F 100%);
   color: var(--white);
   font-weight: 700;
   font-size: 18px;
@@ -2002,6 +2006,7 @@ h6,
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
+  margin-top: 40px;
 }
 
 .hotel-card {
@@ -2076,10 +2081,10 @@ h6,
 
 .hotel-card-amenity-icon {
   min-width: 36px;
-  height: 28px;
+  height: 36px;
   border-radius: 8px;
   padding: 0 7px;
-  background: #f0f3f8;
+  background: #43536A14;
   color: #1f52b2;
   font-size: 12px;
   font-weight: 700;
@@ -2100,11 +2105,11 @@ h6,
 
 .hotel-card-footer {
   margin-top: auto;
-  padding-top: 14px;
+  padding-top: 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 3px;
 }
 
 .hotel-card-price {
@@ -2133,7 +2138,7 @@ h6,
   border-radius: 10px;
   min-height: 35px;
   padding: 9px 16px;
-  background: linear-gradient(135deg, #ff610c, #ef990f);
+  background: linear-gradient(90deg, #FF9A0C 0%, #EF560F 100%);
   color: #ffffff;
   font-size: 14px;
   font-family: "Inter", sans-serif;
@@ -2142,6 +2147,22 @@ h6,
   align-items: center;
   justify-content: center;
   white-space: nowrap;
+  text-decoration: none;
+}
+
+.home-tours-results-title {
+  margin-bottom: 20px;
+}
+
+.section--home-tours-results .hotel-card-footer {
+  justify-content: center;
+  gap: 12px;
+}
+
+.section--home-tours-results .hotel-card-price {
+  margin-right: 0;
+  padding-right: 12px;
+  flex-shrink: 0;
 }
 
 .hotels-empty {
@@ -2519,7 +2540,7 @@ h6,
   min-height: 30px;
   padding: 6px 12px;
   border-radius: 10px;
-  background: linear-gradient(90deg, #ff610c 0%, #ef990f 100%);
+  background: linear-gradient(90deg, #FF9A0C 0%, #EF560F 100%);
   color: #ffffff;
   font-family: "Inter", "Arial", sans-serif;
   font-size: 12px;
@@ -2900,7 +2921,7 @@ a.hot-tour-card:hover {
 
 
 .forum-card {
-  background: linear-gradient(90deg, #FF610C 0%, #EF990F 100%);
+  background: linear-gradient(90deg, #FF9A0C 0%, #EF560F 100%);
   border-radius: 32px;
   color: var(--white);
   display: flex;
@@ -3500,7 +3521,7 @@ body.auth-modal-open {
   height: 18px;
   transform: translateY(-50%);
   border-radius: 50%;
-  background: linear-gradient(135deg, #ff6f1e, #f5ab3f);
+  background: linear-gradient(90deg, #FF9A0C 0%, #EF560F 100%);
   box-shadow: 0 0 0 4px rgba(255, 111, 30, 0.14);
 }
 
@@ -3510,7 +3531,7 @@ body.auth-modal-open {
   border-radius: 14px;
   min-height: 52px;
   padding: 0 24px;
-  background: linear-gradient(90deg, #ff610c 0%, #ef990f 100%);
+  background: linear-gradient(90deg, #FF9A0C 0%, #EF560F 100%);
   color: #ffffff;
   font-size: 17px;
   font-weight: 700;

@@ -132,6 +132,21 @@ $tourIncludedLibrary = [
 	'guide' => 'Сопровождение гида',
 	'insurance' => 'Страховка',
 ];
+$hotelAmenitiesLibrary = [
+	'wifi' => 'Бесплатный Wifi',
+	'parking' => 'Парковка',
+	'elevator' => 'Лифт',
+	'soundproof_rooms' => 'Звукоизолированные номера',
+	'air_conditioning' => 'Кондиционер',
+	'kids' => 'Подходит для детей',
+	'tv' => 'Телевизор',
+	'spa' => 'Spa-центр',
+	'minibar' => 'Мини-бар',
+	'breakfast' => 'Завтрак',
+	'transfer' => 'Трансфер',
+	'accessible' => 'Удобства для людей с ограниченными возможностями',
+	'gym' => 'Спортивный зал',
+];
 
 $tourSeasonMonthMap = [
 	1 => 'Январь',
@@ -206,6 +221,30 @@ $tourIncludedLabelAliases = [
 foreach($tourIncludedLabelAliases as $aliasLabel => $aliasCode) {
 	if(!isset($tourIncludedLibrary[$aliasCode])) continue;
 	$tourIncludedCodeByLabel[$toIncludedItemKey((string) $aliasLabel)] = (string) $aliasCode;
+}
+$hotelAmenityCodeByLabel = [];
+foreach($hotelAmenitiesLibrary as $code => $label) {
+	$hotelAmenityCodeByLabel[$toIncludedItemKey((string) $label)] = $code;
+}
+$hotelAmenityLabelAliases = [
+	'wi-fi' => 'wifi',
+	'wi fi' => 'wifi',
+	'wifi' => 'wifi',
+	'бесплатный wi-fi' => 'wifi',
+	'бесплатный wi fi' => 'wifi',
+	'бесплатный wifi' => 'wifi',
+	'для детей' => 'kids',
+	'spa центр' => 'spa',
+	'спа центр' => 'spa',
+	'спа-центр' => 'spa',
+	'spa-центр' => 'spa',
+	'спортивный зал' => 'gym',
+	'спортзал' => 'gym',
+	'удобства для маломобильных гостей' => 'accessible',
+];
+foreach($hotelAmenityLabelAliases as $aliasLabel => $aliasCode) {
+	if(!isset($hotelAmenitiesLibrary[$aliasCode])) continue;
+	$hotelAmenityCodeByLabel[$toIncludedItemKey((string) $aliasLabel)] = (string) $aliasCode;
 }
 
 $getImageUrlFromValue = static function($imageValue): string {
@@ -567,7 +606,36 @@ if($input->requestMethod() === 'POST') {
 			if($entityPage->hasField('hotel_rating')) $entityPage->hotel_rating = (float) $input->post('hotel_rating');
 			if($entityPage->hasField('hotel_price')) $entityPage->hotel_price = (int) $input->post('hotel_price');
 			if($entityPage->hasField('hotel_max_guests')) $entityPage->hotel_max_guests = max(1, (int) $input->post('hotel_max_guests'));
-			if($entityPage->hasField('hotel_amenities')) $entityPage->hotel_amenities = trim((string) $input->post('hotel_amenities'));
+			$hotelAmenitiesToPersist = [];
+			$selectedAmenityCodes = array_values(array_unique(array_map('strval', (array) ($_POST['hotel_amenities_selected'] ?? []))));
+			foreach($selectedAmenityCodes as $code) {
+				if(isset($hotelAmenitiesLibrary[$code])) $hotelAmenitiesToPersist[] = $code;
+			}
+
+			$rawHotelAmenitiesCustom = $_POST['hotel_amenities_custom'] ?? '';
+			if(is_array($rawHotelAmenitiesCustom)) {
+				$rawHotelAmenitiesCustom = implode("\n", array_map('strval', $rawHotelAmenitiesCustom));
+			}
+			$hotelAmenitiesCustomLines = $normalizeLines((string) $rawHotelAmenitiesCustom);
+			foreach($hotelAmenitiesCustomLines as $line) {
+				$line = trim((string) $line);
+				if($line === '') continue;
+
+				if(isset($hotelAmenitiesLibrary[$line])) {
+					$hotelAmenitiesToPersist[] = $line;
+					continue;
+				}
+
+				$lineKey = $toIncludedItemKey($line);
+				if(isset($hotelAmenityCodeByLabel[$lineKey])) {
+					$hotelAmenitiesToPersist[] = $hotelAmenityCodeByLabel[$lineKey];
+					continue;
+				}
+
+				$hotelAmenitiesToPersist[] = $line;
+			}
+			$hotelAmenitiesToPersist = $normalizeIncludedItems($hotelAmenitiesToPersist);
+			if($entityPage->hasField('hotel_amenities')) $entityPage->hotel_amenities = implode("\n", $hotelAmenitiesToPersist);
 		}
 
 		$pages->save($entityPage);
@@ -874,6 +942,8 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 					$currentImageUrl = '';
 					$tourSelectedIncludeCodes = [];
 					$tourIncludedCustomText = '';
+					$hotelSelectedAmenityCodes = ['wifi', 'parking', 'breakfast'];
+					$hotelAmenitiesCustomText = '';
 					$tourSelectedSeasonMonths = [];
 					$tourSelectedDifficulty = 'basic';
 					$tourSelectedAge = '12+';
@@ -954,6 +1024,33 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 									}
 								}
 							}
+						}
+
+						if($activeTab === 'hotels') {
+							$currentHotelAmenities = $normalizeLines((string) ($currentEntity->hasField('hotel_amenities') ? $currentEntity->getUnformatted('hotel_amenities') : ''));
+							$customHotelAmenities = [];
+							$hotelSelectedAmenityCodes = [];
+
+							foreach($currentHotelAmenities as $line) {
+								$line = trim((string) $line);
+								if($line === '') continue;
+
+								if(isset($hotelAmenitiesLibrary[$line])) {
+									$hotelSelectedAmenityCodes[] = $line;
+									continue;
+								}
+
+								$lineKey = $toIncludedItemKey($line);
+								if(isset($hotelAmenityCodeByLabel[$lineKey])) {
+									$hotelSelectedAmenityCodes[] = $hotelAmenityCodeByLabel[$lineKey];
+									continue;
+								}
+
+								$customHotelAmenities[] = $line;
+							}
+
+							$hotelSelectedAmenityCodes = array_values(array_unique($hotelSelectedAmenityCodes));
+							$hotelAmenitiesCustomText = implode("\n", $customHotelAmenities);
 						}
 					}
 					if($activeTab === 'tours' && !count($tourDayRows)) {
@@ -1164,7 +1261,21 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 									<label class="content-admin-field"><span>Цена (₽)</span><input type="number" min="0" name="hotel_price" value="<?php echo $sanitizer->entities($currentEntity ? (string) $currentEntity->get('hotel_price') : ''); ?>" /></label>
 								</div>
 								<label class="content-admin-field"><span>Макс. гостей</span><input type="number" min="1" max="50" name="hotel_max_guests" value="<?php echo $sanitizer->entities($currentEntity ? (string) $currentEntity->get('hotel_max_guests') : '2'); ?>" /></label>
-								<label class="content-admin-field"><span>Удобства (коды по строкам)</span><textarea name="hotel_amenities" rows="6"><?php echo $sanitizer->entities($currentEntity ? (string) $currentEntity->get('hotel_amenities') : "wifi\nparking\nbreakfast"); ?></textarea></label>
+								<div class="content-admin-subsection">
+									<h3>Сервис и удобства</h3>
+									<div class="content-admin-check-grid">
+										<?php foreach($hotelAmenitiesLibrary as $amenityCode => $amenityLabel): ?>
+											<label class="content-admin-check-card">
+												<input type="checkbox" name="hotel_amenities_selected[]" value="<?php echo $sanitizer->entities($amenityCode); ?>"<?php echo in_array($amenityCode, $hotelSelectedAmenityCodes, true) ? ' checked' : ''; ?> />
+												<span><?php echo $sanitizer->entities($amenityLabel); ?></span>
+											</label>
+										<?php endforeach; ?>
+									</div>
+									<label class="content-admin-field">
+										<span>Дополнительные пункты (по строкам)</span>
+										<textarea name="hotel_amenities_custom" rows="4"><?php echo $sanitizer->entities($hotelAmenitiesCustomText); ?></textarea>
+									</label>
+								</div>
 								<?php endif; ?>
 
 								<label class="content-admin-field">
