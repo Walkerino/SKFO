@@ -355,6 +355,21 @@
 	border: 1px solid var(--admin-border);
 }
 
+.content-admin-gallery-preview {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 0.5rem;
+}
+
+.content-admin-gallery-thumb {
+	height: 84px;
+	border-radius: 10px;
+	border: 1px solid var(--admin-border);
+	background-size: cover;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
 .content-admin-checkbox {
 	display: flex;
 	align-items: center;
@@ -565,6 +580,10 @@
 		grid-template-columns: repeat(3, minmax(0, 1fr));
 	}
 
+	.content-admin-gallery-preview {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+
 	.placement-region-grid {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
@@ -578,7 +597,8 @@
 	.content-admin-cols,
 	.content-admin-check-grid,
 	.content-admin-month-grid,
-	.placement-region-grid {
+	.placement-region-grid,
+	.content-admin-gallery-preview {
 		grid-template-columns: 1fr;
 	}
 

@@ -31,13 +31,16 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		$isContentAdminPage = $page->name === 'content-admin' || $page->path === '/content-admin/' || $isContentAdminRequest;
 		$isProfilePage = $page->name === 'profile' || $page->path === '/profile/' || $isProfileRequest;
 		$isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
+		$isHotelsRequest = preg_match('#^/hotels(?:/|$)#', (string) $requestPath) === 1;
 		$isRegionsRequest = preg_match('#^/regions(?:/|$)#', (string) $requestPath) === 1;
 		$isArticlesRequest = preg_match('#^/articles(?:/|$)#', (string) $requestPath) === 1;
+	$isHotelsPage = $page->name === 'hotels' || $page->path === '/hotels/' || in_array($templateName, ['hotels', 'hotel'], true) || $isHotelsRequest;
 	$isReviewsPage = $page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest;
 	$isRegionsPage = $page->name === 'regions' || $page->path === '/regions/' || $templateName === 'region' || $isRegionsRequest;
 	$isArticlesPage = $page->name === 'articles' || $page->path === '/articles/' || $isArticlesRequest;
-	$isTourTemplate = in_array($templateName, ['tour', 'reviews', 'regions', 'region', 'articles'], true) || $isReviewsPage || $isRegionsPage || $isArticlesPage;
+	$isTourTemplate = in_array($templateName, ['tour', 'hotel', 'reviews', 'regions', 'region', 'articles'], true) || $isReviewsPage || $isRegionsPage || $isArticlesPage;
 	$isTourNavActive = $templateName === 'tour';
+	$isHotelsNavActive = $templateName === 'hotel' || $isHotelsPage;
 	$isReviewsNavActive = $templateName === 'reviews' || $isReviewsPage;
 	$isRegionsNavActive = in_array($templateName, ['regions', 'region'], true) || $isRegionsPage;
 	$isArticlesNavActive = $templateName === 'articles' || $isArticlesPage;
@@ -96,7 +99,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 									<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
 									<span class="tour-nav-text">Туры</span>
 								</a>
-								<a class="tour-header-link tour-nav-link" href="/hotels/">
+								<a class="tour-header-link tour-nav-link<?php echo $isHotelsNavActive ? ' is-active' : ''; ?>" href="/hotels/">
 									<img src="<?php echo $config->urls->templates; ?>assets/icons/hotel.svg" alt="" aria-hidden="true" />
 									<span class="tour-nav-text">Отели</span>
 								</a>
@@ -279,7 +282,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 				<p class="contacts-subtitle">При наличии вопросов, пожалуйста, обратитесь на почту или по номеру телефона.</p>
 				<p class="contacts-hours">Ежедневно 10:00-20:00 (МСК)</p>
 				<div class="contacts-actions">
-					<a class="conимер, Flatacts-action-btn" href="tel:+79000000000">
+					<a class="contacts-action-btn" href="tel:+79000000000">
 						<span class="contacts-action-icon" aria-hidden="true">
 							<img src="<?php echo $config->urls->templates; ?>assets/icons/contacts-call.svg" alt="" />
 						</span>

@@ -76,6 +76,7 @@ $catalogConfigs = [
 	],
 ];
 $titleField = $fields->get('title');
+$imagesField = $fields->get('images');
 $ensureTemplateTitleSupport = static function(?Template $template) use ($user, $templates, $titleField): bool {
 	if(!$template || !$template->id || !$template->fieldgroup || !$titleField || !$titleField->id) return false;
 
@@ -94,10 +95,40 @@ $ensureTemplateTitleSupport = static function(?Template $template) use ($user, $
 
 	return (bool) $hasTitle;
 };
+$ensureTemplateFieldSupport = static function(?Template $template, ?Field $field) use ($user): bool {
+	if(!$template || !$template->id || !$template->fieldgroup || !$field || !$field->id) return false;
+
+	$hasField = $template->fieldgroup->has($field);
+	if(!$hasField && $user && $user->isSuperuser()) {
+		$template->fieldgroup->add($field);
+		$template->fieldgroup->save();
+		$hasField = $template->fieldgroup->has($field);
+	}
+
+	return (bool) $hasField;
+};
+$templateHasImageField = static function(?Template $template, array $fieldNames) use ($fields): bool {
+	if(!$template || !$template->id || !$template->fieldgroup) return false;
+
+	foreach($fieldNames as $fieldName) {
+		$fieldName = trim((string) $fieldName);
+		if($fieldName === '') continue;
+		$field = $fields->get($fieldName);
+		if(!$field || !$template->fieldgroup->has($field)) continue;
+		if($field->type instanceof FieldtypeImage) return true;
+	}
+
+	return false;
+};
 $catalogTemplateTitleSupport = [];
 foreach($catalogConfigs as $entityType => $catalogConfig) {
 	$template = $templates->get((string) ($catalogConfig['template'] ?? ''));
 	$catalogTemplateTitleSupport[$entityType] = $ensureTemplateTitleSupport($template);
+}
+$hotelTemplate = $templates->get((string) ($catalogConfigs['hotels']['template'] ?? 'hotel'));
+$hotelGalleryFieldEnabled = $templateHasImageField($hotelTemplate, ['hotel_gallery', 'hotel_images', 'images', 'hotel_image']);
+if(!$hotelGalleryFieldEnabled) {
+	$hotelGalleryFieldEnabled = $ensureTemplateFieldSupport($hotelTemplate, $imagesField);
 }
 
 $regionPages = $pages->find('template=region, include=all, sort=title, limit=200');
@@ -290,6 +321,55 @@ $saveImageField = static function(Page $entityPage, string $fieldName, string $u
 	}
 	if($hasUpload && $images instanceof Pageimages) {
 		$images->add((string) $_FILES[$uploadKey]['tmp_name']);
+	}
+	$entityPage->save($fieldName);
+};
+$hotelGalleryFieldCandidates = ['hotel_gallery', 'hotel_images', 'images', 'hotel_image'];
+$getHotelGalleryFieldName = static function(Page $entityPage) use ($hotelGalleryFieldCandidates, $fields): string {
+	foreach($hotelGalleryFieldCandidates as $fieldName) {
+		$fieldName = trim((string) $fieldName);
+		if($fieldName === '' || !$entityPage->hasField($fieldName)) continue;
+		$field = $fields->get($fieldName);
+		if(!$field || !$field->type || !($field->type instanceof FieldtypeImage)) continue;
+		return $fieldName;
+	}
+	return '';
+};
+$collectUploadedTmpByKey = static function(string $filesKey): array {
+	if(!isset($_FILES[$filesKey]['tmp_name'])) return [];
+
+	$tmpNodes = $_FILES[$filesKey]['tmp_name'];
+	$errorNodes = $_FILES[$filesKey]['error'] ?? [];
+	if(!is_array($tmpNodes)) $tmpNodes = [$tmpNodes];
+	if(!is_array($errorNodes)) $errorNodes = [$errorNodes];
+
+	$out = [];
+	foreach($tmpNodes as $fileIndex => $tmpPath) {
+		$error = (int) ($errorNodes[$fileIndex] ?? UPLOAD_ERR_NO_FILE);
+		if($error !== UPLOAD_ERR_OK) continue;
+		$tmpPath = (string) $tmpPath;
+		if($tmpPath === '' || !is_uploaded_file($tmpPath)) continue;
+		$out[] = $tmpPath;
+	}
+	return $out;
+};
+$saveImagesField = static function(Page $entityPage, string $fieldName, array $uploads, bool $clearRequested): void {
+	if($fieldName === '' || !$entityPage->hasField($fieldName)) return;
+	if(!$clearRequested && !count($uploads)) return;
+
+	$entityPage->of(false);
+	$images = $entityPage->getUnformatted($fieldName);
+	if(!$images instanceof Pageimages) return;
+
+	if($clearRequested) {
+		foreach($images as $img) {
+			$images->remove($img);
+		}
+	}
+	foreach($uploads as $tmpPath) {
+		$tmpPath = trim((string) $tmpPath);
+		if($tmpPath === '') continue;
+		$images->add($tmpPath);
 	}
 	$entityPage->save($fieldName);
 };
@@ -496,6 +576,9 @@ if($input->requestMethod() === 'POST') {
 
 		$tourIncludedItemsToPersist = [];
 		$tourDaysToPersist = [];
+		$hotelGalleryFieldNameForSave = '';
+		$hotelGalleryUploads = [];
+		$clearHotelGallery = false;
 
 		$entityPage->of(false);
 		$entityPage->title = $title;
@@ -606,6 +689,9 @@ if($input->requestMethod() === 'POST') {
 			if($entityPage->hasField('hotel_rating')) $entityPage->hotel_rating = (float) $input->post('hotel_rating');
 			if($entityPage->hasField('hotel_price')) $entityPage->hotel_price = (int) $input->post('hotel_price');
 			if($entityPage->hasField('hotel_max_guests')) $entityPage->hotel_max_guests = max(1, (int) $input->post('hotel_max_guests'));
+			$hotelGalleryFieldNameForSave = $getHotelGalleryFieldName($entityPage);
+			$hotelGalleryUploads = $collectUploadedTmpByKey('hotel_gallery_upload');
+			$clearHotelGallery = (int) $input->post('clear_hotel_gallery') === 1;
 			$hotelAmenitiesToPersist = [];
 			$selectedAmenityCodes = array_values(array_unique(array_map('strval', (array) ($_POST['hotel_amenities_selected'] ?? []))));
 			foreach($selectedAmenityCodes as $code) {
@@ -643,6 +729,9 @@ if($input->requestMethod() === 'POST') {
 			$entityPage->save('title');
 		}
 		$saveImageField($entityPage, (string) $config['image_field'], 'image_upload', 'clear_image');
+		if($entityType === 'hotels' && $hotelGalleryFieldNameForSave !== '' && ($clearHotelGallery || count($hotelGalleryUploads))) {
+			$saveImagesField($entityPage, $hotelGalleryFieldNameForSave, $hotelGalleryUploads, $clearHotelGallery);
+		}
 
 		if($entityType === 'tours') {
 			$entityPage = $pages->get((int) $entityPage->id);
@@ -940,6 +1029,9 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 					$currentConfig = $catalogConfigs[$activeTab];
 					$listItems = $catalogItems[$activeTab] ?? new PageArray();
 					$currentImageUrl = '';
+					$hotelGalleryFieldName = '';
+					$hotelGalleryImageUrls = [];
+					$hotelGalleryImagesCount = 0;
 					$tourSelectedIncludeCodes = [];
 					$tourIncludedCustomText = '';
 					$hotelSelectedAmenityCodes = ['wifi', 'parking', 'breakfast'];
@@ -1027,6 +1119,18 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 						}
 
 						if($activeTab === 'hotels') {
+							$hotelGalleryFieldName = $getHotelGalleryFieldName($currentEntity);
+							if($hotelGalleryFieldName !== '' && $currentEntity->hasField($hotelGalleryFieldName)) {
+								$galleryImages = $currentEntity->getUnformatted($hotelGalleryFieldName);
+								if($galleryImages instanceof Pageimages && $galleryImages->count()) {
+									$hotelGalleryImagesCount = (int) $galleryImages->count();
+									foreach($galleryImages as $galleryImage) {
+										if(!$galleryImage instanceof Pageimage) continue;
+										$hotelGalleryImageUrls[] = (string) $galleryImage->url;
+										if(count($hotelGalleryImageUrls) >= 8) break;
+									}
+								}
+							}
 							$currentHotelAmenities = $normalizeLines((string) ($currentEntity->hasField('hotel_amenities') ? $currentEntity->getUnformatted('hotel_amenities') : ''));
 							$customHotelAmenities = [];
 							$hotelSelectedAmenityCodes = [];
@@ -1275,6 +1379,32 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 										<span>Дополнительные пункты (по строкам)</span>
 										<textarea name="hotel_amenities_custom" rows="4"><?php echo $sanitizer->entities($hotelAmenitiesCustomText); ?></textarea>
 									</label>
+								</div>
+								<div class="content-admin-subsection">
+									<h3>Медиатека отеля</h3>
+									<label class="content-admin-field">
+										<span>Фотографии медиатеки</span>
+										<input type="file" name="hotel_gallery_upload[]" multiple accept=".jpg,.jpeg,.png,.gif,.webp" />
+									</label>
+									<?php if($currentEntity && $currentEntity->id): ?>
+										<div class="tour-day-row-note">Сейчас загружено: <?php echo (int) $hotelGalleryImagesCount; ?></div>
+									<?php endif; ?>
+									<?php if(count($hotelGalleryImageUrls)): ?>
+										<div class="content-admin-gallery-preview">
+											<?php foreach($hotelGalleryImageUrls as $galleryImageUrl): ?>
+												<div class="content-admin-gallery-thumb" style="background-image:url('<?php echo htmlspecialchars((string) $galleryImageUrl, ENT_QUOTES, 'UTF-8'); ?>');"></div>
+											<?php endforeach; ?>
+										</div>
+									<?php endif; ?>
+									<?php if($currentEntity && $currentEntity->id && $hotelGalleryFieldName !== ''): ?>
+										<label class="content-admin-checkbox">
+											<input type="checkbox" name="clear_hotel_gallery" value="1" />
+											<span>Очистить медиатеку</span>
+										</label>
+									<?php endif; ?>
+									<?php if(!$hotelGalleryFieldEnabled): ?>
+										<div class="tour-day-row-note">Поле `images` для шаблона отеля недоступно. Нужны права superuser, чтобы включить загрузку медиатеки.</div>
+									<?php endif; ?>
 								</div>
 								<?php endif; ?>
 
