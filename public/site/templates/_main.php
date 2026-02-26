@@ -44,6 +44,65 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$isReviewsNavActive = $templateName === 'reviews' || $isReviewsPage;
 	$isRegionsNavActive = in_array($templateName, ['regions', 'region'], true) || $isRegionsPage;
 	$isArticlesNavActive = $templateName === 'articles' || $isArticlesPage;
+	$normalizeHeadTitleKey = static function(string $value): string {
+		$value = trim($value);
+		$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+		return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+	};
+	$headTitleByTemplate = [
+		'home' => 'Главная',
+		'tour' => 'Тур',
+		'hotels' => 'Отели',
+		'hotel' => 'Отель',
+		'reviews' => 'Отзывы',
+		'regions' => 'Регионы',
+		'region' => 'Регион',
+		'articles' => 'Статьи',
+		'article' => 'Статья',
+		'profile' => 'Профиль',
+		'content-admin' => 'Контент-центр',
+	];
+	$headTitleOverrides = [
+		'home' => 'Главная',
+		'hotels' => 'Отели',
+		'hotel' => 'Отель',
+		'tours' => 'Туры',
+		'tour' => 'Тур',
+		'reviews' => 'Отзывы',
+		'regions' => 'Регионы',
+		'region' => 'Регион',
+		'articles' => 'Статьи',
+		'article' => 'Статья',
+		'profile' => 'Профиль',
+		'content admin' => 'Контент-центр',
+		'content-admin' => 'Контент-центр',
+	];
+	$pageTitleForHead = trim((string) $page->title);
+	$pageTitleKey = $normalizeHeadTitleKey($pageTitleForHead);
+	if (isset($headTitleOverrides[$pageTitleKey])) {
+		$pageTitleForHead = $headTitleOverrides[$pageTitleKey];
+	}
+	if ($requestPath === '/hotels' || $requestPath === '/hotels/') {
+		$pageTitleForHead = 'Отели';
+	}
+	if ($requestPath === '/regions' || $requestPath === '/regions/') {
+		$pageTitleForHead = 'Регионы';
+	}
+	if ($requestPath === '/articles' || $requestPath === '/articles/') {
+		$pageTitleForHead = 'Статьи';
+	}
+	if ($pageTitleForHead === '' && isset($headTitleByTemplate[$templateName])) {
+		$pageTitleForHead = $headTitleByTemplate[$templateName];
+	}
+	if ($pageTitleForHead === '' && $page->path === '/') {
+		$pageTitleForHead = 'Главная';
+	}
+	if ($pageTitleForHead === '') $pageTitleForHead = 'Страница';
+	$brandTitleForHead = 'СКФО.РУ';
+	$faviconSvgPath = $config->paths->templates . 'assets/favicon.svg';
+	$faviconUrl = is_file($faviconSvgPath)
+		? $config->urls->templates . 'assets/favicon.svg'
+		: $config->urls->templates . 'assets/icons/logo2.svg';
 	$mainCssPath = $config->paths->templates . 'styles/main.css';
 	$mainCssVersion = is_file($mainCssPath) ? filemtime($mainCssPath) : null;
 	$authUser = isset($skfoAuthUser) && is_array($skfoAuthUser) ? $skfoAuthUser : null;
@@ -80,7 +139,9 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	<head id="html-head">
 		<meta http-equiv="content-type" content="text/html; charset=utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title><?php echo $page->title; ?> | SKFO.RU</title>
+		<title><?php echo $sanitizer->entities($pageTitleForHead); ?> | <?php echo $brandTitleForHead; ?></title>
+		<link rel="icon" type="image/svg+xml" href="<?php echo $faviconUrl; ?>" />
+		<link rel="shortcut icon" href="<?php echo $faviconUrl; ?>" />
 		<link rel="stylesheet" type="text/css" href="<?php echo $config->urls->templates; ?>styles/main.css<?php echo $mainCssVersion ? '?v=' . (int) $mainCssVersion : ''; ?>" />
 	</head>
 			<body id="html-body"<?php echo $isProfilePage ? ' class="page-profile"' : ''; ?>>
