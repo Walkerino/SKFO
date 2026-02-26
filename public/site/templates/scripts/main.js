@@ -938,6 +938,87 @@ const initDagestanSlider = () => {
   update();
 };
 
+const initHotelMediaGallery = () => {
+  const gallery = document.querySelector("[data-hotel-gallery]");
+  const modal = document.querySelector("[data-hotel-gallery-modal]");
+  if (!gallery || !modal) return;
+
+  const items = Array.from(gallery.querySelectorAll("[data-hotel-gallery-item]"));
+  const imageEl = modal.querySelector("[data-gallery-image]");
+  const counterEl = modal.querySelector("[data-gallery-counter]");
+  const closeBtn = modal.querySelector('[data-gallery-close="button"]');
+  const backdrop = modal.querySelector('[data-gallery-close="backdrop"]');
+  const prevBtn = modal.querySelector('[data-gallery-nav="prev"]');
+  const nextBtn = modal.querySelector('[data-gallery-nav="next"]');
+  if (!items.length || !imageEl || !counterEl || !closeBtn || !backdrop || !prevBtn || !nextBtn) return;
+
+  let activeIndex = 0;
+
+  const updateView = () => {
+    const item = items[activeIndex];
+    if (!(item instanceof HTMLElement)) return;
+    const src = item.dataset.gallerySrc || "";
+    const alt = item.dataset.galleryAlt || "";
+    imageEl.src = src;
+    imageEl.alt = alt;
+    counterEl.textContent = `${activeIndex + 1} / ${items.length}`;
+  };
+
+  const openModal = (index) => {
+    activeIndex = Math.max(0, Math.min(items.length - 1, index));
+    updateView();
+    modal.hidden = false;
+    window.requestAnimationFrame(() => {
+      modal.classList.add("is-open");
+      document.body.classList.add("hotel-lightbox-open");
+    });
+  };
+
+  const closeModal = () => {
+    modal.classList.remove("is-open");
+    window.setTimeout(() => {
+      if (!modal.classList.contains("is-open")) modal.hidden = true;
+    }, 160);
+    document.body.classList.remove("hotel-lightbox-open");
+  };
+
+  const showPrevious = () => {
+    if (!items.length) return;
+    activeIndex = (activeIndex - 1 + items.length) % items.length;
+    updateView();
+  };
+
+  const showNext = () => {
+    if (!items.length) return;
+    activeIndex = (activeIndex + 1) % items.length;
+    updateView();
+  };
+
+  items.forEach((item, index) => {
+    item.addEventListener("click", () => openModal(index));
+  });
+
+  closeBtn.addEventListener("click", closeModal);
+  backdrop.addEventListener("click", closeModal);
+  prevBtn.addEventListener("click", showPrevious);
+  nextBtn.addEventListener("click", showNext);
+
+  document.addEventListener("keydown", (event) => {
+    if (!modal.classList.contains("is-open")) return;
+    if (event.key === "Escape") {
+      closeModal();
+      return;
+    }
+    if (event.key === "ArrowLeft") {
+      showPrevious();
+      return;
+    }
+    if (event.key === "ArrowRight") {
+      showNext();
+    }
+  });
+};
+
 const initTourDaysAccordion = () => {
   const cards = Array.from(document.querySelectorAll(".tour-day-card"));
   if (cards.length === 0) return;
@@ -1013,5 +1094,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initJournalSlider();
   initDagestanSlider();
   initHotToursSlider();
+  initHotelMediaGallery();
   initTourDaysAccordion();
 });

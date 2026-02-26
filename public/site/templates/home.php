@@ -276,101 +276,153 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		</section>
 	<?php endif; ?>
 
-		<section class="section section--places">
-			<?php
-			$dagestanPlacesCards = [];
+		<section class="section section--hot-tours">
+		<?php
+		$toLower = static function(string $value): string {
+			return function_exists('mb_strtolower') ? mb_strtolower(trim($value), 'UTF-8') : strtolower(trim($value));
+		};
+		$tourUrlByTitle = [];
+		$tourPagesForLinks = $pages->find('template=tour, include=all, sort=title, limit=500');
+		foreach ($tourPagesForLinks as $tourPageForLink) {
+			if (!$tourPageForLink instanceof Page) continue;
+			$tourTitleForLink = trim((string) $tourPageForLink->title);
+			if ($tourTitleForLink === '') continue;
+			$tourUrlByTitle[$toLower($tourTitleForLink)] = (string) $tourPageForLink->url;
+		}
 
-			if ($page->hasField('home_featured_places') && $page->home_featured_places->count()) {
-				foreach ($page->home_featured_places as $placePage) {
-					if (!$placePage instanceof Page) continue;
-					$imageUrl = $placePage->hasField('place_image') ? $getImageUrlFromValue($placePage->getUnformatted('place_image')) : '';
-					$title = trim((string) $placePage->title);
-					if ($title === '' && $imageUrl === '') continue;
+		$hotToursCards = [];
 
-					$dagestanPlacesCards[] = [
-						'title' => $title,
-						'image' => $imageUrl,
-					];
-				}
-			}
+		if ($page->hasField('home_featured_tours') && $page->home_featured_tours->count()) {
+			foreach ($page->home_featured_tours as $tourPage) {
+				if (!$tourPage instanceof Page) continue;
+				$imageUrl = $tourPage->hasField('tour_cover_image') ? $getImageUrlFromValue($tourPage->getUnformatted('tour_cover_image')) : '';
+				$title = trim((string) $tourPage->title);
+				$region = $tourPage->hasField('tour_region') ? trim((string) $tourPage->tour_region) : '';
+				$price = $tourPage->hasField('tour_price') ? trim((string) $tourPage->tour_price) : '';
+				if ($title === '' && $region === '' && $price === '' && $imageUrl === '') continue;
 
-			if (!count($dagestanPlacesCards) && $page->hasField('dagestan_places_cards') && $page->dagestan_places_cards->count()) {
-				foreach ($page->dagestan_places_cards as $card) {
-					$imageUrl = '';
-					if ($card->hasField('dagestan_place_image')) {
-						$cardImage = $card->getUnformatted('dagestan_place_image');
-						if ($cardImage instanceof Pageimage) {
-							$imageUrl = $cardImage->url;
-						} elseif ($cardImage instanceof Pageimages && $cardImage->count()) {
-							$imageUrl = $cardImage->first()->url;
-						}
-					}
-
-					$dagestanPlacesCards[] = [
-						'title' => $card->hasField('dagestan_place_title') ? trim((string) $card->dagestan_place_title) : '',
-						'image' => $imageUrl,
-					];
-				}
-			}
-
-			if (!count($dagestanPlacesCards)) {
-				$dagestanPlacesCards = [
-					[
-						'title' => 'Сулакский каньон',
-						'image' => '',
-					],
-					[
-						'title' => 'Гамсутль',
-						'image' => '',
-					],
-					[
-						'title' => 'Экраноплан “Лунь”',
-						'image' => '',
-					],
-					[
-						'title' => 'Гуллинский мост',
-						'image' => '',
-					],
-					[
-						'title' => 'Беседка Имама Шамиля',
-						'image' => '',
-					],
+				$hotToursCards[] = [
+					'title' => $title,
+					'region' => $region,
+					'price' => $price,
+					'image' => $imageUrl,
+					'url' => (string) $tourPage->url,
 				];
 			}
+		}
 
-			$dagestanHasSlider = count($dagestanPlacesCards) > 5;
-			?>
-			<div class="container">
-				<div class="places-banner<?php echo $dagestanHasSlider ? ' places-banner--slider' : ''; ?>">
-					<div class="places-banner-header">
-						<h2 class="section-title section-title--places">Что насчет Дагестана?</h2>
-						<div class="places-banner-actions">
-							<button class="circle-btn circle-btn--prev places-prev" type="button" aria-label="Предыдущие места"></button>
-							<button class="circle-btn circle-btn--next places-next" type="button" aria-label="Следующие места"></button>
-						</div>
-					</div>
-					<div class="places-grid">
-						<div class="places-track">
-							<?php foreach ($dagestanPlacesCards as $card): ?>
-								<?php
-								$backgroundStyle = '';
-								if (!empty($card['image'])) {
-									$image = htmlspecialchars($card['image'], ENT_QUOTES, 'UTF-8');
-									$backgroundStyle = " style=\"background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.2), rgba(17, 24, 39, 0.1)), url('{$image}');\"";
-								}
-								?>
-								<article class="place-card">
-									<div class="place-card-image"<?php echo $backgroundStyle; ?>></div>
-									<h3 class="place-card-title"><?php echo $sanitizer->entities($card['title']); ?></h3>
-								</article>
-							<?php endforeach; ?>
-						</div>
-					</div>
-					<div class="places-footer">
-						<button class="places-more-btn" type="button">
-						<span>Показать всё</span>
-					</button>
+		if (!count($hotToursCards) && $page->hasField('hot_tours_cards') && $page->hot_tours_cards->count()) {
+			foreach ($page->hot_tours_cards as $card) {
+				$imageUrl = '';
+				if ($card->hasField('hot_tour_image')) {
+					$cardImage = $card->getUnformatted('hot_tour_image');
+					if ($cardImage instanceof Pageimage) {
+						$imageUrl = $cardImage->url;
+					} elseif ($cardImage instanceof Pageimages && $cardImage->count()) {
+						$imageUrl = $cardImage->first()->url;
+					}
+				}
+
+				$hotToursCards[] = [
+					'title' => $card->hasField('hot_tour_title') ? trim((string) $card->hot_tour_title) : '',
+					'region' => $card->hasField('hot_tour_region') ? trim((string) $card->hot_tour_region) : '',
+					'price' => $card->hasField('hot_tour_price') ? trim((string) $card->hot_tour_price) : '',
+					'image' => $imageUrl,
+					'url' => '',
+				];
+				$lastIndex = count($hotToursCards) - 1;
+				$lastTitleKey = $toLower((string) ($hotToursCards[$lastIndex]['title'] ?? ''));
+				if ($lastTitleKey !== '' && isset($tourUrlByTitle[$lastTitleKey])) {
+					$hotToursCards[$lastIndex]['url'] = $tourUrlByTitle[$lastTitleKey];
+				}
+			}
+		}
+
+		if (!count($hotToursCards)) {
+			$hotToursCards = [
+				[
+					'title' => 'Посетить Аргунское ущелье',
+					'region' => 'Чеченская Республика',
+					'price' => 'от 15 000₽',
+					'image' => '',
+					'url' => isset($tourUrlByTitle[$toLower('Посетить Аргунское ущелье')]) ? $tourUrlByTitle[$toLower('Посетить Аргунское ущелье')] : '',
+				],
+				[
+					'title' => 'Взобраться на гору Эльбрус',
+					'region' => 'Кабардино-Балкарская Республика',
+					'price' => 'от 15 000₽',
+					'image' => '',
+					'url' => isset($tourUrlByTitle[$toLower('Взобраться на гору Эльбрус')]) ? $tourUrlByTitle[$toLower('Взобраться на гору Эльбрус')] : '',
+				],
+				[
+					'title' => 'Расслабиться в Суворовских термах',
+					'region' => 'Ставропольский край',
+					'price' => 'от 15 000₽',
+					'image' => '',
+					'url' => isset($tourUrlByTitle[$toLower('Расслабиться в Суворовских термах')]) ? $tourUrlByTitle[$toLower('Расслабиться в Суворовских термах')] : '',
+				],
+				[
+					'title' => 'Умчать в Старый Кахиб',
+					'region' => 'Республика Дагестан',
+					'price' => 'от 15 000₽',
+					'image' => '',
+					'url' => isset($tourUrlByTitle[$toLower('Умчать в Старый Кахиб')]) ? $tourUrlByTitle[$toLower('Умчать в Старый Кахиб')] : '',
+				],
+				[
+					'title' => 'Заглянуть в Замок на воде Шато Эркен',
+					'region' => 'Кабардино-Балкарская Республика',
+					'price' => 'от 15 000₽',
+					'image' => '',
+					'url' => isset($tourUrlByTitle[$toLower('Заглянуть в Замок на воде Шато Эркен')]) ? $tourUrlByTitle[$toLower('Заглянуть в Замок на воде Шато Эркен')] : '',
+				],
+			];
+		}
+		?>
+		<div class="container-hot-tours">
+			<div class="hot-tours-header">
+				<h2 class="section-title">Чем заняться этим летом?</h2>
+				<div class="hot-tours-actions">
+					<button class="circle-btn circle-btn--prev hot-tours-prev" type="button" aria-label="Предыдущие туры"></button>
+					<button class="circle-btn circle-btn--next hot-tours-next" type="button" aria-label="Следующие туры"></button>
 				</div>
+			</div>
+				<div class="hot-tours-grid">
+					<div class="hot-tours-track">
+						<?php foreach ($hotToursCards as $card): ?>
+							<?php
+							$backgroundStyle = '';
+							$cardUrl = trim((string) ($card['url'] ?? ''));
+							$isCardLink = $cardUrl !== '';
+							if (!empty($card['image'])) {
+								$image = htmlspecialchars($card['image'], ENT_QUOTES, 'UTF-8');
+								$backgroundStyle = " style=\"background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.2), rgba(17, 24, 39, 0.1)), url('{$image}');\"";
+							}
+							?>
+							<?php if ($isCardLink): ?>
+								<a class="hot-tour-card" href="<?php echo $sanitizer->entities($cardUrl); ?>" aria-label="<?php echo $sanitizer->entities((string) $card['title']); ?>">
+							<?php else: ?>
+								<article class="hot-tour-card">
+							<?php endif; ?>
+								<div class="hot-tour-image"<?php echo $backgroundStyle; ?>></div>
+								<div class="hot-tour-body">
+									<h3 class="hot-tour-title"><?php echo $sanitizer->entities($card['title']); ?></h3>
+									<div class="hot-tour-region"><?php echo $sanitizer->entities($card['region']); ?></div>
+									<div class="hot-tour-footer">
+										<span class="hot-tour-price"><?php echo $sanitizer->entities($card['price']); ?></span>
+									</div>
+								</div>
+							<?php if ($isCardLink): ?>
+								</a>
+							<?php else: ?>
+								</article>
+							<?php endif; ?>
+						<?php endforeach; ?>
+					</div>
+				</div>
+			<div class="hot-tours-footer">
+				<button class="hot-tours-more-btn" type="button">
+					<span>Показать всё</span>
+				</button>
 			</div>
 		</div>
 	</section>
@@ -562,153 +614,101 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		</div>
 	</section>
 
-	<section class="section section--hot-tours">
-		<?php
-		$toLower = static function(string $value): string {
-			return function_exists('mb_strtolower') ? mb_strtolower(trim($value), 'UTF-8') : strtolower(trim($value));
-		};
-		$tourUrlByTitle = [];
-		$tourPagesForLinks = $pages->find('template=tour, include=all, sort=title, limit=500');
-		foreach ($tourPagesForLinks as $tourPageForLink) {
-			if (!$tourPageForLink instanceof Page) continue;
-			$tourTitleForLink = trim((string) $tourPageForLink->title);
-			if ($tourTitleForLink === '') continue;
-			$tourUrlByTitle[$toLower($tourTitleForLink)] = (string) $tourPageForLink->url;
-		}
+	<section class="section section--places">
+			<?php
+			$dagestanPlacesCards = [];
 
-		$hotToursCards = [];
+			if ($page->hasField('home_featured_places') && $page->home_featured_places->count()) {
+				foreach ($page->home_featured_places as $placePage) {
+					if (!$placePage instanceof Page) continue;
+					$imageUrl = $placePage->hasField('place_image') ? $getImageUrlFromValue($placePage->getUnformatted('place_image')) : '';
+					$title = trim((string) $placePage->title);
+					if ($title === '' && $imageUrl === '') continue;
 
-		if ($page->hasField('home_featured_tours') && $page->home_featured_tours->count()) {
-			foreach ($page->home_featured_tours as $tourPage) {
-				if (!$tourPage instanceof Page) continue;
-				$imageUrl = $tourPage->hasField('tour_cover_image') ? $getImageUrlFromValue($tourPage->getUnformatted('tour_cover_image')) : '';
-				$title = trim((string) $tourPage->title);
-				$region = $tourPage->hasField('tour_region') ? trim((string) $tourPage->tour_region) : '';
-				$price = $tourPage->hasField('tour_price') ? trim((string) $tourPage->tour_price) : '';
-				if ($title === '' && $region === '' && $price === '' && $imageUrl === '') continue;
-
-				$hotToursCards[] = [
-					'title' => $title,
-					'region' => $region,
-					'price' => $price,
-					'image' => $imageUrl,
-					'url' => (string) $tourPage->url,
-				];
+					$dagestanPlacesCards[] = [
+						'title' => $title,
+						'image' => $imageUrl,
+					];
+				}
 			}
-		}
 
-		if (!count($hotToursCards) && $page->hasField('hot_tours_cards') && $page->hot_tours_cards->count()) {
-			foreach ($page->hot_tours_cards as $card) {
-				$imageUrl = '';
-				if ($card->hasField('hot_tour_image')) {
-					$cardImage = $card->getUnformatted('hot_tour_image');
-					if ($cardImage instanceof Pageimage) {
-						$imageUrl = $cardImage->url;
-					} elseif ($cardImage instanceof Pageimages && $cardImage->count()) {
-						$imageUrl = $cardImage->first()->url;
+			if (!count($dagestanPlacesCards) && $page->hasField('dagestan_places_cards') && $page->dagestan_places_cards->count()) {
+				foreach ($page->dagestan_places_cards as $card) {
+					$imageUrl = '';
+					if ($card->hasField('dagestan_place_image')) {
+						$cardImage = $card->getUnformatted('dagestan_place_image');
+						if ($cardImage instanceof Pageimage) {
+							$imageUrl = $cardImage->url;
+						} elseif ($cardImage instanceof Pageimages && $cardImage->count()) {
+							$imageUrl = $cardImage->first()->url;
+						}
 					}
-				}
 
-				$hotToursCards[] = [
-					'title' => $card->hasField('hot_tour_title') ? trim((string) $card->hot_tour_title) : '',
-					'region' => $card->hasField('hot_tour_region') ? trim((string) $card->hot_tour_region) : '',
-					'price' => $card->hasField('hot_tour_price') ? trim((string) $card->hot_tour_price) : '',
-					'image' => $imageUrl,
-					'url' => '',
-				];
-				$lastIndex = count($hotToursCards) - 1;
-				$lastTitleKey = $toLower((string) ($hotToursCards[$lastIndex]['title'] ?? ''));
-				if ($lastTitleKey !== '' && isset($tourUrlByTitle[$lastTitleKey])) {
-					$hotToursCards[$lastIndex]['url'] = $tourUrlByTitle[$lastTitleKey];
+					$dagestanPlacesCards[] = [
+						'title' => $card->hasField('dagestan_place_title') ? trim((string) $card->dagestan_place_title) : '',
+						'image' => $imageUrl,
+					];
 				}
 			}
-		}
 
-		if (!count($hotToursCards)) {
-			$hotToursCards = [
-				[
-					'title' => 'Посетить Аргунское ущелье',
-					'region' => 'Чеченская Республика',
-					'price' => 'от 15 000₽',
-					'image' => '',
-					'url' => isset($tourUrlByTitle[$toLower('Посетить Аргунское ущелье')]) ? $tourUrlByTitle[$toLower('Посетить Аргунское ущелье')] : '',
-				],
-				[
-					'title' => 'Взобраться на гору Эльбрус',
-					'region' => 'Кабардино-Балкарская Республика',
-					'price' => 'от 15 000₽',
-					'image' => '',
-					'url' => isset($tourUrlByTitle[$toLower('Взобраться на гору Эльбрус')]) ? $tourUrlByTitle[$toLower('Взобраться на гору Эльбрус')] : '',
-				],
-				[
-					'title' => 'Расслабиться в Суворовских термах',
-					'region' => 'Ставропольский край',
-					'price' => 'от 15 000₽',
-					'image' => '',
-					'url' => isset($tourUrlByTitle[$toLower('Расслабиться в Суворовских термах')]) ? $tourUrlByTitle[$toLower('Расслабиться в Суворовских термах')] : '',
-				],
-				[
-					'title' => 'Умчать в Старый Кахиб',
-					'region' => 'Республика Дагестан',
-					'price' => 'от 15 000₽',
-					'image' => '',
-					'url' => isset($tourUrlByTitle[$toLower('Умчать в Старый Кахиб')]) ? $tourUrlByTitle[$toLower('Умчать в Старый Кахиб')] : '',
-				],
-				[
-					'title' => 'Заглянуть в Замок на воде Шато Эркен',
-					'region' => 'Кабардино-Балкарская Республика',
-					'price' => 'от 15 000₽',
-					'image' => '',
-					'url' => isset($tourUrlByTitle[$toLower('Заглянуть в Замок на воде Шато Эркен')]) ? $tourUrlByTitle[$toLower('Заглянуть в Замок на воде Шато Эркен')] : '',
-				],
-			];
-		}
-		?>
-		<div class="container-hot-tours">
-			<div class="hot-tours-header">
-				<h2 class="section-title">Чем заняться этим летом?</h2>
-				<div class="hot-tours-actions">
-					<button class="circle-btn circle-btn--prev hot-tours-prev" type="button" aria-label="Предыдущие туры"></button>
-					<button class="circle-btn circle-btn--next hot-tours-next" type="button" aria-label="Следующие туры"></button>
-				</div>
-			</div>
-				<div class="hot-tours-grid">
-					<div class="hot-tours-track">
-						<?php foreach ($hotToursCards as $card): ?>
-							<?php
-							$backgroundStyle = '';
-							$cardUrl = trim((string) ($card['url'] ?? ''));
-							$isCardLink = $cardUrl !== '';
-							if (!empty($card['image'])) {
-								$image = htmlspecialchars($card['image'], ENT_QUOTES, 'UTF-8');
-								$backgroundStyle = " style=\"background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.2), rgba(17, 24, 39, 0.1)), url('{$image}');\"";
-							}
-							?>
-							<?php if ($isCardLink): ?>
-								<a class="hot-tour-card" href="<?php echo $sanitizer->entities($cardUrl); ?>" aria-label="<?php echo $sanitizer->entities((string) $card['title']); ?>">
-							<?php else: ?>
-								<article class="hot-tour-card">
-							<?php endif; ?>
-								<div class="hot-tour-image"<?php echo $backgroundStyle; ?>></div>
-								<div class="hot-tour-body">
-									<h3 class="hot-tour-title"><?php echo $sanitizer->entities($card['title']); ?></h3>
-									<div class="hot-tour-region"><?php echo $sanitizer->entities($card['region']); ?></div>
-									<div class="hot-tour-footer">
-										<span class="hot-tour-price"><?php echo $sanitizer->entities($card['price']); ?></span>
-									</div>
-								</div>
-							<?php if ($isCardLink): ?>
-								</a>
-							<?php else: ?>
-								</article>
-							<?php endif; ?>
-						<?php endforeach; ?>
+			if (!count($dagestanPlacesCards)) {
+				$dagestanPlacesCards = [
+					[
+						'title' => 'Сулакский каньон',
+						'image' => '',
+					],
+					[
+						'title' => 'Гамсутль',
+						'image' => '',
+					],
+					[
+						'title' => 'Экраноплан “Лунь”',
+						'image' => '',
+					],
+					[
+						'title' => 'Гуллинский мост',
+						'image' => '',
+					],
+					[
+						'title' => 'Беседка Имама Шамиля',
+						'image' => '',
+					],
+				];
+			}
+
+			$dagestanHasSlider = count($dagestanPlacesCards) > 5;
+			?>
+			<div class="container">
+				<div class="places-banner<?php echo $dagestanHasSlider ? ' places-banner--slider' : ''; ?>">
+					<div class="places-banner-header">
+						<h2 class="section-title section-title--places">Что насчет Дагестана?</h2>
+						<div class="places-banner-actions">
+							<button class="circle-btn circle-btn--prev places-prev" type="button" aria-label="Предыдущие места"></button>
+							<button class="circle-btn circle-btn--next places-next" type="button" aria-label="Следующие места"></button>
+						</div>
 					</div>
+					<div class="places-grid">
+						<div class="places-track">
+							<?php foreach ($dagestanPlacesCards as $card): ?>
+								<?php
+								$backgroundStyle = '';
+								if (!empty($card['image'])) {
+									$image = htmlspecialchars($card['image'], ENT_QUOTES, 'UTF-8');
+									$backgroundStyle = " style=\"background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.2), rgba(17, 24, 39, 0.1)), url('{$image}');\"";
+								}
+								?>
+								<article class="place-card">
+									<div class="place-card-image"<?php echo $backgroundStyle; ?>></div>
+									<h3 class="place-card-title"><?php echo $sanitizer->entities($card['title']); ?></h3>
+								</article>
+							<?php endforeach; ?>
+						</div>
+					</div>
+					<div class="places-footer">
+						<button class="places-more-btn" type="button">
+						<span>Показать всё</span>
+					</button>
 				</div>
-			<div class="hot-tours-footer">
-				<button class="hot-tours-more-btn" type="button">
-					<span>Показать всё</span>
-				</button>
 			</div>
 		</div>
 	</section>

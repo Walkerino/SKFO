@@ -611,6 +611,254 @@ a {
   height: 40px;
 }
 
+.hotel-page .tour-description {
+  max-width: 560px;
+}
+
+.hotel-included-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hotel-included-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  grid-template-columns: none;
+}
+
+.hotel-included-list li::before {
+  display: none;
+}
+
+.hotel-included-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+}
+
+.hotel-included-icon-badge {
+  min-width: 26px;
+  height: 22px;
+
+  border-radius: 7px;
+  color: #1f52b2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.hotel-details-card .tour-meta div {
+  align-items: center;
+}
+
+.hotel-details-card .tour-meta dd {
+  justify-content: flex-end;
+}
+
+.hotel-guests-picker {
+  min-width: 220px;
+  padding: 10px 12px;
+  border: 1px solid #d8deeb;
+  border-radius: 12px;
+  background: #f7f9ff;
+  gap: 10px;
+  box-shadow: none;
+}
+
+.hotel-guests-picker input {
+  width: 100%;
+  font-size: 16px;
+  color: #1b2a42;
+}
+
+.hotel-guests-picker img {
+  width: 16px;
+  height: 16px;
+}
+
+.hotel-guests-picker .people-popover {
+  left: 0;
+  top: calc(100% + 8px);
+}
+
+.hotel-media-section {
+  margin-top: 26px;
+}
+
+.hotel-media-card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 30px 34px;
+}
+
+.hotel-media-grid {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.hotel-media-item {
+  margin: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  min-height: 196px;
+  background: #d7dceb;
+}
+
+.hotel-media-trigger {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  display: block;
+  cursor: zoom-in;
+}
+
+.hotel-media-item img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+body.hotel-lightbox-open {
+  overflow: hidden;
+}
+
+.hotel-gallery-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.hotel-gallery-lightbox[hidden] {
+  display: none;
+}
+
+.hotel-gallery-lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 18, 42, 0.74);
+  backdrop-filter: blur(4px);
+}
+
+.hotel-gallery-lightbox-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(1160px, 100%);
+  border-radius: 20px;
+  background: rgba(8, 18, 40, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 16px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+  transform: translateY(10px) scale(0.99);
+  opacity: 0;
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.hotel-gallery-lightbox.is-open .hotel-gallery-lightbox-dialog {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.hotel-gallery-stage {
+  margin: 0;
+  min-height: min(78vh, 760px);
+  max-height: min(78vh, 760px);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hotel-gallery-stage img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.hotel-gallery-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.hotel-gallery-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.hotel-gallery-nav::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  display: block;
+  margin: 0 auto;
+  border-top: 3px solid currentColor;
+  border-right: 3px solid currentColor;
+}
+
+.hotel-gallery-nav--prev {
+  left: 12px;
+}
+
+.hotel-gallery-nav--prev::before {
+  transform: rotate(-135deg);
+}
+
+.hotel-gallery-nav--next {
+  right: 12px;
+}
+
+.hotel-gallery-nav--next::before {
+  transform: rotate(45deg);
+}
+
+.hotel-gallery-counter {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  min-width: 84px;
+  text-align: center;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 14px;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.4);
+}
+
 .tour-days {
   margin-top: 43px;
 }
@@ -2213,6 +2461,10 @@ h6,
   .hotels-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .hotel-media-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .section {
@@ -2873,6 +3125,7 @@ a.hot-tour-card:hover {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex: 1 1 auto;
 }
 
 .hot-tour-title {
@@ -2888,7 +3141,8 @@ a.hot-tour-card:hover {
 }
 
 .hot-tour-footer {
-  margin-top: 2px;
+  margin-top: auto;
+  padding-top: 4px;
 }
 
 .hot-tour-price {
@@ -3960,6 +4214,68 @@ body.auth-modal-open {
 
   .tour-book-btn {
     width: 100%;
+  }
+
+  .hotel-details-card .tour-meta div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .hotel-details-card .tour-meta dd {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .hotel-guests-picker {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .hotel-media-card {
+    padding: 22px 20px;
+  }
+
+  .hotel-media-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .hotel-media-item {
+    min-height: 180px;
+  }
+
+  .hotel-gallery-lightbox {
+    padding: 10px;
+  }
+
+  .hotel-gallery-lightbox-dialog {
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .hotel-gallery-stage {
+    min-height: 68vh;
+    max-height: 68vh;
+  }
+
+  .hotel-gallery-nav {
+    width: 36px;
+    height: 36px;
+  }
+
+  .hotel-gallery-close {
+    width: 34px;
+    height: 34px;
+    font-size: 24px;
+    top: 8px;
+    right: 8px;
+  }
+
+  .hotel-gallery-counter {
+    bottom: 10px;
+    font-size: 13px;
+    padding: 5px 10px;
   }
 
   .tour-day-card {

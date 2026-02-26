@@ -154,6 +154,13 @@ $pickDefaultHotelImage = static function(int $index) use ($defaultHotelGallery, 
 	$safeIndex = $index >= 0 ? $index : 0;
 	return $defaultHotelGallery[$safeIndex % count($defaultHotelGallery)];
 };
+$defaultHotelDetailsUrl = '';
+if (isset($pages) && $pages instanceof Pages) {
+	$defaultHotelDetailsPage = $pages->get('template=hotel, include=all');
+	if ($defaultHotelDetailsPage instanceof Page && $defaultHotelDetailsPage->id) {
+		$defaultHotelDetailsUrl = (string) $defaultHotelDetailsPage->url;
+	}
+}
 $hotelsCatalog = [];
 
 if (isset($pages) && $pages instanceof Pages) {
@@ -189,6 +196,7 @@ if (isset($pages) && $pages instanceof Pages) {
 			'max_guests' => $maxGuests,
 			'amenities' => count($amenities) ? $amenities : ['wifi'],
 			'image' => $image,
+			'url' => (string) $hotelPage->url,
 		];
 	}
 }
@@ -319,6 +327,9 @@ if (!count($hotelsCatalog)) {
 
 	foreach ($hotelsCatalog as $index => $hotel) {
 		$hotelsCatalog[$index]['image'] = $pickDefaultHotelImage($index);
+		if (trim((string) ($hotelsCatalog[$index]['url'] ?? '')) === '') {
+			$hotelsCatalog[$index]['url'] = $defaultHotelDetailsUrl !== '' ? $defaultHotelDetailsUrl : $page->url;
+		}
 	}
 }
 
@@ -506,9 +517,11 @@ $forumExternalUrl = 'https://club.skfo.ru';
 						<?php foreach ($visibleHotels as $hotel): ?>
 							<?php
 							$imageUrl = trim((string) ($hotel['image'] ?? ''));
+							$hotelUrl = trim((string) ($hotel['url'] ?? ''));
 							$city = trim((string) ($hotel['city'] ?? ''));
 							$region = trim((string) ($hotel['region'] ?? ''));
 							$locationLabel = trim($city . ', ' . $region, ', ');
+							if ($hotelUrl === '') $hotelUrl = $page->url;
 							?>
 							<article class="hotel-card">
 								<div class="hotel-card-media"<?php echo $imageUrl !== '' ? " style=\"background-image: url('" . htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8') . "');\"" : ''; ?>>
@@ -539,7 +552,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 								</ul>
 								<div class="hotel-card-footer">
 									<div class="hotel-card-price"><?php echo $sanitizer->entities($formatPrice((int) ($hotel['price'] ?? 0))); ?></div>
-									<button class="hotel-card-btn" type="button">Выбрать номер</button>
+									<a class="hotel-card-btn" href="<?php echo $sanitizer->entities($hotelUrl); ?>">Выбрать номер</a>
 								</div>
 							</article>
 						<?php endforeach; ?>
