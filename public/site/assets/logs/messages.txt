@@ -26,3 +26,4 @@
 2026-02-18 16:33:42	admin	http://skfo.ddev.site/processwire/page/edit/?id=1075	Deleted field "region_forum_image" data in 0 row(s) from 0 page(s) using template "reviews". [page-by-page] (Fields)
 2026-02-23 11:49:25	admin	http://skfo.ddev.site/http404/content-admin/?tab=articles	Populated initial created/modified dates for 'article_cover_image' (FieldtypeImage)
 2026-02-25 21:43:17	admin	http://skfo.ddev.site/content-admin/?tab=places	Populated initial created/modified dates for 'place_image' (FieldtypeImage)
+2026-02-26 11:16:47	admin	http://skfo.ddev.site/content-admin/?tab=hotels	Populated initial created/modified dates for 'hotel_image' (FieldtypeImage)
