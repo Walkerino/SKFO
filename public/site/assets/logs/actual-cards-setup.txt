@@ -161,3 +161,153 @@
 2026-02-25 20:33:01	admin	http://skfo.ddev.site/processwire/login/?login=1	Updated field 'hotels_featured_refs' settings.
 2026-02-25 20:33:01	admin	http://skfo.ddev.site/processwire/login/?login=1	Updated fields on template 'basic-page'.
 2026-02-25 20:33:01	admin	http://skfo.ddev.site/processwire/login/?login=1	Created page '/content-admin/'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'card_title'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'card_text'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'card_region'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'card_image'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'actual_cards'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'hot_tour_title'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'hot_tour_region'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'hot_tour_price'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'hot_tour_image'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'hot_tours_cards'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'dagestan_place_title'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'dagestan_place_image'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'dagestan_places_cards'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_card_title'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_card_description'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_card_image'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_cards'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_adventure_title'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_adventure_price'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_adventure_image'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_adventures_cards'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_place_title'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_place_text'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_place_image'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_places_cards'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_articles_heading'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_article_title'.
+2026-03-02 16:32:41	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_article_date'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_article_topic'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_article_url'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_article_image'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_article_is_fresh'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_articles_cards'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_region'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_description'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_duration'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_group'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_season'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_difficulty'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_difficulty_level'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_age'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_included'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_included_item_text'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_included_items'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_cover_image'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_day_title'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_day_description'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_day_images'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'tour_days'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'article_topic'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'article_publish_date'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'article_cover_image'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'article_excerpt'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'article_content'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'place_region'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'place_summary'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'place_image'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'hotel_city'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'hotel_region'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'hotel_rating'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'hotel_price'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'hotel_max_guests'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'hotel_image'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'home_featured_tours'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'home_featured_places'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'home_actual_places'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'home_featured_articles'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_featured_tours'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_featured_places'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'region_featured_articles'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'articles_today_refs'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'articles_first_time_refs'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created field 'hotels_featured_refs'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated field 'home_featured_tours' settings.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated field 'home_featured_places' settings.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated field 'home_actual_places' settings.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated field 'home_featured_articles' settings.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated field 'region_featured_tours' settings.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated field 'region_featured_places' settings.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated field 'region_featured_articles' settings.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated field 'articles_today_refs' settings.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated field 'articles_first_time_refs' settings.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated field 'hotels_featured_refs' settings.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated options for field 'tour_difficulty_level'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated repeater fieldgroup 'repeater_actual_cards'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated repeater fieldgroup 'repeater_hot_tours_cards'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated repeater fieldgroup 'repeater_dagestan_places_cards'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated repeater fieldgroup 'repeater_region_cards'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated repeater fieldgroup 'repeater_region_adventures_cards'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated repeater fieldgroup 'repeater_region_places_cards'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated repeater fieldgroup 'repeater_region_articles_cards'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated repeater fieldgroup 'repeater_tour_days'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated repeater fieldgroup 'repeater_tour_included_items'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated repeater fields on template 'home'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated fields on template 'tour'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated fields on template 'article'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated fields on template 'place'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated fields on template 'hotel'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated fields on template 'region'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Updated fields on template 'regions'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created page '/regions/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created region page '/regions/kabardino-balkarskaya-respublika/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_adventures_cards' on page '/regions/kabardino-balkarskaya-respublika/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_places_cards' on page '/regions/kabardino-balkarskaya-respublika/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_articles_cards' on page '/regions/kabardino-balkarskaya-respublika/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created region page '/regions/karachaevo-cherkesskaya-respublika/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_adventures_cards' on page '/regions/karachaevo-cherkesskaya-respublika/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_places_cards' on page '/regions/karachaevo-cherkesskaya-respublika/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_articles_cards' on page '/regions/karachaevo-cherkesskaya-respublika/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created region page '/regions/respublika-dagestan/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_adventures_cards' on page '/regions/respublika-dagestan/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_places_cards' on page '/regions/respublika-dagestan/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_articles_cards' on page '/regions/respublika-dagestan/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Created region page '/regions/respublika-ingushetiya/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_adventures_cards' on page '/regions/respublika-ingushetiya/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_places_cards' on page '/regions/respublika-ingushetiya/'.
+2026-03-02 16:32:42	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_articles_cards' on page '/regions/respublika-ingushetiya/'.
+2026-03-02 16:32:43	maximus	http://skfo.ddev.site/kislovodsk/	Created region page '/regions/respublika-severnaya-osetiya/'.
+2026-03-02 16:32:43	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_adventures_cards' on page '/regions/respublika-severnaya-osetiya/'.
+2026-03-02 16:32:43	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_places_cards' on page '/regions/respublika-severnaya-osetiya/'.
+2026-03-02 16:32:43	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_articles_cards' on page '/regions/respublika-severnaya-osetiya/'.
+2026-03-02 16:32:43	maximus	http://skfo.ddev.site/kislovodsk/	Created region page '/regions/stavropolskiy-kray/'.
+2026-03-02 16:32:43	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_adventures_cards' on page '/regions/stavropolskiy-kray/'.
+2026-03-02 16:32:43	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_places_cards' on page '/regions/stavropolskiy-kray/'.
+2026-03-02 16:32:43	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_articles_cards' on page '/regions/stavropolskiy-kray/'.
+2026-03-02 16:32:43	maximus	http://skfo.ddev.site/kislovodsk/	Created region page '/regions/chechenskaya-respublika/'.
+2026-03-02 16:32:43	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_adventures_cards' on page '/regions/chechenskaya-respublika/'.
+2026-03-02 16:32:43	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_places_cards' on page '/regions/chechenskaya-respublika/'.
+2026-03-02 16:32:43	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_articles_cards' on page '/regions/chechenskaya-respublika/'.
+2026-03-02 16:32:43	maximus	http://skfo.ddev.site/kislovodsk/	Seeded field 'region_cards' on page '/regions/'.
+2026-03-02 16:32:43	maximus	http://skfo.ddev.site/kislovodsk/	Cannot create template 'reviews': template 'basic-page' not found.
+2026-03-02 16:32:58	maximus	http://skfo.ddev.site/kislovodsk/profile/	Updated fields on template 'tour'.
+2026-03-02 16:32:58	maximus	http://skfo.ddev.site/kislovodsk/profile/	Added system field 'title' to template 'article'.
+2026-03-02 16:32:58	maximus	http://skfo.ddev.site/kislovodsk/profile/	Added system field 'title' to template 'place'.
+2026-03-02 16:32:58	maximus	http://skfo.ddev.site/kislovodsk/profile/	Updated fields on template 'article'.
+2026-03-02 16:32:58	maximus	http://skfo.ddev.site/kislovodsk/profile/	Updated fields on template 'place'.
+2026-03-02 16:32:58	maximus	http://skfo.ddev.site/kislovodsk/profile/	Updated fields on template 'region'.
+2026-03-02 16:32:58	maximus	http://skfo.ddev.site/kislovodsk/profile/	Updated fields on template 'regions'.
+2026-03-02 16:32:58	maximus	http://skfo.ddev.site/kislovodsk/profile/	Cannot create template 'reviews': template 'basic-page' not found.
+2026-03-02 16:33:04	maximus	http://skfo.ddev.site/kislovodsk/rockanalytics/	Cannot create template 'reviews': template 'basic-page' not found.
+2026-03-02 16:33:07	maximus	http://skfo.ddev.site/kislovodsk/page/	Cannot create template 'reviews': template 'basic-page' not found.
+2026-03-02 16:33:07	maximus	http://skfo.ddev.site/kislovodsk/page/list/?id=1&render=JSON&start=0&lang=0&open=undefined&mode=actions	Cannot create template 'reviews': template 'basic-page' not found.
+2026-03-02 16:33:08	maximus	http://skfo.ddev.site/kislovodsk/	Cannot create template 'reviews': template 'basic-page' not found.
+2026-03-02 16:33:09	maximus	http://skfo.ddev.site/kislovodsk/rockanalytics/	Cannot create template 'reviews': template 'basic-page' not found.
+2026-03-02 16:33:12	maximus	http://skfo.ddev.site/kislovodsk/	Cannot create template 'reviews': template 'basic-page' not found.
+2026-03-02 16:33:13	maximus	http://skfo.ddev.site/kislovodsk/wiremail-brevo/	Cannot create template 'reviews': template 'basic-page' not found.
+2026-03-02 16:33:14	maximus	http://skfo.ddev.site/kislovodsk/setup/	Cannot create template 'reviews': template 'basic-page' not found.
+2026-03-02 16:33:15	maximus	http://skfo.ddev.site/kislovodsk/module/	Cannot create template 'reviews': template 'basic-page' not found.
+2026-03-02 16:33:16	maximus	http://skfo.ddev.site/kislovodsk/rockanalytics/	Cannot create template 'reviews': template 'basic-page' not found.
+2026-03-02 16:33:18	maximus	http://skfo.ddev.site/kislovodsk/	Cannot create template 'reviews': template 'basic-page' not found.

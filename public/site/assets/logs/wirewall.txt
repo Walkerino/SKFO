@@ -1,0 +1,12 @@
+2026-03-02 16:36:12	guest	http://skfo.ddev.site/hotel	BLOCKED | Unknown | 127.0.0.1 | UA: curl/8.14.1 | global
+2026-03-02 16:36:40	guest	http://skfo.ddev.site/reviews	BLOCKED | Unknown | 127.0.0.1 | UA: curl/8.14.1 | global
+2026-03-02 16:36:41	guest	http://skfo.ddev.site/hotels	BLOCKED | Unknown | 127.0.0.1 | UA: curl/8.14.1 | global
+2026-03-02 16:36:41	guest	http://skfo.ddev.site/hotel	BLOCKED | Unknown | 127.0.0.1 | UA: curl/8.14.1 | global
+2026-03-02 16:37:27	guest	http://skfo.ddev.site/hotels	BLOCKED | Unknown | 127.0.0.1 | UA: curl/8.14.1 | global
+2026-03-02 16:37:28	guest	http://skfo.ddev.site/reviews	BLOCKED | Unknown | 127.0.0.1 | UA: curl/8.14.1 | global
+2026-03-02 16:37:29	guest	http://skfo.ddev.site/hotel	BLOCKED | Unknown | 127.0.0.1 | UA: curl/8.14.1 | global
+2026-03-02 16:41:12	guest	http://skfo.ddev.site/hotels/	BLOCKED | Unknown | 127.0.0.1 | UA: curl/8.14.1 | global
+2026-03-02 16:41:13	guest	http://skfo.ddev.site/hotel/	BLOCKED | Unknown | 127.0.0.1 | UA: curl/8.14.1 | global
+2026-03-02 17:35:32	guest	http://skfo.ddev.site/tour/	BLOCKED | Unknown | 172.20.0.3 | UA: curl/8.14.1 | global
+2026-03-02 17:35:33	guest	http://skfo.ddev.site/places/	BLOCKED | Unknown | 172.20.0.3 | UA: curl/8.14.1 | global
+2026-03-02 17:35:35	guest	http://skfo.ddev.site/places/	BLOCKED | Unknown | 172.20.0.3 | UA: curl/8.14.1 | global
