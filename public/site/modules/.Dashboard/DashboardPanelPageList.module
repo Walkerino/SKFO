@@ -1,0 +1,73 @@
+<?php namespace Daun\Dashboard;
+
+use function ProcessWire\__;
+
+// Include abstract panel base class
+require_once dirname(__DIR__).'/Dashboard/DashboardPanel.class.php';
+
+class DashboardPanelPageList extends DashboardPanel
+{
+    public static function getModuleInfo()
+    {
+        return array_merge(
+            parent::getModuleInfo(),
+            [
+                'title'    => __('Dashboard Panel: PageList', __FILE__),
+                'summary'  => __('Display a ProcessPageList widget for any parent', __FILE__),
+                'author'   => 'Philipp Daun',
+                'version'  => '1.5.8',
+            ]
+        );
+    }
+
+    public function getContent()
+    {
+        // Disable ajax flag so page list is always rendered as HTML
+        $ajax = $this->config->ajax;
+        $this->config->ajax = false;
+
+        // Generate page list
+        $module = $this->modules->get('ProcessPageList');
+        $module->set('id', $this->parentID);
+        $module->set('showRootPage', $this->showRootPage);
+        $output = $module->execute();
+
+        // Modify markup
+        // Remove script tag (we'll initialize the PageList component manually via JS)
+        $unique_key = rand(1, 99999);
+        $container_id = "PageListContainer__{$unique_key}";
+        $output = str_replace("id='PageListContainer'", "id='{$container_id}'", $output);
+        $output = preg_replace('/<script>.*?<\/script>/', '', $output);
+
+        // Add back a dummy div with CSRF tokens: ProcessWire's PageList.js expects
+        // a #PageListContainer div with the tokens as data attributes
+        $tokenName = $this->session->CSRF->getTokenName();
+        $tokenValue = $this->session->CSRF->getTokenValue();
+        $output .= "<div id='PageListContainer' data-token-name='$tokenName' data-token-value='$tokenValue' hidden></div>";
+
+        // Restore ajax flag
+        $this->config->ajax = $ajax;
+
+        return $output;
+    }
+
+    public function getAttributes()
+    {
+        return [
+            'data-parent'    => $this->parentID,
+            'data-show-root' => $this->showRootPage,
+            'data-edit-mode' => $this->editMode,
+            'data-view-mode' => $this->viewMode,
+        ];
+    }
+
+    public function setup()
+    {
+        parent::setup();
+        $this->parent = $this->getPageFromObjectOrSelectorOrID($this->data['parent'] ?? null);
+        $this->parentID = $this->parent ? $this->parent->id : null;
+        $this->showRootPage = $this->data['showRootPage'] ?? true;
+        $this->editMode = $this->data['editMode'] ?? self::windowModeBlank;
+        $this->viewMode = $this->data['viewMode'] ?? self::windowModeBlank;
+    }
+}

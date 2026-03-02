@@ -1,0 +1,962 @@
+<?php namespace ProcessWire;
+
+/**
+ * ProcessWire ProFields: Verified URL Fieldtype
+ * 
+ * ProcessWire URL Fieldtype that uses HTTP requests to verify that the URL exists
+ * and re-verifies it over time at set intervals.
+ *
+ * PLEASE DO NOT DISTRIBUTE
+ * Part of the ProFields commercial module package.
+ * https://processwire.com/store/pro-fields/
+ * 
+ * ProcessWire 3.x, Copyright 2023 by Ryan Cramer
+ * https://processwire.com
+ * 
+ * @method void verifyValueData(Page $page, Field $field, VerifiedURL $value, array $data)
+ * 
+ * @todo update getMatchQuery to support JSON encoded properties using MySQL $."property" matching
+ *
+ */
+
+class FieldtypeVerifiedURL extends FieldtypeURL {
+	
+	/**
+	 * Module info
+	 *
+	 * @return array
+	 *
+	 */
+	public static function getModuleInfo() {
+		return array(
+			'title' => __('ProFields: Verified URL', __FILE__),
+			'version' => 6,
+			'summary' => __('Field that stores a URL and verifies it', __FILE__),
+			'requires' => 'ProcessWire>=3.0.200', 
+		);
+	}
+
+	/**
+	 * Default value constants
+	 * 
+	 */
+	const defaultMaxSeconds = 10;
+	const defaultReverifyDays = 90;
+	const defaultReverifyErrorDays = 7;
+	const defaultMaxErrorTries = 3;
+
+	/**
+	 * Built-in status constants
+	 * 
+	 */
+	const statusMaxErrors = 997;
+	const statusNoResolve = 998;
+	const statusNoLoad = 999;
+
+	/**
+	 * Runtime seconds elapsed verifying URLs
+	 * 
+	 * @var int
+	 * 
+	 */
+	protected $elapsedSeconds = 0.0;
+
+	/**
+	 * Init Fieldtype
+	 * 
+	 */
+	public function init() {
+		require_once(__DIR__ . '/VerifiedURL.php');
+		parent::init();
+	}
+
+	/**
+	 * Get a blank VerifiedURL value
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @return VerifiedURL
+	 * 
+	 */
+	public function getBlankValue(Page $page, Field $field) {
+		return $this->newVerifiedURL($page, $field); 
+	}
+	
+	/**
+	 * Is given value one that should cause the DB row(s) to be deleted rather than saved?
+	 * 
+	 * Used by ProcessWire 3.0.150+
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @param mixed $value
+	 * @return bool
+	 *
+	 */
+	public function isDeleteValue(Page $page, Field $field, $value) {
+		return strlen("$value") === 0;
+	}
+
+	/**
+	 * Get the database query that matches a Fieldtype table’s data with a given value.
+	 *
+	 * @param PageFinderDatabaseQuerySelect|DatabaseQuerySelect $query
+	 * @param string $table The table name to use
+	 * @param string $subfield Name of the subfield (typically 'data', unless selector explicitly specified another)
+	 * @param string $operator The comparison operator
+	 * @param mixed $value The value to find
+	 * @return DatabaseQuery $query
+	 * @throws WireException
+	 *
+	 */
+	public function getMatchQuery($query, $table, $subfield, $operator, $value) {
+		
+		$database = $this->wire()->database;
+		
+		if(empty($subfield)) $subfield = 'data';
+
+		if($subfield === 'content' || !$database->isOperator($operator)) {
+			$ft = new DatabaseQuerySelectFulltext($query);
+			$ft->match($table, $subfield, $operator, $value);
+			return $query;
+		}
+
+		$table = $database->escapeTable($table);
+		$subfield = $database->escapeCol($subfield);
+		$schema = $this->getDatabaseSchema($query->field);
+	
+		if(isset($schema[$subfield]) && stripos($schema[$subfield], 'int ') === 0) {
+			// force value to be integer if schema indicates so
+			$value = (int) $value;
+		}
+		
+		if(!strlen("$value") || "$value" === "0") {
+			// use mock empty/not-empty operators when appropriate
+			if($operator === '=' || $operator === '!=') $operator .= '""';
+		}
+		
+		if(version_compare($this->wire()->config->version, '3.0.157', '>=')) {
+			$bindValue = $query->bindValueGetKey($value, is_int($value) ? \PDO::PARAM_INT : \PDO::PARAM_STR);
+		} else {
+			// this line can be dropped once vesion requirment is 3.0.157+
+			$bindValue = is_int($value) ? $value : $database->quote($value);
+		}
+		
+		if($operator === '!=""') {
+			// is not empty
+			$sql = "$table.$subfield!=$bindValue AND $table.$subfield IS NOT NULL";
+		} else if($operator === '=""') {
+			// is empty
+			$sql = "$table.$subfield$operator=$bindValue OR $table.$subfield IS NULL";
+		} else {
+			// everything else
+			$sql = "$table.$subfield$operator$bindValue";
+		}
+		
+		$query->where($sql);
+		
+		return $query;
+	}
+	
+	/**
+	 * Return the database schema in specified format
+	 * 
+	 * @param Field $field
+	 * @return array
+	 *
+	 */
+	public function getDatabaseSchema(Field $field) {
+		$schema = parent::getDatabaseSchema($field);
+		
+		$schema['status'] = 'int UNSIGNED';
+		$schema['checked'] = 'int UNSIGNED';
+		$schema['content'] = 'mediumtext';
+		$schema['keys']['status'] = 'INDEX `status` (`status`)';
+		$schema['keys']['checked'] = 'INDEX `checked` (`checked`)';
+		$schema['keys']['content'] = 'FULLTEXT KEY `content` (`content`)';
+		
+		$schemaVersion = $field->get('schemaVersion');
+		
+		if($field->id && !$schemaVersion) {
+			$database = $this->wire()->database;
+			$table = $field->getTable();
+			foreach(array('status', 'checked', 'content') as $name) {
+				if($database->columnExists($table, $name)) continue;
+				try {
+					$database->exec("ALTER TABLE $table ADD `$name` " . $schema[$name]);
+					$database->exec("ALTER TABLE $table ADD " . $schema['keys'][$name]);
+				} catch(\Exception $e) {
+					// ignore if already present
+				}
+			}
+			$field->set('schemaVersion', 1);
+			$field->save();
+		}
+		
+		return $schema;
+	}
+	
+	/**
+	 * Return all Fieldtypes derived from FieldtypeText, which we will consider compatible
+	 * 
+	 * @param Field $field
+	 * @return Fieldtypes
+	 *
+	 */
+	public function ___getCompatibleFieldtypes(Field $field) {
+		$fieldtypes = $this->wire(new Fieldtypes());
+		foreach($this->wire()->fieldtypes as $fieldtype) {
+			if($fieldtype instanceof FieldtypeURL) {
+				$fieldtypes->add($fieldtype);
+			}
+		}
+		return $fieldtypes;
+	}
+
+	/**
+	 * Create and return a new VerifiedURL instance
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param array $data Data to populate, or omit if not needed
+	 * @return VerifiedURL
+	 * 
+	 */
+	public function newVerifiedURL(Page $page, Field $field, array $data = array()) {
+		if(isset($data['data'])) $data['href'] = $data['data'];
+		unset($data['data']);
+		$value = new VerifiedURL();
+		$this->wire($value);
+		$value->setTrackChanges(false);
+		$value->setPage($page);
+		$value->setField($field);
+		$value->setArray($data);
+		$value->resetTrackChanges(true);
+		return $value;
+	}
+	
+	/**
+	 * Given a raw value (value as stored in database), return the value as it would appear in a Page object.
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @param string|int|array $value
+	 * @return VerifiedURL
+	 * @see Fieldtype::sleepValue()
+	 *
+	 */
+	public function ___wakeupValue(Page $page, Field $field, $value) {
+		if($value instanceof VerifiedURL) return $value;
+		if(is_string($value)) $value = array('href' => $value); 
+		if(!is_array($value)) $value = array();
+		return $this->newVerifiedURL($page, $field, $value); 
+	}
+
+	/**
+	 * Given an 'awake' value, as set by wakeupValue(), convert the value back to a basic type for storage in database.
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param string|int|float|array|object $value
+	 * @return array
+	 * @see Fieldtype::wakeupValue()
+	 *
+	 */
+	public function ___sleepValue(Page $page, Field $field, $value) {
+		
+		$data = array(
+			'href' => '',
+			'status' => 0,
+			'checked' => 0,
+			'content' => null,
+		);
+		
+		if(is_string($value)) $value = $this->wakeupValue($page, $field, $value); 
+		if(!$value instanceof VerifiedURL) return $data;
+	
+		// if value changed at runtime and is not yet verified, verify it now
+		if(($page->isChanged($field->name) || $value->isChanged()) && !$value->get('_verifyValue')) {
+			if($value->status == 301) $this->fixRedirect($value);
+			$this->verifyValue($page, $field, $value, false);
+		}
+		
+		foreach(array_keys($data) as $key) {
+			$data[$key] = $value->get($key);
+		}
+
+		// the 'href' property is saved in DB as 'data'
+		$data['data'] = $data['href'];
+		unset($data['href']); 
+
+		return $data;
+	}
+
+	public function ___importValue(Page $page, Field $field, $value, array $options = array()) {
+		$oldValue = $page->get($field->name);
+		$newValue = parent::___importValue($page, $field, $value, $options);
+		if($newValue instanceof VerifiedURL && $oldValue instanceof VerifiedURL) { 
+			if($oldValue->href != $newValue->href) {
+				$newValue->trackChange('href');
+				$page->trackChange($field->name);
+			}
+		}
+		return $newValue;
+	}
+
+	/**
+	 * Sanitize value for storage
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param string $value
+	 * @return string
+	 *
+	 */
+	public function sanitizeValue(Page $page, Field $field, $value) {
+		
+		if($value instanceof VerifiedURL) {
+			$this->checkValue($page, $field, $value);
+		} else if(is_string($value)) {
+			$value = $this->newVerifiedURL($page, $field, array('href' => $value));
+		} else {
+			$value = $this->newVerifiedURL($page, $field);
+		}
+	
+		return $value;
+	}
+
+	/**
+	 * Sanitize just a URL, delegating to the FieldtypeURL class
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param string $value URL to sanitize
+	 * @return string
+	 * 
+	 */
+	public function sanitizeValueURL(Page $page, Field $field, $value) {
+		return parent::sanitizeValue($page, $field, $value);
+	}
+
+	/**
+	 * Check if value needs verification or re-verification and perform it if so
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param VerifiedURL $value
+	 * @return bool True if verification was needed, false if not
+	 * 
+	 */
+	public function checkValue(Page $page, Field $field, VerifiedURL $value) {
+		
+		$verifyNow = false;
+	
+		if(!$value->get('href')) {
+			// nothing to do
+		} else if(!$value->get('status')) {
+			$verifyNow = true;
+		} else {
+			if($value->isValid()) {
+				$type = 'reverifyDays';
+			} else if($field->get('maxErrorTries') && $value->tries >= $field->get('maxErrorTries')) {
+				$value->set('status', self::statusMaxErrors);
+				$type = '';
+			} else {
+				$type = 'reverifyErrorDays';
+			}
+			if($type) {
+				$reverifySecs = $field->get($type) * 86400;
+				$lastChecked = (int) $value->get('checked');
+				if($reverifySecs > 0 && time() - $lastChecked > $reverifySecs) $verifyNow = true;
+			}
+		}
+		
+		if($verifyNow) {
+			$this->verifyValue($page, $field, $value);
+		} else if($value->status == 301) {
+			if($this->fixRedirect($value)) {
+				$this->saveVerification($page, $field, $value);
+			}
+		}
+		
+		return $verifyNow;
+	}
+
+	/**
+	 * Get user agent string to use
+	 * 
+	 * @param Field $field
+	 * @return string
+	 * @since 0.0.5
+	 * 
+	 */
+	public function getUserAgent(Field $field) {
+		
+		$setting = trim((string) $field->get('userAgent'));
+		$version = ProcessWire::versionMajor . '.' . ProcessWire::versionMinor; 
+		$userAgent = "ProcessWire/$version (WireHttp; FieldtypeVerifiedURL)";
+		$clientAgent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '';
+		
+		if(empty($setting)) {
+			// use default
+		} else if(strtolower($setting) === 'client' && $clientAgent && strlen($clientAgent) < 255) {
+			// Use client user agent if in recognized format, i.e. 
+			// Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36
+			// Mozilla/5.0 (platform; rv:geckoversion) Gecko/geckotrail Firefox/firefoxversion
+			// Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.106 Safari/537.36 OPR/38.0.2220.41
+			// Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edg/91.0.864.59
+			// Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)
+			// curl/7.64.1
+			$clientAgent = $this->wire()->sanitizer->text($clientAgent);
+			if(preg_match('!^([a-z]+/[\d.]+)([-+_()/;,.: a-z0-9]*)$!i', $clientAgent)) $userAgent = $clientAgent;
+		} else {
+			// user agent defined in field settings
+			$userAgent = $setting;
+		}
+		
+		return $userAgent;
+	}
+
+	/**
+	 * Determine HTTP response/status code for URL and populate/save with VerifiedURL
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param VerifiedURL $value
+	 * @param bool $save Save the result?
+	 * @return int HTTP status code, or 0 if invalid URL format, or negative value if skipped for runtime limits 
+	 * 
+	 */
+	public function verifyValue(Page $page, Field $field, VerifiedURL $value, $save = true) {
+		
+		$config = $this->wire()->config;
+		$sanitizer = $this->wire()->sanitizer;
+		
+		$redirects = array(301, 302, 303, 307); 
+	
+		// if we’ve already spent too much time verifying URLs, do not do it now
+		$maxSeconds = (int) $field->get('maxSeconds');
+		if(!$maxSeconds) $maxSeconds = self::defaultMaxSeconds;
+		if($this->elapsedSeconds >= $maxSeconds) return -2;
+		
+		$href = (string) $value->httpUrl();
+		if(!strlen($href) || strpos($href, '://') === false) return 0;
+		if($value->get('_verifyValue') === $href) return -3;
+	
+		$value->resetTrackChanges(true);
+		
+		$matchRegex = $field->get('matchRegex');
+		$requestType = $field->get('useTitle') || $field->get('getHTML') || $matchRegex ? 'GET' : 'HEAD';
+		$timer = Debug::timer();
+		$http = new WireHttp();
+		$this->wire($http);
+		$http->setTimeout($maxSeconds);
+		$http->setHeader('user-agent', $this->getUserAgent($field));
+	
+		$sendOptions = array($this->className() => true);
+		$use = $field->get('wireHttpUse');
+		if($use && $use != 'auto') $sendOptions['use'] = $use;
+		
+		$result = $http->send($href, array(), $requestType, $sendOptions);
+		$status = $http->getHttpCode();
+		$headers = $http->getResponseHeaders();
+		
+		$getHeaders = $field->get('getHeaders');
+		if($getHeaders) {
+			$setHeaders = array();
+			foreach(explode(' ', $getHeaders) as $getHeader) {
+				$getHeader = strtolower($getHeader);
+				foreach($headers as $headerName => $headerValue) {
+					if($getHeader === '*' || strtolower($headerName) === $getHeader) {
+						$setHeaders[$headerName] = $headerValue;	
+					}
+				}
+			}
+			$value->set('headers', $setHeaders);
+		}
+		
+		if($status && $status < 400) {
+			if(in_array($status, $redirects) && $field->get('useRedirect')) { 
+				if(!empty($headers['location'])) { 
+					$location = $headers['location'];
+					if(strpos($location, '://') === false && strpos($location, '/') === 0) {
+						// contains a relative redirect URL like /path/to/page/ that lacks scheme and hostname
+						if(preg_match('!^(.+?://[^/]+)!', $href, $matches)) {
+							// use scheme and hostname from original $href
+							$location = $matches[1] . $location;
+							if(substr($location, -1) === '/') $location = rtrim($location, '/') . '/';
+						}
+					} 
+					if(strpos($location, '://')) {
+						$redirect = parent::sanitizeValue($page, $field, $location);
+						if($redirect && $redirect !== $href) {
+							$value->set('redirect', $redirect);
+						}
+					}
+				}
+			}
+			if($result && $field->get('useTitle') && stripos($result, '</title>')) {
+				if(preg_match('{<title[^>]*>(.+?)</title>}is', $result, $matches)) {
+					$title = $sanitizer->unentities($matches[1]);
+					$title = $sanitizer->text($title);
+					$value->set('title', $title);
+				}
+			}
+			if($result && $field->get('getHTML')) {
+				$value->set('html', substr($result, 0, (int) $field->get('getHTML')));
+			}
+			if($matchRegex) {
+				$success = preg_match($matchRegex, (string) $result, $matches);
+				$value->set('matches', $success ? $matches : array()); 
+			} else {
+				$value->set('matches', array());	
+			}
+		} else {
+			// error status or no status
+			if($status) {
+				// we have a distinct error status
+			} else {
+				// no status indicates unable to resolve or load URL at all
+				$status = self::statusNoLoad;
+				$host = parse_url($href, PHP_URL_HOST);
+				if(ctype_digit(str_replace('.', '', $host)) || strpos($host, ':') !== strrpos($host, ':')) {
+					// ipv4 or ipv6
+				} else if(gethostbyname($host) === $host) {
+					// unable to resolve host
+					$status = self::statusNoResolve;
+				}
+			}
+			$errstr = $http->getError();
+			if(strlen("$errstr")) $value->set('errstr', $errstr);
+			$value->tries = $value->tries + 1;
+			$maxErrorTries = $field->get('maxErrorTries');
+			if($maxErrorTries && $value->tries >= $maxErrorTries) {
+				$status = self::statusMaxErrors;
+			}
+		} 
+		
+		$value->set('status', $status);
+		$value->set('checked', time());
+	
+		if($config->cli) {
+			// in CLI mode we don’t enforce runtime limits since no HTTP request waiting
+		} else {
+			// keep track of how much time we’ve spent verifying URLs
+			$this->elapsedSeconds += (float) $timer;
+		}
+		
+		$this->verifyValueData($page, $field, $value, array(
+			'http' => $http,
+			'type' => $requestType,
+			'href' => $href,
+			'status' => $status,
+			'result' => $result,
+			'headers' => $headers
+		));
+
+		if($save && $page->id) $this->saveVerification($page, $field, $value);
+		$value->setQuietly('_verifyValue', $href);
+	
+		if($page->id > 1 && $config->debug && $status > 0 && $status < 400) {
+			$viewPage = $this->wire()->page;
+			if($viewPage && $viewPage->template->name === 'admin') {
+				$this->message("$field->label: " . $this->statusStr($value, true) . " - $href");
+			}
+		}
+		
+		return $status;
+	}
+
+	/**
+	 * Hook called after value has been verified by verifyValue() method above, but before it has been saved
+	 * 
+	 * Provides the opportunity to modify the $value argument: $event->arguments(2) which is a VerifiedURL object.
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param VerifiedURL $value
+	 * @param array $data Array with these:
+	 *  - `http` (WireHttp): WireHTTP instance that handled request
+	 *  - `type` (string): Either GET or HEAD
+	 *  - `href` (string): URL that was pulled from
+	 *  - `status` (int): Response status code
+	 *  - `result` (string|bool): Result from URL (non-truncated HTML document content when applicable)
+	 *  - `headers` (array): Associative array of response headers 
+	 * 
+	 */
+	public function ___verifyValueData(Page $page, Field $field, VerifiedURL $value, array $data) { }
+
+	/**
+	 * Get Inputfield for this Fieldtype
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @return InputfieldURL
+	 * 
+	 */
+	public function getInputfield(Page $page, Field $field) {
+		
+		/** @var InputfieldURL $inputfield */
+		$inputfield = parent::getInputfield($page, $field); 
+		$inputfield->addClass('VerifiedURL');
+		
+		/** @var VerifiedURL $value */
+		$value = $page->get($field->name);
+		if(!$value instanceof VerifiedURL) return $inputfield;
+		$href = $value->href;
+		if(!strlen($href)) return $inputfield;
+		$inputfield->attr('value', $href);
+		if(!$value->get('status')) return $inputfield;
+
+		$input = $this->wire()->input;
+		$sanitizer = $this->wire()->sanitizer;
+		$href = $sanitizer->entities($href);
+		$statusStr = $this->statusStr($value, true);
+		$isPOST = $input->requestMethod() === 'POST';
+		$viewLabel = $this->_('View URL');
+		$resetLabel = $this->_('Reverify URL on save');
+		$resetName = "_{$field->name}__reset" . $page->id;
+		$resetClick = "onclick=\"jQuery('#$resetName').prop('checked',!jQuery('#$resetName').prop('checked')).show();return false;\"";
+		
+		$adminTheme = $this->wire()->adminTheme;
+		if(!$adminTheme instanceof AdminThemeFramework) $adminTheme = null;
+		$checkboxClass = $adminTheme && method_exists($adminTheme, 'getClass') ? $adminTheme->getClass('input-checkbox') : '';
+		
+		$markup = 
+			"<span style='float:right;padding-left:5px;'>" .
+				"<label>" . 
+					"<input style='display:none' class='$checkboxClass' type='checkbox' name='$resetName' id='$resetName' value='1' />&nbsp;" . 
+					"<a href='#' class='pw-tooltip' title='$resetLabel' $resetClick>" .
+						wireIconMarkup('refresh') . 
+					"</a>" . 
+				"</label>&nbsp;&nbsp;" . 
+				"<a href='$href' target='_blank' class='pw-tooltip' title='$viewLabel'>" . 
+					wireIconMarkup('external-link') . 
+				"</a>" . 
+			"</span> ";
+		
+		$markup .= "<strong>" . $this->_('Status:') . "</strong> " . $sanitizer->entities($statusStr);
+		
+		if($value->get('redirect') && $field->get('useRedirect')) {
+			$markup .= "<br /><strong>" . $this->_('Redirect:') . "</strong> " . $sanitizer->entities($value->redirect);
+		}
+		
+		if($field->get('useTitle') && strlen($value->title)) {
+			$markup .= "<br /><strong>" . $this->_('Title:') . "</strong> " . $sanitizer->entities($value->title);
+		}
+		
+		$getHeaders = $field->get('getHeaders');
+		$headers = $value->get('headers');
+		if($getHeaders && $getHeaders !== '*' && is_array($headers)) {
+			foreach(explode(' ', strtolower($getHeaders)) as $headerKey) {
+				if(empty($headerKey)) continue;
+				foreach($headers as $k => $v) {
+					if(strtolower($k) != $headerKey) continue;
+					$markup .= "<br /><strong>" . $sanitizer->entities($headerKey) . ":</strong> " . $sanitizer->entities($v);
+				}	
+			}
+		}
+	
+		$matches = $value->get('matches');
+		if($field->get('matchRegex') && !empty($matches)) {
+			foreach($matches as $k => $v) {
+				$k = (int) $k;
+				$markup .= "<br /><strong>Matches[$k]:</strong> " . $sanitizer->entities($v);	
+			}
+		}
+		
+		if($value->status >= 400 && !$isPOST) {
+			$inputfield->warning($field->getLabel() . " - $statusStr");
+		} else if($isPOST && $input->post($resetName)) {
+			$value->reset();
+		}
+		
+		$inputfield->appendMarkup = "<p class='detail'>$markup</p>";
+	
+		return $inputfield; 
+	}
+
+	/**
+	 * Format value for output
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param VerifiedURL|string $value
+	 * @return string
+	 * 
+	 */
+	public function ___formatValue(Page $page, Field $field, $value) {
+		
+		if(is_string($value)) {
+			return parent::___formatValue($page, $field, $value);
+		} else if(!$value instanceof VerifiedURL) {
+			return '';
+		}
+		
+		$href = $value->href;
+		$redirect = $value->redirect;
+		$useBlank = $field->get('useBlank');
+		
+		if($useBlank) {
+			$status = (int) $value->get('status');
+			if($status >= 400) {
+				// make blank when http error status
+				$href = '';
+				$redirect = '';
+			} else if($useBlank > 1 && $status < 1) {
+				// make blank when status not yet known
+				$href = '';
+				$redirect = '';
+			}
+		}
+	
+		if(strlen($href)) {
+			$href = parent::___formatValue($page, $field, $href);
+		}
+		
+		if($field->get('useString')) {
+			$value = $href;
+		} else {
+			$sanitizer = $this->wire()->sanitizer;
+			$value = clone $value;
+			$value->setQuietly('href', $href);
+			$value->setQuietly('_formatted', true);
+			$title = $value->get('title');
+			if(strlen($title)) {
+				$title = $sanitizer->entities($title);
+				$value->setQuietly('title', $title);
+			}
+			if(strlen($redirect)) {
+				$redirect = parent::___formatValue($page, $field, $redirect);
+			}
+			$value->setQuietly('redirect', $redirect);
+		
+			$getHeaders = $field->get('getHeaders');
+			$getAll = $getHeaders === '*';
+			if($getHeaders && is_array($value->get('headers'))) {
+				$getHeaders = explode(' ', strtolower($getHeaders));
+				$headers = array();
+				foreach($value->get('headers') as $headerKey => $headerVal) {
+					$headerKey = strtolower($headerKey);
+					if(!$getAll && !in_array($headerKey, $getHeaders)) continue;
+					$headerKey = $sanitizer->entities($headerKey);
+					$headerVal = $sanitizer->entities($headerVal);
+					$headers[$headerKey] = $headerVal;
+				}
+				$value->setQuietly('headers', $headers);
+			}
+		}
+
+		return $value; 
+	}
+
+	/**
+	 * Save verification info for VerifiedURL value
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param VerifiedURL $value
+	 * @return bool
+	 * 
+	 */
+	public function saveVerification(Page $page, Field $field, VerifiedURL $value) {
+	
+		$updateHref = $this->fixRedirect($value);
+		$data = $this->sleepValue($page, $field, $value);
+		$table = $field->getTable();
+		$sql = "UPDATE `$table` SET status=:status, checked=:checked, content=:content";
+		if($updateHref) $sql .= ", data=:data";
+		$query = $this->wire()->database->prepare("$sql WHERE pages_id=:pages_id");
+		$query->bindValue(':status', $data['status'], \PDO::PARAM_INT);
+		$query->bindValue(':checked', $data['checked'], \PDO::PARAM_INT);
+		$query->bindValue(':content', $data['content'], $data['content'] === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR);
+		if($updateHref) $query->bindValue(':data', $data['data']);
+		$query->bindValue(':pages_id', $page->id, \PDO::PARAM_INT);
+		$result = $query->execute();
+		$query->closeCursor();
+		
+		if($field->get('useLog')) {
+			$str = "Page: $page->id - " . $this->statusStr($value, true) . " - URL: " . $value->get('href');
+			if($value->get('redirect')) $str .= " - Redirect: $value->redirect";
+			if($value->get('_hrefPrevious')) $str .= " - Previous URL: $value->_hrefPrevious";
+			$this->wire()->log->save($this->logName($field), $str);
+		}
+		
+		return $result;
+	}
+
+	/**
+	 * Fix a 301 redirect, when allowed to do so 
+	 * 
+	 * @param VerifiedURL $value
+	 * @return bool True if update has been made, false if not
+	 * 
+	 */
+	protected function fixRedirect(VerifiedURL $value) {
+
+		if($value->get('_formatted')) return false;
+		if(is_bool($value->get('_fixRedirect'))) return $value->get('_fixRedirect');
+		if(!$value->redirect || $value->status != 301) return false;
+		if(!$value->field->get('fixRedirect') || !$value->field->get('useRedirect')) return false;
+		
+		$href = $value->href;
+		$redirect = $value->redirect;
+		
+		if($redirect === $href) return false;
+	
+		$fix = false;
+		$host = parse_url($href, PHP_URL_HOST);
+		$redirectHost = parse_url($redirect, PHP_URL_HOST);
+		if(strtolower($host) === strtolower($redirectHost)) {
+			$value->set('href', $value->redirect);
+			$fix = true;
+		}
+		
+		$value->setQuietly('_fixRedirect', $fix);
+		
+		return $fix;
+	}
+	
+	/**
+	 * Get a string that represents the HTTP code status for a VerifiedURL value
+	 *
+	 * Examples:
+	 *  - Verified 200 OK (1 day ago)
+	 *  - Verified 301 Moved permanently (1 day ago)
+	 *  - Error 404 Not Found (3 weeks ago)
+	 *  - Not yet verified
+	 *
+	 * @param VerifiedURL|int $value A VerifiedURL instance or an HTTP status code 
+	 * @param array|bool $options Specify options array or bool for `verbose` option. 
+	 *  - `verbose` (bool): Include additional verbose info for errors? good for debugging (default=false)
+	 *  - `type` (bool): Show the type of status, either “Verified” or “Error”? (default=true)
+	 *  - `code` (bool): Show the error code number? (default=true)
+	 *  - `desc` (bool): Show the error code description? (default=true)
+	 *  - `tries` (bool): Show the number of tries when errors present? (default=true)
+	 *  - `when` (string): Show when item was verified? Specify wireDate format or blank to disable (default='relative')
+	 *  - `getArray` (bool): Return an associative array rather than a string? (default=false)
+	 * @return string|array
+	 * @throws WireException if given invalid argument
+	 *
+	 */
+	public function statusStr($value, $options = array()) {
+		
+		$defaults = array(
+			'verbose' => is_bool($options) ? $options : false,
+			'type' => true,
+			'code' => true,
+			'desc' => true, 
+			'tries' => true, 
+			'when' => 'relative',
+			'getArray' => false,
+		);
+		
+		$options = is_array($options) ? array_merge($defaults, $options) : $defaults;
+		
+		$type = '';
+		$when = '';
+		$tries = $options['tries'] ? 0 : '';
+		$errstr = '';
+
+		if(is_int($value)) {
+			$status = $value;
+		} else if($value instanceof VerifiedURL) {
+			$status = $value->get('status');
+			$tries = $value->get('tries');
+			$errstr = $options['verbose'] ? $value->get('errstr') : '';
+			$checked = $value->get('checked');
+			$when = $checked && $options['when'] ? wireDate($options['when'], $checked) : '';
+			if(strlen($when) && !$options['getArray']) $when = "($when)";
+		} else {
+			throw new WireException('Unrecogized value type');
+		}
+
+		if($status < 1) {
+			return $this->_('Not yet verified');
+		}
+
+		$http = new WireHttp();
+		
+		if(method_exists($http, 'getHttpCodes')) {
+			$codes = $http->getHttpCodes();
+		} else if(method_exists($http, 'getErrorsCodes')) {
+			$codes = $http->getErrorCodes();
+		} else {
+			$codes = array(
+				200 => $this->_('OK'),
+				301 => $this->_('Moved Permanently'),
+				302 => $this->_('Found'),
+				303 => $this->_('See Other'),
+				307 => $this->_('Temporary Redirect'),
+			);
+		}
+
+		if($status >= 400) {
+			if($options['type']) $type = $this->_('Error');
+			if($options['tries']) $tries = $tries ? sprintf($this->_n('%d attempt', '%d attempts', $tries), $tries) : '';
+		} else {
+			if($options['type']) $type = $this->_('Verified');
+			$tries = '';
+		}
+	
+		if($status == self::statusNoLoad) {
+			$desc = $this->_('Unable to load URL');
+		} else if($status == self::statusNoResolve) {
+			$desc = $this->_('Unable to resolve host');
+		} else if($status == self::statusMaxErrors) {
+			$desc = $this->_('Max errors reached');
+		} else {
+			$desc = isset($codes[$status]) ? $codes[$status] : "";
+		}
+		
+		if(strlen($errstr) && !$options['getArray']) $errstr = " -\n$errstr";
+		
+		$a = array();		
+		if($options['type'] && $type) $a['type'] = $type;
+		if($options['code']) $a['code'] = $status;
+		if($options['desc'] && $desc) $a['desc'] = $desc;
+		if($options['when'] && $when) $a['when'] = $when;
+		if($options['tries'] && $tries) $a['tries'] = $tries;
+		if($options['verbose'] && $errstr) $a['errstr'] = $errstr;
+		if($options['getArray']) return $a;
+		
+		return implode(' ', $a); 
+	}
+
+	/**
+	 * Reset all verified URL data for given field
+	 * 
+	 * @param Field $field
+	 * 
+	 */
+	public function resetVerifyData(Field $field) {
+		$table = $field->getTable();
+		$this->wire()->database->exec("UPDATE `$table` SET status=null, checked=null, content=null");
+	}
+
+	/**
+	 * Get name to use for log file
+	 * 
+	 * @param Field $field
+	 * @return string
+	 * 
+	 */
+	public function logName(Field $field) {
+		return 'field-' . str_replace('_', '-', $field->name);
+	}
+	
+	/**
+	 * Get Inputfields to configure Field
+	 * 
+	 * @param Field $field
+	 * @return InputfieldWrapper
+	 * 
+	 */
+	public function ___getConfigInputfields(Field $field) {
+		$inputfields = parent::___getConfigInputfields($field);
+		require_once(__DIR__ . '/config.php');
+		config_FieldtypeVerifiedURL($field, $inputfields);
+		return $inputfields;
+	}
+
+}

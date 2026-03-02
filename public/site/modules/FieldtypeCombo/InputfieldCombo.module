@@ -1,0 +1,717 @@
+<?php namespace ProcessWire;
+
+require_once(__DIR__ . '/init.php');
+
+/**
+ * ProcessWire ProFields Combo Inputfield
+ *
+ * Part of the ProFields package.
+ * Please do not distribute. 
+ * 
+ * Copyright (C) 2024 by Ryan Cramer 
+ *
+ * https://processwire.com
+ * 
+ * @property array $value
+ * @property bool|int $hideWrap Hide Inputfield wrapper around combo subfields?
+ * 
+ */
+
+class InputfieldCombo extends Inputfield implements Module, ConfigurableModule {
+
+	use ComboWireTrait, ComboWireDataTrait;
+
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'ProFields: Combo', 
+			'summary' => 'One Inputfield representing a combination of different inputs/values.', 
+			'icon' => 'object-group',
+			'href' => 'https://processwire.com/store/pro-fields/combo/',
+			'version' => 17,
+			'author' => 'Ryan Cramer',
+			'requires' => 'ProcessWire>=3.0.164',
+		);
+	}
+	
+	/**
+	 * @var InputfieldWrapper|null
+	 *
+	 */
+	protected $inputfields = null;
+
+	/**
+	 * Number of dependencies in Combo Inputfields (set during getInputfields)
+	 * 
+	 * @var int
+	 * 
+	 */
+	protected $numDependencies = 0;
+	
+	/**
+	 * @var string
+	 * 
+	 */
+	protected $inputfieldsName = '';
+
+	/**
+	 * @var ComboSettings
+	 * 
+	 */
+	protected $comboSettings;
+	
+	/**
+	 * Construct the Inputfield and establish default config values
+	 *
+	 */
+	public function __construct() {
+		$this->comboSettings = new ComboSettings($this);
+		$this->addClass('InputfieldFieldset', 'wrapClass');
+		$this->set('baseTypes', array());
+		$this->set('phpTypes', '');
+		$this->set('hideWrap', false);
+		parent::__construct();
+	}
+
+	/**
+	 * @param ComboSettings $settings
+	 * 
+	 */
+	public function setComboSettings(ComboSettings $settings) {
+		$this->comboSettings = $settings;
+	}
+
+	/**
+	 * @return ComboSettings
+	 * 
+	 */
+	public function getComboSettings() {
+		return $this->comboSettings;
+	}
+	
+	/**
+	 * Wired to ProcessWire instance
+	 * 
+	 */
+	public function wired() {
+		parent::wired();
+		$this->wire($this->comboSettings);
+	}
+
+	/**
+	 * Does this Inputfield have the given setting?
+	 * 
+	 * @param string $key
+	 * @return bool
+	 * 
+	 */
+	public function hasSetting($key) {
+		return parent::hasSetting($key) || $this->comboSettings->isSetting($key);
+	}
+
+	/**
+	 * Get a setting
+	 * 
+	 * @param string $key
+	 * @return array|int|mixed|null|string
+	 * 
+	 */
+	public function getSetting($key) {
+		$value = $this->comboSettings->getSetting($key);
+		if($value === null) $value = parent::getSetting($key);
+		return $value; 
+	}
+
+	/**
+	 * @param array|string $key
+	 * @param array|bool|int|string $value
+	 * @return Inputfield
+	 *
+	 */
+	public function setAttribute($key, $value) {
+		if($key === 'value') return $this->setValue($value);
+		return parent::setAttribute($key, $value);
+	}
+
+	/**
+	 * @param string $key
+	 * @return false|mixed|null|string
+	 *
+	 */
+	public function getAttribute($key) {
+		if($key === 'value') return $this->getValue();
+		return parent::getAttribute($key);
+	}
+
+	/**
+	 * Set value
+	 * 
+	 * @param array $value
+	 * @return $this
+	 *
+	 */
+	public function setValue($value) {
+		$languages = $this->wire()->languages;
+		
+		if(!is_array($value)) {
+			/** @var string|ComboValue $value */
+			if(is_string($value) && strpos($value, '{') === 0) {
+				$value = json_decode($value, true);
+			} else if($value instanceof ComboValue) {
+				$value = $value->getArray();
+			}
+			if(!is_array($value)) return $this;
+		}
+		
+		$inputfields = $this->getInputfields();
+		
+		foreach($inputfields->getAll() as $inputfield) {
+			/** @var Inputfield $inputfield */
+			$name = $inputfield->wrapAttr('data-combo-name');
+			if(empty($name)) continue;
+			
+			if($inputfield->useLanguages && $languages) {
+				$langValue = isset($value[$name]) ? $value[$name] : null;
+				if(!$langValue instanceof ComboLanguagesValue) {
+					$v = $this->wire(new ComboLanguagesValue()); /** @var ComboLanguagesValue $v */
+					if(is_string($langValue) && strlen($langValue)) $v->importFromString($langValue);
+					$langValue = $v;
+				}
+				$langValue->setToInputfield($inputfield);
+				
+			} else if(isset($value[$name])) {
+				$val = $value[$name];
+				if(is_object($val)) {
+					if($val instanceof ComboSelectedValue) {
+						$val = $val->value;
+					} else if($val instanceof Pagefiles) {
+						// good, keep as-is
+					} else {
+						$val = "$val"; // i.e. Page references
+					}
+				} else if(is_array($val)) {
+					foreach($val as $k => $v) {
+						if($v instanceof ComboSelectedValue) {
+							$val[$k] = $v->value;
+						}
+					}
+				}
+				$inputfield->val($val);
+				$value[$name] = $val;
+			}
+		}
+		
+		return $this;
+	}
+
+	/**
+	 * Get value attribute array
+	 * 
+	 * @return array
+	 *
+	 */
+	public function getValue() {
+		$value = array();
+		foreach($this->getInputfields()->getAll() as $f) {
+			/** @var Inputfield $f */
+			$name = $f->wrapAttr('data-combo-name');
+			$value[$name] = $this->getSubfieldValue($f);
+		}
+		return $value;
+	}
+
+	/**
+	 * Get subfield value
+	 * 
+	 * @param Inputfield $f
+	 * @return mixed
+	 * 
+	 */
+	protected function getSubfieldValue(Inputfield $f) {
+		if($f->useLanguages && $this->wire()->languages) {
+			$langValue = $this->wire(new ComboLanguagesValue()); /** @var ComboLanguagesValue $langValue */
+			$langValue->setFromInputfield($f);
+			return $langValue->exportToString();
+		} else {
+			$val = $f->val();
+			if($val instanceof Pagefiles) {
+				// ok
+			} else if(is_object($val)) {
+				$val = "$val";
+			}
+			return $val;
+		}
+	}
+
+	/**
+	 * Is Inputfield value empty?
+	 *
+	 * @return bool
+	 *
+	 */
+	public function isEmpty() {
+		$isEmpty = true;
+		foreach($this->getInputfields() as $f) {
+			/** @var Inputfield $f */
+			if(!$f->isEmpty()) $isEmpty = false;
+			if(!$isEmpty) break;
+		}
+		return $isEmpty;
+	}
+
+	/**
+	 * Render Ready 
+	 * 
+	 * @param Inputfield $parent
+	 * @param bool $renderValueMode
+	 * @return bool
+	 * 
+	 */
+	public function renderReady(Inputfield $parent = null, $renderValueMode = false) {
+		
+		$inputfields = $this->getInputfields();
+		$languages = $this->wire()->languages;
+		
+		foreach($inputfields as $inputfield) {
+			/** @var Inputfield $inputfield */
+			if($inputfield instanceof InputfieldFile) {
+				$this->readyInputfieldFile($inputfield);
+			} else if($inputfield instanceof InputfieldTextarea) {
+				if(wireInstanceOf($inputfield, 'InputfieldTinyMCE')) {
+					// enables it to detect image fields on page
+					$inputfield->hasPage = $this->hasPage; 
+					// makes it use ProcessWire.config rather than data-settings attribute
+					$inputfield->set('configName', $inputfield->name); 
+				}
+			}
+			if($languages && $inputfield instanceof InputfieldSelect) {
+				// InputfieldSelect types require hasFieldtype===false for multi-language labels
+				$hasFieldtype = $inputfield->hasFieldtype;
+				$inputfield->hasFieldtype = false;
+				$inputfield->renderReady($inputfields, $renderValueMode);
+				$inputfield->hasFieldtype = $hasFieldtype;
+			} else {
+				$inputfield->renderReady($inputfields, $renderValueMode);
+			}
+			if($inputfield->getSetting('showIf') || $inputfield->getSetting('requiredIf')) {
+				$inputfields->setQuietly('_hasComboDependencies', true);
+			}
+		}
+		
+		if(!$inputfields->count()) {
+			$this->wrapAttr('style', 'display:none');
+		}
+		
+		if($this->hideWrap) {
+			$this->addClass('InputfieldComboHideWrap', 'wrapClass');
+			$this->description = '';
+			$this->notes = '';
+			$this->detail = '';
+		}
+		
+		return parent::renderReady($parent, $renderValueMode);
+	}
+
+	/**
+	 * Render the Inputfield markup
+	 *
+	 * @return string
+	 *
+	 */
+	public function ___render() {
+		
+		$inputfields = $this->getInputfields();
+		if($this->numDependencies) $this->updateDependencies($inputfields);
+		
+		$_this = $this;
+		foreach($inputfields->getAll() as $f) {
+			if($f instanceof InputfieldFile) {
+				$f->addHookAfter('render', function(HookEvent $e) use ($_this) {
+					// performs live replacements on the markup of file/image fields
+					$f = $e->object; /** @var InputfieldFile $f */
+					$o = $e->return;
+					$_this->renderInputfieldFile($f, $o);
+					$e->return = $o;
+				});
+			}
+		}
+		
+		$out = $inputfields->render();
+		
+		return $out;
+	}
+
+	/**
+	 * Update returned markup value for InputfieldFile and InputfieldImage types
+	 * 
+	 * @param InputfieldFile|InputfieldImage $f
+	 * @var string $out
+	 * 
+	 */
+	public function renderInputfieldFile(InputfieldFile $f, &$out) {
+
+		$comboName = $this->attr('name');
+		$inputName = str_replace($comboName . '_', "$comboName.", (string) $f->attr('name'));
+	
+		/*** DEBUG START ***
+		preg_match('/data-fieldname="([^"]+)"/', $out, $matches);
+		bd($matches[0], 'data-fieldname'); 
+		preg_match('/file_context=[-_a-zA-Z0-9\[\]]+/', $out, $matches);
+		bd($matches[0], 'file_context');
+		/*** DEBUG STOP ***/
+		
+		// $out = str_replace(" data-fieldname='{$f->name}[]'", " data-fieldname='{$inputName}[]'", (string) $out);
+		// $out = str_replace(" data-fieldname=\"$comboName\"", " data-fieldname=\"{$inputName}\"", (string) $out);
+	
+		// change 'combo_name_subfield_name' or 'combo_name' to 'combo_name.subfield_name' in data-fieldname attribute
+		$out = preg_replace('/' . // data-fieldname="name" or data-fieldname="name[]"
+			//' data-fieldname=["\']' . "($f->name|$comboName)" . '([\[\]]{2}|)["\']/',
+			 ' data-fieldname=["\']' . "(.+?)" . '([\[\]]{2}|)["\']/',
+			' data-fieldname="' . $inputName . '$2"',
+			(string) $out
+		);
+
+		if(strpos($out, 'file_context=')) {
+			list(/*comboName*/, $subfieldName) = explode('.', $inputName, 2);
+			$out = str_replace("&amp;file_context=$subfieldName", "", $out);
+		}
+		
+		$hadField = $f->get('hadField'); // restore what we set in renderReady
+		$hadFieldtype = $f->get('hadFieldtype');
+		$f->setQuietly('hasField', $hadField);
+		$f->setQuietly('hasFieldtype', $hadFieldtype);
+	}
+
+	/**
+	 * Render just the value (not input) in text/markup for presentation purposes
+	 *
+	 * @return string of text or markup where applicable
+	 *
+	 */
+	public function ___renderValue() {
+		$inputfields = $this->getInputfields();
+		return $inputfields->renderValue();
+	}
+	
+	/**
+	 * Process the Textareas input
+	 * 
+	 * @param WireInputData $input
+	 * @return $this
+	 *
+	 */
+	public function ___processInput(WireInputData $input) {
+		
+		$inputfields = $this->getInputfields(false, true); // getForm=true
+		$languages = $this->wire()->languages;
+		$values = array();
+		// $changes = array();
+		$fieldtype = $this->hasFieldtype;
+		$ajaxSaveSubfield = $fieldtype instanceof FieldtypeCombo ? $fieldtype->getAjaxSaveSubfield() : '';
+		$ajaxSaveInputfield = null;
+
+		if($this->numDependencies) $this->updateDependencies($inputfields);
+	
+		$inputfields->resetTrackChanges(true);
+		
+		if($ajaxSaveSubfield) {
+			// just process the ajax submitted subfield
+			$inputfieldName = $this->name . '_' . $ajaxSaveSubfield;
+			$inputfield = $inputfields->getChildByName($inputfieldName);
+			if($inputfield instanceof InputfieldFile) {
+				$this->readyInputfieldFile($inputfield);
+				$ajaxSaveInputfield = $inputfield;
+			}
+			if($inputfield) {
+				$inputfield->processInput($input);
+			}
+		} else {
+			// process all
+			$inputfields->processInput($input);
+		}
+		
+		foreach($inputfields->getAll() as $f) {
+			
+			/** @var Inputfield $f */
+			if($ajaxSaveInputfield && $f !== $ajaxSaveInputfield) continue;
+			
+			$name = $f->wrapAttr('data-combo-name');
+			$value = $f->val();
+
+			if($value instanceof Pagefiles || $value instanceof Pagefile) {
+				// ok
+			} else if($f->useLanguages && $languages) {
+				/** @var ComboLanguagesValue $langValues */
+				$langValues = $this->wire(new ComboLanguagesValue()); 
+				$langValues->setFromInputfield($f);
+				$value = $langValues->exportToString();
+			}
+
+			$values[$name] = $value;
+			
+			if($f->isChanged()) {
+				// $changes[$name] = $value;
+				$this->trackChange('value');
+			}
+		}
+
+		if($ajaxSaveInputfield) {
+			// added specifically for file/image fields which for some reason
+			// need a fresh value set to this Inputfield
+			if($this->hasPage && $this->hasPage->id && $this->hasField) {
+				$value = $this->hasPage->getUnformatted($this->hasField->name);
+				if($value instanceof ComboValue) $value = $value->getArray();
+				$values = array_merge($value, $values);
+			}
+		}
+		
+		$this->setAttribute('value', $values);
+
+		return $this;
+	}
+	
+	/**
+	 * Get individual Inputfields in this Combo
+	 * 
+	 * @param bool $reset Reset (do not use cached value?)
+	 * @param bool $getForm Get InputfieldForm rather than InputfieldWrapper?
+	 * @return InputfieldWrapper|InputfieldForm|Inputfield
+	 * 
+	 */
+	public function getInputfields($reset = false, $getForm = false) {
+		
+		$savedValues = array(); // for when a prefix/suffix rename occurs
+
+		if($this->inputfieldsName && $this->inputfieldsName !== $this->attr('name')) {
+			$reset = strpos($this->attr('name'), $this->inputfieldsName) === false ? true : 'rename';
+		}
+		
+		if($this->inputfields && !$reset && !$getForm) {
+			return $this->inputfields;
+		}
+		
+		$this->numDependencies = 0;
+		
+		if($getForm && $this->inputfields) {
+			// InputfieldForm logic needed during processInput to handle dependencies
+			/** @var InputfieldForm $form */
+			$form = $this->wire()->modules->get('InputfieldForm');
+			$form->protectCSRF = false;
+			$parent = $this->getParent();
+			if($parent) $form->setParent($parent);
+			foreach($this->inputfields as $f) {
+				/** @var Inputfield $f */
+				if($f->getSetting('showIf') || $f->getSetting('requiredIf')) $this->numDependencies++;
+				$form->add($f);
+			}
+			return $form;
+		}
+		
+		if($reset === 'rename' && $this->inputfields) {
+			// remember values to populate after reset
+			// this happens like when the field is renamed with a prefix or suffix (like from LRP)
+			foreach($this->inputfields->getAll() as $f) {
+				/** @var Inputfield $f */
+				$name = $f->wrapAttr('data-combo-name');
+				$savedValues[$name] = $this->getSubfieldValue($f);
+			}
+		}
+
+		$comboSettings = $this->getComboSettings();
+		/** @var InputfieldForm $inputfields */
+		$inputfields = $getForm ? $this->wire()->modules->get('InputfieldForm') : new InputfieldWrapper(); 
+		$inputfields->themeBorder = 'none';
+		if($getForm) $inputfields->protectCSRF = false;
+		$fieldName = $this->attr('name');
+		$items = array();
+		
+		$this->wire($inputfields);
+		
+		for($n = 1; $n <= $this->comboSettings->qty; $n++) {
+			if(!$this->comboSettings->getSetting('ok', $n)) continue;
+			$f = $comboSettings->getInputfield($n); 
+			if(!$f) continue;
+			$name = $f->name;
+			$inputName = "{$fieldName}_$f->name";
+			$f->attr('name', $inputName);
+			$f->attr('id', $inputName);
+			$f->wrapAttr('data-combo-name', $name);
+			$f->wrapAttr('data-combo-num', $n); 
+			if(isset($savedValues[$name])) {
+				$f->val($savedValues[$name]);
+			} else if($f instanceof InputfieldImage) {
+				$page = $this->getEditorPage();
+				if($page) $f->val($this->comboSettings->getSubfieldBlankValue($n, $page));
+			}
+			$items[$n] = $f; 
+			if($f->getSetting('showIf') || $f->getSetting('requiredIf')) $this->numDependencies++;
+		}
+	
+		// add them in the configured order
+		$order = explode(',', $this->comboSettings->order); 
+		foreach($order as $n) {
+			$n = (int) $n;
+			if(!isset($items[$n])) continue;
+			$f = $items[$n];
+			$inputfields->add($f);
+			unset($items[$n]);
+		}
+	
+		// add any that are left
+		foreach($items as $f) {
+			$inputfields->add($f);
+		}
+		
+		$parent = $this->getParent();
+		if($parent) $inputfields->setParent($parent);
+		if(count($inputfields) && !$getForm) {
+			$this->inputfields = $inputfields;
+			$this->inputfieldsName = $this->attr('name');
+		}
+		
+		return $inputfields;
+	}
+
+	/**
+	 * Return an array of errors that occurred on any of the children during input processing.
+	 *
+	 * Should only be called after `processInput()`.
+	 *
+	 * @param bool $clear Specify true to clear out the errors (default=false).
+	 * @return array Array of error strings
+	 *
+	 */
+	public function getErrors($clear = false) {
+		$errors = parent::getErrors($clear);
+		foreach($this->getInputfields() as $inputfield) {
+			/** @var Inputfield $inputfield */
+			foreach($inputfield->getErrors($clear) as $error) {
+				$label = $inputfield->getSetting('label');
+				if(!$label) $label = $inputfield->attr('name');
+				$errors[] = "$label - $error";
+			}
+		}
+		return $errors;
+	}
+	
+	/**
+	 * Render or process ready for InputfieldFile types
+	 *
+	 * @param InputfieldFile $inputfield
+	 *
+	 */
+	public function readyInputfieldFile(InputfieldFile $inputfield) {
+		// needed for InputfieldFile/InputfieldImage to use tags
+		$inputfield->setQuietly('hadField', $inputfield->hasField);
+		$inputfield->setQuietly('hadFieldtype', $inputfield->hasFieldtype);
+		$field = new Field();
+		$fieldName = $inputfield->attr('name');
+		$field->name = $fieldName;
+		$type = ($inputfield instanceof InputfieldImage ? 'FieldtypeImage' : 'FieldtypeFile');
+		$field->type = $this->wire()->fieldtypes->$type;
+		$inputfield->setQuietly('hasField', $field);
+		$inputfield->setQuietly('hasFieldtype', $field->type);
+		
+		list(,$colName) = explode($this->name . '_', $fieldName);
+		
+		if($this->hasPage && $this->hasPage->id) {
+			// need to get value directly from Page, otherwise it doesn't
+			// pick up existing files (not yet clear why)
+			$inputfield->setQuietly('hasPage', $this->hasPage);
+			$comboValue = $this->hasPage->getUnformatted($this->name);
+			if($comboValue instanceof ComboValue) {
+				$colValue = $comboValue->get($colName);
+				if($colValue instanceof Pagefiles || $colValue instanceof Pagefile) {
+					$inputfield->val($colValue);
+				}
+			}
+		}
+		
+		if($inputfield instanceof InputfieldImage) {
+			// for ProcessPageEditImageSelect crop action (not currently supported)
+			$inputfield->editFieldName = $this->hasField->name;
+		}
+	}
+
+	/**
+	 * Update combo subfield dependencies before rendering or processing, where needed
+	 * 
+	 * @param InputfieldWrapper $inputfields
+	 * 
+	 */
+	protected function updateDependencies(InputfieldWrapper $inputfields) {
+		if(strpos($this->attr('name'), '_repeater')) {
+			foreach($inputfields as $inputfield) {
+				/** @var Inputfield $inputfield */
+				$name = $inputfield->attr('name');
+				if(!strpos($name, '_repeater')) continue;
+				if(!preg_match('/^(.+?)_(repeater\d+)/', $name, $matches)) continue;
+				// update for repeaters
+				foreach(array('showIf', 'requiredIf') as $property) {
+					$theIf = $inputfield->getSetting($property);
+					if(empty($theIf)) continue;
+					// combofield_subfield=1 => combofield_repeater1234_subfield=1
+					$theIf = str_replace($matches[1], $matches[1] . '_' . $matches[2], $theIf);
+					$inputfield->$property = $theIf;
+				}
+			}
+		}
+	}
+	
+	/**
+	 * Get page currently in editor for this Inputfield
+	 *
+	 * @return Page|null
+	 *
+	 */
+	protected function getEditorPage() {
+		$page = $this->hasPage;
+		if($page) return $page;
+		$process = $this->wire()->process;
+		if($process instanceof WirePageEditor) $page = $process->getPage();
+		return $page;
+	}
+
+	/**
+	 * Get the Inputfields necessary to configure this field (for the Input tab) 
+	 *
+	 * @return InputfieldWrapper
+	 *
+	 */
+	public function ___getConfigInputfields() {
+		$inputfields = parent::___getConfigInputfields();
+		
+		/** @var InputfieldToggle $f */
+		$f = $this->wire()->modules->get('InputfieldToggle');
+		$f->attr('name', 'hideWrap');
+		$f->label = $this->_('Disable Combo fieldset?');
+		$f->icon = 'eye-slash';
+		$f->description =
+			$this->_('When Combo fieldset is disabled, the Combo subfield inputs will not appear grouped in a surrounding fieldset.') . ' ' .
+			$this->_('Instead, they will appear like regular fields outside of a fieldset.') . ' ' .
+			$this->_('Your Combo field label, description and notes will also not appear.');
+		$f->val((int) $this->hideWrap);
+
+		if($this->hasFieldtype === false) {
+			require_once(__DIR__ . '/ComboConfig.php');
+			$comboConfig = new ComboConfig($this->comboSettings, $this);
+			$comboConfig->getConfigInputfields($inputfields);
+			$inputfields->add($f);
+		} else {
+			$inputfields->prepend($f);
+		}
+		
+		return $inputfields;
+	}
+
+	/**
+	 * Module config
+	 * 
+	 * @param InputfieldWrapper $inputfields
+	 * 
+	 */
+	public function getModuleConfigInputfields(InputfieldWrapper $inputfields) {
+		require_once(__DIR__ . '/ComboModuleConfig.php');
+		$comboModuleConfig = new ComboModuleConfig();
+		$comboModuleConfig->getModuleConfigInputfields($this, $inputfields);
+	}
+}

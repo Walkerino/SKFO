@@ -1,0 +1,7 @@
+.InputfieldFunctionalNaked > .InputfieldHeader {
+	display: none !important;
+}
+.InputfieldFunctionalNaked > .InputfieldContent {
+	padding: 0 !important;
+	border: 0 !important;
+}

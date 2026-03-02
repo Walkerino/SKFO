@@ -1,0 +1,67 @@
+.InputfieldFormBuilderFileItem label {
+	display: inline !important;
+}
+
+.InputfieldFormBuilderFileList {
+	list-style: none;
+	margin-left: 0;
+	padding-left: 0;
+}
+
+.InputfieldFormBuilderFileListHidden {
+	display: none;
+}
+
+.InputfieldFormBuilderFileList li {
+	list-style: none;
+	margin-left: 0;
+	padding-left: 0;
+}
+
+.InputfieldFormBuilderFileDelete input[type=checkbox] {
+	margin-right: 5px; 
+	margin-left: 5px; 
+}
+
+.InputfieldFormBuilderFileUploadHidden {
+	display: none;
+}
+
+.InputfieldFormBuilderFileSize {
+	opacity: 0.6;
+}
+
+.InputfieldFormBuilderFileInputDesc {
+	margin-top: 5px; 
+}
+
+.InputfieldFormBuilderFilePreviewImage {
+	display: none;
+}
+
+.InputfieldFormBuilderFilePreviewImageSet {
+	margin: 5px 0;
+	display: block;
+}
+
+.InputfieldFormBuilderFilePreviewImage img {
+	max-width: 200px;
+}
+
+.InputfieldFormBuilderFile fieldset {
+	padding: 20px;
+}
+
+.InputfieldFormBuilderFileAdd {
+	margin-top: 0;
+}
+
+/*
+.InputfieldFormBuilderFileListDesc .InputfieldFormBuilderFileUpload,
+.InputfieldFormBuilderFileListDesc .InputfieldFormBuilderFileItem {
+	border: 1px solid #999;
+	padding: 20px; 
+	margin-bottom: 5px; 
+}
+*/
+

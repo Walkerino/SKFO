@@ -1,0 +1,2964 @@
+<?php namespace ProcessWire;
+
+require_once(__DIR__ . '/TableField.php');
+
+/**
+ * ProcessWire Table Fieldtype
+ *
+ * Field that lets you define a database table of custom fields.
+ *
+ * Part of the ProFields package
+ * Please do not distribute. 
+ * 
+ * Copyright 2024 by Ryan Cramer
+ *
+ * https://processwire.com/store/pro-fields/
+ *
+ * @todo: support for TextTags as a Page field input type?
+ * @todo: add support for a row-clone column type whitelist
+ * @todo: option to export table to CSV?
+ * @todo: add support for paginated table to be cloned beyond first pagination
+ * @todo: add support for a maxRows config setting, where all rows are displayed and blank and no more rows can be added.
+ * @todo: add support for REQUIRED fields
+ * @todo: possible localization issue with floats (?), where 10,25 needs to be converted to 10.25 before DB insertion
+ * @todo: add support for float precision
+ * @todo: add support for a TIME field
+ * 
+ * 
+ *
+ */
+
+class FieldtypeTable extends FieldtypeMulti implements FieldtypeHasFiles {
+
+	public static function getModuleInfo() {
+		return array(
+			'title' => __('ProFields: Table', __FILE__),
+			'summary' => __('Field that lets you define a database table of custom fields.', __FILE__),
+			'version' => 30,
+			'installs' => 'InputfieldTable',
+			'requires' => 'ProcessWire>=3.0.227',
+		);
+	}
+
+	/**
+	 * Debug mode for development (of this module)
+	 *
+	 */
+	const debug = false;
+
+	/**
+	 * Default number of columns present for a newly created field
+	 *
+	 */
+	const defaultCols = 3; 
+
+	/**
+	 * Value used for replacement of commas in enum fields
+	 *
+	 */
+	const enumCommaReplacement = ';;';
+
+	/**
+	 * Value used for replacement of apostrophes in enum fields
+	 *
+	 */
+	const enumAposReplacement = '_apos_';
+
+	/**
+	 * Column type definitions as populated in the constructor
+	 *
+	 */
+	protected $colTypes = array();
+
+	/**
+	 * Names that may not be used for custom defined columns
+	 * 
+	 * @var array
+	 * 
+	 */
+	protected $reservedColNames = array(
+		'id', 
+		'pages_id', 
+		'data', 
+		'sort',
+		'group',
+		'order',
+		'by',
+		'insert',
+		'select',
+		'delete',
+		'update',
+		'index',
+		'key',
+		'where',
+		'join',
+		'from',
+		'to',
+	);
+
+	/** 
+	 * @var FieldtypeTableTools|null  
+	 * 
+	 */
+	protected $tools = null;
+
+	/**
+	 * Construct the Fieldtype and populate default settings and column types
+	 *
+	 */
+	public function __construct() {
+		$this->set('usePagination', true);
+		$this->set('useOrderByCols', true);
+		
+		parent::__construct();
+
+		require_once(dirname(__FILE__) . '/TableRow.php'); 
+		require_once(dirname(__FILE__) . '/TableRows.php');
+
+		$settings = array(
+			'text' => array(
+				"textformatters" => "TextformatterEntities", 
+				"placeholder" => "", 
+				"default" => "",
+				"maxLength" => 2048,
+			),
+			'textarea' => array(
+				"rows" => 4,
+				"textformatters" => "TextformatterEntities", 
+				"placeholder" => "", 
+				"default" => "", 
+			),
+			'select' => array(
+				"textformatters" => "TextformatterEntities",
+				"formattedValueType" => "value", 
+			),
+			'date' => array(
+				"dateInputFormat" => "Y-m-d", 
+				"dateOutputFormat" => "Y-m-d", 
+				"datepicker" => 3, 
+				"defaultToday" => 0,
+				"yearRange" => "-10:+10",
+			),
+			'datetime' => array(
+				"dateInputFormat" => "Y-m-d", 
+				"timeInputFormat" => "h:i a", 
+				"dateOutputFormat" => "Y-m-d", 
+				"timeOutputFormat" => "h:i a", 
+				"datepicker" => 3, 
+				"defaultToday" => 0,
+				"yearRange" => "-10:+10",
+				"placeholder" => ""
+			),
+			'time' => array(
+				"default" => "", 
+				"min" => '', 
+				"max" => "", 
+				"step" => "60", 
+				"timeFormat" => "H:i",
+			),
+			'decimal' => array(
+				"digits" => 12,
+				"precision" => 2, 
+			),
+			'float' => array(
+				// "precision" => "", 
+			),
+			'page' => array(
+				"labelField" => "title|name", 
+				"default" => "", 
+				"validate" => 1, // specify 0 to disable page-by-page validation in sanitizeValue() method
+			),
+			'pageAutocomplete' => array(
+				"labelField" => "title|name",
+				"searchField" => "title",
+				"default" => "",
+				"validate" => 1, 
+			),
+			'selectMultiple' => array(
+				"rows" => 5,
+				"formattedValueType" => 'array',
+			),
+			'textareaCKE' => array(
+				"settingsField" => "[ckeditor]", // source field in PW to pull config settings from
+				"useACF" => 1, 
+				"usePurifier" => 1,
+			),
+			'textareaMCE' => array(
+				"settingsField" => "[tinymce]", // source field in PW to pull config settings from
+			),
+			'multiLanguage' => array(
+				"inherit" => 1, 
+			),
+			'toggle' => array(
+				'labelType' => 0, // 0=yes/no, 1=true/false, 2=on/off, 3=enabled/disabled, 100=custom
+				'useReverse' => 0, 
+				'useOther' => 0, 
+				'useDeselect' => 0, 
+				'defaultOption' => 'none',
+				'yesLabel' => '✓',
+				'noLabel' => '✗',
+				'otherLabel' => '?', 
+			),
+			'file' => array(
+				'extensions' => 'pdf doc docx xls xlsx jpg jpeg png gif', 
+				'maxBytes' => 5000000, 
+			),
+			'image' => array(
+				'extensions' => 'jpg jpeg png gif',
+				'thumbSize' => '0x130', 
+				'thumbSize2x' => '0x260',
+				'maxBytes' => '5000000',
+			),
+			'int' => array(
+				'min' => '',
+				'max' => '',
+			),
+			'checkboxes' => array(
+				'textformatters' => 'TextformatterEntities',
+				"formattedValueType" => 'array',
+				'inline' => 0,
+			), 
+			'textTags' => array(
+				'delimiter' => 's',
+				'allowUserTags' => '0', 
+				'closeAfterSelect' => '1',
+				'placeholder' => '', 
+			),
+		); 
+
+
+		$this->colTypes = array(
+			'tinytext' => array(
+				'type' => 'tinytext', 
+				'label' => 'Tiny Text (up to 255 chars)',
+				'index' => 'FULLTEXT', 
+				'input' => 'text',
+				'valid' => 'text',
+				'settings' => $settings['text'], 
+			), 
+			'text' => array(
+				'type' => 'text', 
+				'label' => 'Text',
+				'index' => 'FULLTEXT', 
+				'input' => 'text',
+				'valid' => 'text',
+				'settings' => $settings['text'], 
+			),
+			'textarea' => array(
+				'type' => 'text', 
+				'label' => 'Textarea',
+				'index' => 'FULLTEXT', 
+				'input' => 'textarea',
+				'valid' => 'textarea',
+				'settings' => $settings['textarea'], 
+			),
+			'email' => array(
+				'type' => 'tinytext', 
+				'label' => 'Email',
+				'index' => 'FULLTEXT', 
+				'input' => 'email',
+				'valid' => 'email',
+				'settings' => $settings['text'], 
+			), 
+			'url' => array(
+				'type' => 'text', 
+				'label' => 'URL',
+				'index' => 'FULLTEXT', 
+				'input' => 'url',
+				'valid' => 'url',
+				'settings' => $settings['text'], 
+			), 
+			'tinyint1' => array(
+				'type' => 'tinyint', 
+				'label' => 'Tiny Integer Signed (-128 to 128)',
+				'input' => 'number', 
+				'valid' => 'int', 
+				'default' => 'NULL', 
+				'settings' => $settings['int'], 
+			), 
+			'tinyint2' => array(
+				'type' => 'tinyint unsigned', 
+				'label' => 'Tiny Integer Unsigned (0 to 255)',
+				'input' => 'number', 
+				'valid' => 'int',
+				'default' => 'NULL',
+				'settings' => $settings['int'],
+			), 
+			'int1' => array(
+				'type' => 'int', 
+				'label' => 'Integer Signed',
+				'input' => 'number', 
+				'valid' => 'int',
+				'default' => 'NULL',
+				'settings' => $settings['int'],
+			), 
+			'int2' => array(
+				'type' => 'int unsigned', 
+				'label' => 'Integer Unsigned',
+				'input' => 'number', 
+				'valid' => 'int',
+				'default' => 'NULL',
+				'settings' => $settings['int'],
+			), 
+			'float' => array(
+				'type' => 'float', 
+				'label' => 'Float', 
+				'input' => 'text', 
+				'valid' => 'float',
+				'default' => 'NULL',
+				'settings' => $settings['float'],
+			),
+			'double' => array(
+				'type' => 'double', 
+				'label' => 'Double', 
+				'input' => 'text', 
+				'valid' => 'double',
+				'default' => 'NULL',
+				'settings' => $settings['float'],
+			),
+			'decimal' => array(
+				'type' => 'decimal([int:digits],[int:precision])', 
+				'label' => 'Decimal', 
+				'input' => 'text', 
+				'valid' => 'decimal',
+				'default' => 'NULL',
+				'settings' => $settings['decimal'],
+			),
+			'date' => array(
+				'type' => 'date', 
+				'label' => 'Date', 
+				'input' => 'text', 
+				'valid' => 'date',
+				'default' => 'NULL',
+				'settings' => $settings['date'], 
+			),
+			'datetime' => array(
+				'type' => 'datetime', 
+				'label' => 'DateTime', 
+				'input' => 'text', 
+				'valid' => 'datetime',
+				'default' => 'NULL',
+				'settings' => $settings['datetime'], 
+			),
+			'time' => array(
+				'type' => 'time',
+				'label' => 'Time',
+				'input' => 'time',
+				'valid' => 'time',
+				'default' => 'NULL',
+				'settings' => $settings['time'], 
+			),
+			'checkbox' => array(
+				'type' => "enum('0','1')", 
+				'label' => 'Checkbox', 
+				'input' => 'checkbox', 
+				'default' => 'NULL',
+				'valid' => 'int',
+				'settings' => $settings['select'], 
+			),
+			'toggle' => array(
+				'type' => "enum('0','1','2','')",
+				'label' => 'Toggle',
+				'input' => 'toggle',
+				'default' => 'NULL',
+				'valid' => 'toggle',
+				'settings' => $settings['toggle'],
+			),
+			'select' => array(
+				'type' => "enum([options])", 
+				'label' => 'Select', 
+				'input' => 'select',
+				'valid' => 'text',
+				'default' => 'NULL',
+				'settings' => $settings['select'] + array('noblank' => 0), 
+			),
+			'selectMultiple' => array(
+				'type' => "set([options])",
+				'label' => 'Select Multiple',
+				'input' => 'selectMultiple',
+				'valid' => 'array',
+				'default' => 'NULL',
+				'settings' => $settings['selectMultiple'],
+			),
+			'radios' => array(
+				'type' => "enum([options])", 
+				'label' => 'Radios', 
+				'input' => 'radios',
+				'valid' => 'text',
+				'default' => 'NULL',
+				'settings' => $settings['checkboxes'], 
+			),
+			'checkboxes' => array(
+				'type' => "set([options])", 
+				'label' => 'Checkboxes', 
+				'input' => 'checkboxes',
+				'valid' => 'array',
+				'default' => 'NULL',
+				'settings' => $settings['checkboxes'], 
+			),
+			'pageSelect' => array(
+				'type' => 'int unsigned', 	
+				'label' => 'Page (Select)', 
+				'input' => 'select', 
+				'valid' => 'Page', 
+				'default' => 'NULL', 
+				'settings' => $settings['page'], 
+			),
+			'pageSelectMultiple' => array(
+				'type' => 'text',
+				'label' => 'Page (Select Multiple)',
+				'input' => 'selectMultiple',
+				'valid' => 'PageArray',
+				'default' => 'NULL',
+				'index' => 'FULLTEXT',
+				'settings' => $settings['page'] + $settings['selectMultiple'],
+			),
+			'pageAsmSelect' => array(
+				'type' => 'text',
+				'label' => 'Page (Select Multiple/Sortable)',
+				'input' => 'asmSelect',
+				'valid' => 'PageArray',
+				'default' => 'NULL',
+				'index' => 'FULLTEXT',
+				'settings' => $settings['page'] + $settings['selectMultiple'],
+			),
+			'pageRadios' => array(
+				'type' => 'int unsigned',
+				'label' => 'Page (Radios)',
+				'input' => 'radios',
+				'valid' => 'Page',
+				'default' => 'NULL',
+				'settings' => $settings['page'] + $settings['checkboxes'],
+			),
+			'pageCheckboxes' => array(
+				'type' => 'text',
+				'label' => 'Page (Checkboxes)',
+				'input' => 'checkboxes',
+				'valid' => 'PageArray',
+				'default' => 'NULL',
+				'index' => 'FULLTEXT',
+				'settings' => $settings['page'] + $settings['checkboxes'],
+			),
+			'pageAutocomplete' => array(
+				'type' => 'int unsigned',
+				'label' => 'Page (Autocomplete Single)',
+				'input' => 'autocomplete',
+				'valid' => 'Page',
+				'default' => 'NULL',
+				'settings' => $settings['pageAutocomplete'],
+			),
+			'pageAutocompleteMultiple' => array(
+				'type' => 'text',
+				'label' => 'Page (Autocomplete Multiple/Sortable)',
+				'input' => 'autocomplete',
+				'valid' => 'PageArray',
+				'default' => 'NULL',
+				'index' => 'FULLTEXT',
+				'settings' => $settings['pageAutocomplete'],
+			),
+			'textareaCKE' => array(
+				'type' => 'mediumtext',
+				'label' => 'Textarea Rich Text (CKEditor)',
+				'index' => 'FULLTEXT',
+				'input' => 'textarea',
+				'valid' => 'html',
+				'settings' => $settings['textareaCKE'],
+			),
+			'textareaMCE' => array(
+				'type' => 'mediumtext',
+				'label' => 'Textarea Rich Text (TinyMCE)',
+				'index' => 'FULLTEXT',
+				'input' => 'textarea',
+				'valid' => 'html',
+				'settings' => $settings['textareaMCE'],
+			),
+			'file' => array(
+				'type' => 'text',
+				'label' => 'File', 
+				'valid' => 'file',
+				'index' => 'FULLTEXT',
+				'input' => 'file',
+				'settings' => $settings['file'],
+			),
+			'image' => array(
+				'type' => 'text',
+				'label' => 'Image',
+				'valid' => 'image',
+				'index' => 'FULLTEXT',
+				'input' => 'image',
+				'settings' => $settings['image'],
+			),
+			'textTags' => array(
+				'type' => 'text',
+				'label' => 'TextTags',
+				'valid' => 'textTags',
+				'index' => 'FULLTEXT',
+				'input' => 'textTags',
+				'settings' => $settings['textTags'],
+			),
+		);
+	
+		// multi-language column types
+		$this->colTypes['textLanguage'] = array(
+			'type' => 'text',
+			'label' => 'Text (Multi Language)',
+			'index' => 'FULLTEXT',
+			'input' => 'textLanguage',
+			'valid' => 'LanguagesPageFieldValue',
+			'valid2' => 'text', 
+			'settings' => $settings['text'] + $settings['multiLanguage'],
+		);
+		$this->colTypes['textareaLanguage'] = array(
+			'type' => 'text',
+			'label' => 'Textarea (Multi Language)',
+			'index' => 'FULLTEXT',
+			'input' => 'textareaLanguage',
+			'valid' => 'LanguagesPageFieldValue',
+			'valid2' => 'textarea',
+			'settings' => $settings['textarea'] + $settings['multiLanguage'],
+		);
+		$this->colTypes['textareaCKELanguage'] = array(
+			'type' => 'mediumtext',
+			'label' => 'Textarea Rich Text (Multi Language CKEditor)',
+			'index' => 'FULLTEXT',
+			'input' => 'textareaLanguage',
+			'valid' => 'LanguagesPageFieldValue',
+			'valid2' => 'html',
+			'settings' => $settings['textareaCKE'] + $settings['multiLanguage'],
+		);
+		$this->colTypes['textareaMCELanguage'] = array(
+			'type' => 'mediumtext',
+			'label' => 'Textarea Rich Text (Multi Language TinyMCE)',
+			'index' => 'FULLTEXT',
+			'input' => 'textareaLanguage',
+			'valid' => 'LanguagesPageFieldValue',
+			'valid2' => 'html',
+			'settings' => $settings['textareaMCE'] + $settings['multiLanguage'],
+		);
+
+		ksort($this->colTypes); 
+	}
+
+	/**
+	 * Wired to API
+	 * 
+	 */
+	public function wired() {
+		parent::wired();
+		$modules = $this->wire()->modules;
+		if(!$modules->isInstalled('LanguageSupport')) {
+			unset(
+				$this->colTypes['textLanguage'], 
+				$this->colTypes['textareaLanguage'], 
+				$this->colTypes['textareaCKELanguage'],
+				$this->colTypes['textareaMCELanguage']
+			);
+		}
+		if(!$modules->isInstalled('InputfieldTinyMCE')) {
+			unset(
+				$this->colTypes['textareaMCE'],
+				$this->colTypes['textareaMCELanguage']
+			);
+		}
+		if(!$modules->isInstalled('InputfieldCKEditor')) {
+			unset(
+				$this->colTypes['textareaCKE'],
+				$this->colTypes['textareaCKELanguage']
+			);
+		}
+		if(!$modules->isInstalled('InputfieldTextTags')) {
+			unset($this->colTypes['textTags']);
+		}
+	}
+	
+	/**
+	 * Output a debugging message, for development use
+	 * 
+	 * @param string $msg
+	 * @param int $flags
+	 *
+	 */
+	protected function debugMessage($msg, $flags = 0) {
+		if(!self::debug) return;
+		$flags = $flags | Notice::debug; 
+		$this->message($msg, $flags); 
+	}
+
+	/**
+	 * Override of default __get() to capture the 'colTypes' key. 
+	 * 
+	 * @param string $name
+	 * @return mixed
+	 *
+	 */
+	public function __get($name) {
+		if($name === 'colTypes') return $this->colTypes;
+		return parent::__get($name); 
+	}
+
+	/**
+	 * Return a blank TableRows value
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @return TableRows
+	 *
+	 */
+	public function getBlankValue(Page $page, Field $field) {
+		$class = $this->getArrayClass($field);
+		return new $class($page, $field);
+	}
+
+	/**
+	 * Get an individual column by number (1 or higher) or name
+	 *
+	 * @param Field $field
+	 * @param int|string $n
+	 * @return array
+	 *
+	 */
+	public function getColumn(Field $field, $n) {
+
+		if(is_string($n) && !ctype_digit("$n")) {
+			return $this->getColumnByName($field, $n);
+		}
+
+		$col = array(
+			'name' => strtolower((string) $field->{"col{$n}name"}), 
+			'type' => $field->{"col{$n}type"}, 
+			'label' => $field->{"col{$n}label"}, 
+			'width' => $field->{"col{$n}width"}, 
+			'sort' => $field->{"col{$n}sort"}, 
+			'options' => $field->{"col{$n}options"}, 
+			'selector' => $field->{"col{$n}selector"},
+			'settings' => $field->{"col{$n}settings"}, 
+			'schema' => '', 
+			'valid' => '', 
+			'input' => '', 
+			'index' => '', 
+		);
+		
+		$type = $col['type'];
+		$colType = array();
+
+		if(isset($this->colTypes[$type])) {
+			$colType = $this->colTypes[$type]; 
+			$col['schema'] = $colType['type']; 
+			$col['valid'] = $colType['valid'];
+			$col['input'] = $colType['input'];
+			$col['index'] = isset($colType['index']) ? $colType['index'] : '';
+		}
+
+		if(empty($col['options'])) {
+			$col['options'] = array();
+		} else {
+			$col['options'] = explode("\n", $col['options']); 
+			foreach($col['options'] as $key => $value) {
+				$col['options'][$key] = trim("$value"); 
+			}
+		}
+
+		if(!$type) { 
+			$col['settings'] = array();
+
+		} else if(empty($col['settings'])) {
+			$col['settings'] = isset($colType['settings']) ? $colType['settings'] : array();
+
+		} else {
+			$settings = isset($colType['settings']) ? $colType['settings'] : array();
+			foreach(explode("\n", $col['settings']) as $line) {
+				if(!strpos($line, '=')) continue; 
+				list($property, $setting) = explode('=', $line, 2); 
+				$settings[trim("$property")] = trim("$setting"); 
+			}
+			$col['settings'] = $settings; 
+		}
+	
+		// multi-language labels
+		$languages = $this->wire()->languages; 
+		if($languages) {
+			foreach($languages as $language) {
+				/** @var Language $language */
+				if($language->isDefault()) continue;
+				$label = $field->{"col{$n}label$language"};
+				if($label !== null && strlen("$label")) $col["label$language"] = $label;
+			}
+		}
+
+		return $col;
+	}
+
+	/**
+	 * Get an individual column by name (only)
+	 *
+	 * @param Field $field
+	 * @param string $name
+	 * @return array
+	 *
+	 */
+	public function getColumnByName(Field $field, $name) {
+		if(!$field->get('maxCols')) {
+			$field->set('maxCols', self::defaultCols);
+		}
+		$col = array();
+		for($n = 1; $n <= $field->get('maxCols'); $n++) {	
+			if(strtolower((string) $field->{"col{$n}name"}) == $name) {
+				$col = $this->getColumn($field, $n); 
+				break;
+			}
+		}
+		return $col;
+	}
+
+	/**
+	 * Get an array of all columns indexed by colum number
+	 *
+	 * @param Field $field
+	 * @return array
+	 *
+	 */
+	public function getColumns(Field $field) {
+		$cols = array();
+		for($n = 1; $n <= $field->get('maxCols'); $n++) {
+			$cols[$n] = $this->getColumn($field, $n); 
+		}
+		return $cols; 
+	}
+		
+	/**
+	 * Get an array of all columns indexed by name
+	 *
+	 * @param Field $field
+	 * @return array
+	 *
+	 */
+	public function getColumnsByName(Field $field) {
+		$colsByNum = $this->getColumns($field); 
+		$cols = array();
+		foreach($colsByNum as $n => $col) {
+			$name = $col['name']; 
+			if(empty($name)) continue; 
+			$col['n'] = $n; 
+			$cols[$name] = $col; 
+		}
+		return $cols; 
+	}
+
+	/**
+	 * Find columns having property that matches value
+	 * 
+	 * @param Field $field
+	 * @param string $property Property name to match
+	 * @param string|array $value Value to match for property name or values for OR condition
+	 * @return array
+	 * 
+	 */
+	public function findColumns(Field $field, $property, $value) {
+		$colsByNum = $this->getColumns($field);
+		$cols = array();
+		$valueIsArray = is_array($value);
+		foreach($colsByNum as $n => $col) {
+			if(!isset($col[$property])) continue;
+			if($valueIsArray) {
+				if(!in_array($col[$property], $value)) continue;
+			} else {
+				if($col[$property] != $value) continue;
+			}
+			$cols[$n] = $col;
+		}
+		return $cols;
+	}
+
+	/**
+	 * Get array of [ value => title ] for select column options
+	 * 
+	 * Applicable only to fields with user defined options
+	 * 
+	 * @param Field $field
+	 * @param string|int|array $col Column name, array or number
+	 * @return array
+	 *
+	 */
+	public function getSelectColumnOptions(Field $field, $col) {
+		$options = array();
+		if(!is_array($col)) $col = $this->getColumn($field, $col);
+		if(!$col || empty($col['options'])) return $options;
+		foreach($col['options'] as $option) {
+			$option = trim("$option", '+ ');
+			if(!strlen($option)) continue;
+			if(strpos($option, '=') !== false) {
+				list($value, $label) = explode('=', $option, 2);
+			} else {
+				$value = $option;
+				$label = $option; 
+			}
+			$value = trim((string) $value);
+			$label = trim((string) $label);
+			$options[$value] = trim($label);
+		}
+		return $options;
+	}
+
+	/**
+	 * Update a DatabaseQuerySelect to group for matching same row (i.e. @tablefield.foo=123, @tablefield.bar=456)
+	 *
+	 * @param string $group
+	 * @param PageFinderDatabaseQuerySelect $query
+	 * @param string $table
+	 *
+	 */
+	protected function getMatchQueryGroup($group, $query, $table) {
+	
+		$parentQuery = $query->parentQuery;
+		$property = "_ftTableGroups{$query->field->id}_$group";
+		$groupTable = $parentQuery->get($property);
+		
+		if($groupTable === null) {
+			$parentQuery->setQuietly($property, $table); 
+		} else {
+			$query->where("$table.data=$groupTable.data");
+		}
+	}
+
+	/**
+	 * Update a DatabaseQuerySelect object to match a Page
+	 *
+	 * @param PageFinderDatabaseQuerySelect $query
+	 * @param string $table
+	 * @param string $subfield
+	 * @param string $operator
+	 * @param string $value
+	 * @return DatabaseQuerySelect|DatabaseQuery
+	 * @throws WireException
+	 *
+	 */
+	public function getMatchQuery($query, $table, $subfield, $operator, $value) {
+		
+		$database = $this->wire()->database; 
+		$sanitizer = $this->wire()->sanitizer;
+		
+		static $xcnt = 0;
+		
+		$group = $query->group; // if not null, group is in use
+		if($group !== null && !strlen("$group")) $group = 'a';
+
+		if(in_array($subfield, array('', 'count', 'data'))) {
+			$query = parent::getMatchQuery($query, $table, $subfield, $operator, $value);
+			if($group) $this->getMatchQueryGroup($group, $query, $table);
+			return $query;
+		}
+
+		$field = $query->field; 
+		$column = $this->getColumnByName($field, $subfield); 
+		if(empty($column['name'])) {
+			throw new WireException("Unknown column specified as subfield");
+		}
+
+		if(stripos($column['index'], 'fulltext') !== false && $column['valid'] != 'PageArray') {
+			$ft = new DatabaseQuerySelectFulltext($query);
+			$ft->match($table, $subfield, $operator, $value);
+			if($group) $this->getMatchQueryGroup($group, $query, $table);
+			return $query;
+		}
+
+		$subfield = $database->escapeCol($subfield); 
+		$value = $database->escapeStr($value); 
+
+		if(stripos($column['schema'], 'set(') === 0) {
+			if(!in_array($operator, array('=', '!='))) {
+				throw new WireException("Operator '$operator' not supported for this query");
+			}
+			if($operator == '=') {
+				$query->where("(FIND_IN_SET('$value', $table.$subfield)>0)");
+			} else {
+				$pageFinder = new PageFinder();
+				$selector = "$field->name.$subfield=$value, include=all";
+				$matches = $pageFinder->find(new Selectors($selector), array('getTotal' => false));
+				if(count($matches)) {
+					$ids = array();
+					foreach($matches as $match) {
+						$ids[$match['id']] = (int) $match['id'];
+					}
+					$query->where("$table.pages_id NOT IN(" . implode(',', $ids) . ")");
+				} else {
+					$query = parent::getMatchQuery($query, $table, $subfield, $operator, $value);
+					// return $query;
+				}
+			}
+			if($group) $this->getMatchQueryGroup($group, $query, $table);
+			
+		} else {
+			
+			if($column['valid'] === 'date' || $column['valid'] === 'datetime') {
+				// convert unix timestamp or other recognized date formats to ISO-8601
+				if(ctype_digit("$value")) $value = (int) $value;
+				if(!is_int($value)) $value = strtotime($value);
+				$value = $column['valid'] === 'date' ? date('Y-m-d', $value) : date('Y-m-d H:i:s', $value);
+			}
+			
+			if($column['valid'] === 'time') {
+				if(ctype_digit("$value")) {
+					$dateValue = strtotime('2022-12-15 00:00:00'); 
+					$timeValue = $dateValue + (int) $value;
+					$value = date('H:i:s', $timeValue); 
+				} else if(is_string($value)) {
+					if(!preg_match('/^\d\d:\d\d(:\d\d)?$/', $value)) {
+						$value = strtotime($value);
+						if($value === false) throw new WireException(
+							"Time format for $table.$subfield must be hh:mm, hh:mm:ss or format supported by strtotime()"
+						);
+						$value = date('H:i:s', $value);
+					}
+				} else {
+					$value = null;
+				}
+			}
+
+			if(($column['valid'] === 'Page' || $column['valid'] === 'PageArray') && !ctype_digit("$value")) {
+				// page reference
+				$test = str_replace('/', '-', $value);
+				if($sanitizer->pageName($test) === $test) {
+					// this is a valid path to query
+					$value = $this->wire()->pages->get($value);
+					$value = $value->id ? $value->id : -1;
+				} else {
+					$value = -1; // invalid
+				}
+			} 
+			
+			$done = false;
+			
+			if($column['valid'] == 'PageArray' && $value > 0) {
+				// map to fulltext index
+				if($operator == '!=') {
+					// reverse current 'not' state, since '!=' operator is not supported, so we use 'not' instead
+					$query->selector->not = !$query->selector->not;
+				} else if(strpos($operator, '<') !== false || strpos($operator, '>') !== false) {
+					throw new WireException("Operator '$operator' is not supported for FieldtypeTable PageArray value"); 
+				}
+				$ft = new DatabaseQuerySelectFulltext($query);
+				$ft->match($table, $subfield, '~=', "pid$value");
+				$done = true;
+				//return $query;
+				
+			} else if($column['valid'] == 'Page' && $value > 0 && $operator == '!=') {
+				// The != operator requires special handling to ensure proper exclusions
+				$fieldTable = $database->escapeTable($field->table);
+				$subfield = $database->escapeCol($subfield);
+				$sql = "SELECT data FROM `$fieldTable` WHERE `$subfield`=:value";
+				$stmt = $database->prepare($sql);
+				$stmt->bindValue(':value', $value, \PDO::PARAM_INT);
+				$stmt->execute();
+				$ids = array();
+				while($row = $stmt->fetch(\PDO::FETCH_NUM)) {
+					$ids[] = (int) $row[0];
+				}
+				$stmt->closeCursor();
+				if(count($ids)) {
+					$t = 'ftTable_' . $fieldTable . (++$xcnt);
+					$query->leftjoin("$fieldTable AS $t ON $t.pages_id=pages.id AND $t.data IN(" . implode(',', $ids) . ")");
+					$query->parentQuery->where("$t.pages_id IS NULL");
+					$done = true;
+					//return $query;
+				}
+			} else if($subfield && $value === '' && $operator === '=') {
+				$fieldTable = $database->escapeTable($field->table);
+				$t = 'ftTable_' . $fieldTable . (++$xcnt);
+				$query->join("$fieldTable AS $t ON $t.pages_id=pages.id AND ($t.$subfield='' OR $t.$subfield IS NULL)");
+				$done = true;
+				//return $query;
+			}
+		
+			if(!$done) $query = parent::getMatchQuery($query, $table, $subfield, $operator, $value);
+			if($group) $this->getMatchQueryGroup($group, $query, $table);
+		}
+		
+		return $query; 
+	}
+	
+
+	/**
+	 * Sanitize and validate value any time it is set to a Page
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @param TableRows $value
+	 * @return TableRows
+	 *
+	 */
+	public function sanitizeValue(Page $page, Field $field, $value) {
+
+		if(!$value instanceof TableRows) {
+			$value = $this->getBlankValue($page, $field);
+		}
+		
+		$columns = $this->getColumns($field); 
+
+		foreach($value as $row) { 
+			/** @var TableRow $row */
+			foreach($columns as $col) {
+				if(!$col['name'] || !$col['type']) continue; 
+				$v = $this->_sanitizeValue($col, $row->get($col['name']), $page, $field); 
+				$row->set($col['name'], $v); 
+			}
+		}
+
+		return $value; 
+	}
+
+	/**
+	 * Sanitize a column value
+	 * 
+	 * @param array $col Column information
+	 * @param mixed $v The value to sanitize
+	 * @param Page|null $page
+	 * @param Field|null $field
+	 * @return array|int|null|PageArray|Page|LanguagesPageFieldValue
+	 * 
+	 */
+	public function _sanitizeValue(array $col, $v, Page $page = null, Field $field = null) {
+		
+		$sanitizer = $this->wire()->sanitizer;
+		$languages = $this->wire()->languages;
+		$pages = $this->wire()->pages;
+		
+		switch($col['valid']) {
+			
+			case 'text':
+				$maxLength = empty($col['settings']['maxLength']) ? 2048 : (int) $col['settings']['maxLength']; 
+				$v = strlen("$v") ? $sanitizer->text($v, array('maxLength' => $maxLength)) : null;
+				break;
+			
+			case 'LanguagesPageFieldValue':
+				if(is_object($v) && $languages) {
+					$col2 = $col;
+					if(!empty($col['valid2'])) $col2['valid'] = $col['valid2'];
+					foreach($languages as $language) {
+						$vv = $v->getLanguageValue($language);
+						$_vv = $vv;
+						if(strlen("$_vv") && $col2['valid'] != $col['valid']) {
+							// apply secondary sanitization (text, textarea, html)
+							$_vv = $this->_sanitizeValue($col2, $_vv, $page, $field);
+						}
+						if($_vv !== $vv) $v->setLanguageValue($language, $_vv);
+					}
+				} else {
+					$v = null;
+				}
+				break;
+			
+			case 'textarea':
+				$v = strlen("$v") ? $sanitizer->textarea($v, array('stripTags' => false)) : null;
+				break;
+			
+			case 'html':
+				// accept as-is (input sanitized by InputfieldCKEditor or InputfieldTinyMCE)
+				break;
+			
+			case 'array':
+				if(!is_array($v)) $v = array();
+				foreach($v as $kk => $vv) {
+					$v[$kk] = $sanitizer->text($vv);
+				}
+				break;
+			
+			case 'int':
+				$v = strlen("$v") ? intval($v) : null;
+				if($v !== null) {
+					if(isset($col['settings']['min']) && strlen($col['settings']['min'])) {
+						$min = (int) $col['settings']['min'];
+						if($v < $min) $v = $min;
+					}
+					if(isset($col['settings']['max']) && strlen($col['settings']['max'])) {
+						$max = (int) $col['settings']['max'];
+						if($v > $max) $v = $max;
+					}
+				}
+				break;
+			
+			case 'double':
+			case 'float':
+				if(strlen("$v")) {
+					if(!is_float($v) && !is_int($v)) $v = $this->sanitizeFloat($v);
+				} else {
+					$v = null;
+				}
+				break;
+			
+			case 'toggle':	
+				if(ctype_digit("$v")) {
+					$v = (int) $v;
+				} else if($v === '') {
+					// no selection specified
+				} else if(is_bool($v)) {
+					$v = $v ? 1 : 0;
+				} else {
+					// no selection forced
+					$v = '';
+				}
+				break;
+				
+			case 'decimal':
+				if(is_float($v) || is_int($v)) {
+					// ok
+				} else if(strlen("$v")) {
+					if(!ctype_digit(str_replace('.', '', "$v"))) {
+						list(, $n) = strpos("$v", '.') !== false ? explode('.', $v, 2) : array(0,0);
+						$precision = strlen("$n");
+						$v = $this->sanitizeFloat($v);
+						if($precision && strpos("$v", '.') === false) $v .= '.' . str_repeat('0', $precision);
+					}
+				} else {
+					$v = null;
+				}
+				break;
+				
+			case 'email':
+				$v = strlen("$v") ? $sanitizer->email($v) : null;
+				break;
+			
+			case 'date':
+			case 'datetime':
+				if(empty($v) || strpos($v, '0000') === 0) $v = null;
+					else if(ctype_digit(ltrim("$v", '-'))) $v = (int) $v;
+					else $v = strtotime($v);
+				break;
+			
+			case 'time':	
+				if(!strlen("$v")) {
+					$v = null;
+				} else if(ctype_digit("$v")) {
+					$v = date('H:i:s', strtotime('2022-12-15 00:00') + (int) $v);
+				} else if(!preg_match('/^\d\d:\d\d(:\d\d)?$/', $v)) {
+					$v = strtotime("$v"); 
+					$v = ($v === false ? null : date('H:i:s', $v)); 
+				}	
+				break;
+			
+			case 'url':
+				$v = strlen("$v") ? $sanitizer->url($v) : null;
+				break;
+
+			case 'Page':
+				if(!$v instanceof Page) {
+					if(is_array($v)) $v = reset($v);
+					if(ctype_digit("$v")) {
+						$v = (int) $v;
+					} else if(is_string($v) && !str_replace('/', '-', $v) === $v) {
+						$v = null; // invalid
+					}
+					if($v) $v = $pages->get($v);
+				}
+				if($v && $v->id) {
+					// great
+				} else if(!$v instanceof NullPage) {
+					$v = null;
+				}
+				if(is_null($v)) $v = $pages->newNullPage();
+				break;
+
+			case 'PageArray':
+				if(!$v instanceof PageArray) {
+					// convert $v to PageArray
+					if($v instanceof Page) {
+						$vv = $pages->newPageArray();
+						$vv->add($v);
+						$v = $vv;
+
+					} else if(is_int($v)) {
+						$v = array($v);
+
+					} else if(is_string($v) && ctype_digit(str_replace(array(' ', ','), '', $v))) {
+						$v = explode(',', $v);
+					}
+					if(is_array($v)) {
+						if(count($v)) {
+							foreach($v as $kk => $vv) $v[$kk] = (int) $vv;
+							$v = $pages->getById($v);
+						} else {
+							$v = $pages->newPageArray();
+						}
+					}
+					if(!$v instanceof PageArray) $v = $pages->newPageArray();
+					foreach($v as /*$kk => */ $vv) if(!$vv->id) $v->remove($vv);
+				}
+				break;
+				
+			case 'file':	
+			case 'image':
+				$v = $this->wakeupFile($page, $field, $v, $col['valid']);
+				break;
+				
+			case 'textTags':	
+				$v = $this->sanitizeTextTags($col, $v, 'array', true);
+				break;
+
+			default:
+				$v = strlen("$v") ? $sanitizer->text($v) : null;
+		} // switch
+		
+		return $v; 
+	}
+
+	/**
+	 * Sanitize TextTags value
+	 * 
+	 * @param array $col
+	 * @param string|array $value
+	 * @param string $getType One of 'string', 'array', 'sleepValue', 'wakeupValue', 'labelValue' or 'tagsList' (array)
+	 * @param bool $validate Also validate user entered tags?
+	 * @param array|null Specify tagsList if you already have it (for optimization)
+	 * @return string[]|string
+	 * 
+	 */
+	public function sanitizeTextTags($col, $value, $getType = 'string', $validate = true, $tagsList = null) {
+	
+		$sanitizer = $this->wire()->sanitizer;
+		$delimiters = array('s' => ' ', 'p' => '|', 'c' => ',');
+		$delimiter = isset($col['settings']['delimiter']) ? $col['settings']['delimiter'] : 's';
+		$delimiter = isset($delimiters[$delimiter]) ? $delimiters[$delimiter] : ' ';
+		$allowUserTags = !empty($col['settings']['allowUserTags']);
+	
+		if(empty($tagsList) && !empty($col['options'])) {
+			$tagsList = array();
+			foreach($col['options'] as $v) {
+				if(strpos($v, '=')) {
+					list($k, $v) = explode('=', $v, 2);
+				} else {
+					$k = $v;
+				}
+				$tagsList[trim($k)] = trim($v);
+			}
+		}
+		
+		if($getType === 'tagsList') return $tagsList;
+
+		if(is_string($value) && strpos(trim($value), "\n") !== false) {
+			$value = explode("\n", $value); // convert sleepValue to array
+		}
+		
+		if(is_string($value)) {
+			if($getType === 'string' && !$validate) return $value;
+			$value = trim($value);
+			if(strlen($value)) {
+				$value = $sanitizer->text($value);
+				$a = explode($delimiter, $value);
+			} else {
+				$a = array();
+			}
+		} else if(is_array($value)) {
+			$a = $value;
+		} else {
+			$a = array();
+		}
+		
+		// sanitize and validate
+		foreach($a as $k => $v) {
+			if(is_array($v)) $v = '';
+			$v = trim($v);
+			
+			if(!strlen($v)) {
+				unset($a[$k]);
+				continue;
+			}
+			
+			if(strpos($v, $delimiter) !== false) $v = str_replace($delimiter, '', $v);
+			
+			if($validate && !isset($tagsList[$v])) {
+				if($allowUserTags) {
+					$v = $sanitizer->text($v);
+				} else {
+					unset($a[$k]);
+					continue;
+				}
+			}
+			
+			$a[$k] = $v;
+		}
+		
+		if($getType === 'labelValue') {
+			$aa = array();
+			foreach($a as $v) {
+				$label = isset($tagsList[$v]) ? $tagsList[$v] : $v; 
+				$aa[$v] = $label;
+			}
+			return $aa;
+		}
+		
+		if($getType === 'array' || $getType === 'wakeupValue') return $a;
+		if($getType === 'sleepValue') return implode("\n", $a);
+		
+		return implode($delimiter, $a);
+	}
+
+	/**
+	 * Sanitize value to float or blank string
+	 * 
+	 * @param string|float|int $value
+	 * @return float|string
+	 * 
+	 */
+	protected function sanitizeFloat($value) {
+		$sanitizer = $this->wire()->sanitizer;
+		if(method_exists($sanitizer, 'float')) {
+			$value = $sanitizer->float($value, array('blankValue' => ''));
+		} else {
+			// for older installations
+			$value = FieldtypeFloat::strToFloat($value);
+		}
+		return $value;
+	}
+
+	/**
+	 * Given a value from the DB, wake it up to a TableRows object
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @param array $value
+	 * @return TableRows
+	 *
+	 */
+	public function ___wakeupValue(Page $page, Field $field, $value) {
+		
+		$pages = $this->wire()->pages;
+		$languages = $this->wire()->languages;
+
+		$items = $this->getBlankValue($page, $field);
+		$rowClass = $this->getRowClass($field);
+		
+		if(!$field->get('maxCols')) $field->set('maxCols', self::defaultCols);
+		if(empty($value)) return $items; 
+
+		if(isset($value['_pagination_limit'])) {
+			if($items instanceof PaginatedArray) {
+				$items->setLimit($value['_pagination_limit']);
+				$items->setStart($value['_pagination_start']);
+				$items->setTotal($value['_pagination_total']);
+			}
+			unset($value['_pagination_limit'], $value['_pagination_start'], $value['_pagination_total']);
+		}
+
+		if(isset($value['_filters']) && $value['_filters'] instanceof Selectors) {
+			$items->data('filters', $value['_filters']);
+			unset($value['_filters']);
+		}
+
+		if(self::debug) $this->debugMessage('wakeup 1: <pre>' . print_r($value, true) . '</pre>', Notice::allowMarkup); 
+
+		$types = array();
+
+		for($n = 1; $n <= $field->get('maxCols'); $n++) {
+			$name = $field->{"col{$n}name"}; 
+			$type = $field->{"col{$n}type"}; 
+			$types[$name] = $type; 
+		}
+
+		foreach($value as /*$key => */ $row) {
+			if(!WireArray::iterable($row)) continue; 
+
+			// identify and convert arrays
+			foreach($row as $name => $v) {
+				if(!isset($types[$name])) continue; 
+				$type = $this->colTypes[$types[$name]];
+				if(empty($type['valid'])) continue;
+				if($type['valid'] === 'array') {
+					$v = explode(',', $v);
+					foreach($v as $kk => $vv) {
+						if(strpos($vv, self::enumCommaReplacement) !== false) {
+							$v[$kk] = str_replace(self::enumCommaReplacement, ',', $vv);
+						}
+						if(strpos($vv, self::enumAposReplacement) !== false) {
+							$v[$kk] = str_replace(self::enumAposReplacement, "'", $vv);
+						}
+					}
+					$row[$name] = $v;
+					
+				} else if($type['valid'] === 'Page') {
+					if($v > 0) {
+						$row[$name] = $pages->get($v);
+					} else {
+						$row[$name] = $pages->newNullPage();
+					}
+					
+				} else if($type['valid'] === 'PageArray') {
+					if($v) {
+						$v = str_replace('pid', '', $v);
+						$v = explode(',', $v);
+						foreach($v as $kk => $vv) $v[$kk] = (int) $vv;
+						$v = $pages->getById($v);
+					} else {
+						$v = new PageArray();
+					}
+					$row[$name] = $v;
+					
+				} else if($type['valid'] === 'LanguagesPageFieldValue') {
+					$numSet = 0;
+					$languageField = $this->newLanguagesPageFieldValue($page, $field);
+					$parts = $v === null ? array() : explode("\r", "$v"); 
+					foreach($parts as $part) {
+						if(!strpos($part, ':')) continue;
+						list($languageID, $languageValue) = explode(':', $part, 2);
+						$language = $languages->get((int) $languageID);
+						if($language->id) {
+							$languageField->setLanguageValue($language, $languageValue);
+							$numSet++;
+						}
+					}
+					if(!$numSet && $v !== null) {
+						// if we didn't find encoded language values, then just set the default language
+						$languageField->setLanguageValue($languages->getDefault(), $v); 
+					}
+					$languageField->resetTrackChanges(true);
+					$row[$name] = $languageField;
+					
+				} else if($type['valid'] === 'file' || $type['valid'] === 'image') {
+					$row[$name] = $this->wakeupFile($page, $field, $v, $type['valid']); 
+					
+				} else if($type['valid'] === 'textTags') {
+					$col = $this->getColumnByName($field, $name);
+					$row[$name] = $this->sanitizeTextTags($col, $v, 'wakeupValue', false);
+				}
+			}
+
+			$item = new $rowClass($field, $row);
+			//$item->set('id', $row['data']);
+			$item->resetTrackChanges(true);
+			$items->add($item);
+		}
+
+		// $this->debugMessage('wakeup 2: <pre>' . print_r($value, true) . '</pre>', Notice::allowMarkup); 
+		$items->resetTrackChanges(true);
+		
+		return $items; 
+	}
+
+	/**
+	 * Wakeup a filename/basename to a Pagefile/Pageimage
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param string|Pagefile $value
+	 * @param string $type Either 'file' or 'image'
+	 * @return Pagefile|Pageimage|null
+	 * 
+	 */
+	public function wakeupFile(Page $page, Field $field, $value, $type) {
+		
+		if(empty($value)) return null;
+		if($value instanceof Pagefile) return $value;
+	
+		if($type === 'image') {
+			$pagefilesClass = '\ProcessWire\Pageimages';
+			$pagefileClass = '\ProcessWire\Pageimage';
+		} else {
+			$pagefilesClass = '\ProcessWire\Pagefiles';
+			$pagefileClass = '\ProcessWire\Pagefile';
+		}
+		
+		$pagefiles = new $pagefilesClass($page);
+		$this->wire($pagefiles);
+		
+		$pagefiles->setField($field);
+		
+		if(strpos($value, '/') !== false || strpos($value, DIRECTORY_SEPARATOR) !== false) {
+			$filename = $value;
+		} else {
+			$filename = $pagefiles->path() . $value;
+		}
+	
+		/** @var Pagefile|Pageimage $pagefile */
+		$pagefile = new $pagefileClass($pagefiles, $filename);
+		$this->wire($pagefile);
+	
+		return $pagefile;
+	}
+
+	/**
+	 * Given a TableRows object, convert it to an array for storage
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @param TableRows $value
+	 * @return array
+	 * @throws WireException
+	 *
+	 */
+	public function ___sleepValue(Page $page, Field $field, $value) {
+		
+		$pages = $this->wire()->pages;
+
+		if($value && $value->data('preventSaving')) {
+			throw new WireException("Formatted value may not be used for saving");
+		}
+		
+		$itemsArray = array();
+		if(!$field->get('maxCols')) $field->set('maxCols', self::defaultCols); 
+		
+		/** @var TableRows $value */
+		$value = $this->sanitizeValue($page, $field, $value); // to cover all object properties
+
+		foreach($value as /* $key => */ $item) {
+			/** @var TableRow $item */
+			$itemArray = array();
+
+			foreach($this->getColumns($field) as /* $n => */ $col) { 
+				$name = $col['name']; 
+				$type = $col['type'];
+				
+				if(!$name || !$type) continue; 
+				
+				$itemValue = $this->sleepColumn($col, $item->$name); 
+				$itemArray[$name] = $itemValue; 
+			}
+
+			if($page->isNew() && $pages->cloning) {
+				$itemArray['data'] = null;
+			} else if($item->id) {
+				$itemArray['data'] = (int) $item->id;
+			}
+			$itemsArray[] = $itemArray; 
+		}
+
+		if(self::debug) { 
+			$debugArray = $itemsArray; 
+			foreach($debugArray as $key => $value) {
+				foreach($value as $k => $v) {
+					if(is_null($v)) $debugArray[$key][$k] = 'null';
+				}
+			}
+			$this->debugMessage('sleepValue2: <pre>' . print_r($debugArray, true) . '</pre>', Notice::allowMarkup); 
+		}
+
+		return $itemsArray; 
+	}
+
+	/**
+	 * Sleep a column value for storage or query
+	 * 
+	 * @param array $col Column definition
+	 * @param bool|int|mixed|null|Page|PageArray|string|Wire|WireData $itemValue Value to sleep
+	 * @return bool|int|mixed|null|Page|PageArray|string|Wire|WireData
+	 * @throws WireException
+	 * 
+	 */
+	public function sleepColumn(array $col, $itemValue) {
+	
+		$type = $col['type'];
+	
+		if($type === 'textTags') {
+			$itemValue = $this->sanitizeTextTags($col, $itemValue, 'sleepValue', true);
+			
+		} else if(is_array($itemValue)) {
+			// account for enum/set values with commas
+			$str = '';
+			foreach($itemValue as /* $k => */ $v) {
+				if(strpos($v, ',') !== false) $v = str_replace(',', self::enumCommaReplacement, $v);
+				if(strpos($v, "'") !== false) $v = str_replace("'", self::enumAposReplacement, $v);
+				$str .= trim("$v") . ",";
+			}
+			$itemValue = trim($str, ',');
+
+		} else if($type === 'date' || $type === 'datetime') {
+			// dates stored at runtime as timestamps, so we convert to ISO-8601 for DB					
+			if(empty($itemValue)) {
+				$itemValue = null;
+			} else if($type == 'date') {
+				$itemValue = wireDate('Y-m-d', $itemValue);
+			} else {
+				$itemValue = wireDate('Y-m-d H:i:s', $itemValue);
+			}
+
+		} else if($type === 'time') {
+			if(!strlen("$itemValue")) {
+				$itemValue = null;
+			} else if(!preg_match('/^\d\d:\d\d(:\d\d)?$/', "$itemValue")) {
+				if(ctype_digit("$itemValue")) {
+					$itemValue = date('H:i:s', strtotime('2022-12-15 00:00:00') + (int) $itemValue);
+				} else {
+					$itemValue = date('H:i:s', (int) strtotime("$itemValue"));
+				}
+				if($itemValue === false) $itemValue = null;
+			} 
+
+		} else if($col['valid'] === 'Page') {
+			$itemValue = $this->validatePageValue($itemValue, $col);
+			if($itemValue) {
+				$itemValue = $itemValue->id;
+			} else {
+				$itemValue = null;
+			}
+			
+		} else if($col['valid'] === 'PageArray') {
+			$itemValue = $this->validatePageValue($itemValue, $col);
+			if($itemValue instanceof PageArray && count($itemValue)) {
+				$itemValue = 'pid' . $itemValue->implode(',pid', 'id');
+			} else {
+				$itemValue = null;
+			}
+			
+		} else if($col['valid'] === 'LanguagesPageFieldValue' && $this->wire()->languages) {
+			if($itemValue instanceof LanguagesValueInterface) {
+				$languageValues = array();
+				foreach($this->wire()->languages as $language) {
+					$languageValue = $itemValue->getLanguageValue($language);
+					if(strlen("$languageValue")) {
+						$languageValue = str_replace(array("\r\n", "\r"), "\n", $languageValue);
+						$languageValues[$language->id] = "$language->id:" . $languageValue;
+					}
+				}
+				$itemValue = implode("\r", $languageValues);
+			}
+			
+		} else if($type === 'double' || $type === 'float' || $type === 'decimal') {
+			$localeconv = localeconv();
+			$decimal = $localeconv["decimal_point"];
+			$parts = explode("$decimal", "$itemValue", 2);
+			if(count($parts) == 2) $itemValue = implode('.', $parts);
+			
+		} else if($col['valid'] === 'file' || $col['valid'] === 'image') {
+			$files = $this->wire()->files;
+			if($itemValue instanceof Pagefile) {
+				if($files->exists($itemValue->filename())) {
+					$itemValue = $itemValue->basename();	
+				} else {
+					$itemValue = '';	
+				}
+			}
+		}
+		
+		
+		return $itemValue; 
+	}
+
+	/**
+	 * Validate a Page or PageArray for given column
+	 * 
+	 * @param Page|PageArray $value
+	 * @param array $col
+	 * @return null|Page|PageArray Returns validated value
+	 * 
+	 */
+	protected function validatePageValue($value, array $col) {
+		
+		$pages = $this->wire()->pages;
+
+		if(empty($value)) return null;
+		if(empty($col['settings']['validate'])) return $value; // validation disabled
+		if(empty($col['selector'])) return $value; // no selector to validate against
+		
+		if(!$value instanceof Page && !$value instanceof PageArray) return null; // invalid value
+		if($value instanceof NullPage) return null; // convert NullPage to null
+		
+		$items = $value instanceof Page ? array($value) : $value; 
+		
+		foreach($items as $item) {
+			$matches = true; 
+			
+			if(!$item->id) {
+				$matches = false;
+			} else if(!$item->matches($col['selector'])) {
+				$matches = false;
+			}
+			
+			if(!$matches) {
+				// if in-memory selector didn't match, try database selector as a backup
+				$o = array('allowCustom' => true); 
+				if($pages->count("$col[selector], id=$item->id", $o) > 0) $matches = true; 
+			}
+		
+			if($matches) continue; // great
+		
+			// non-match
+			$this->warning("Removed page $item->name ($item->id) because it didn't match selector: $col[selector]");
+			
+			if($value instanceof Page) {
+				$value = null;
+			} else {
+				$value->remove($item);
+			}
+		}
+		
+		return $value; 
+		
+	}
+
+	/**
+	 * Run the given text formatters on the provided $value and return the formatted value
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @param array|string $value
+	 * @param array $textformatters Array of Textformatter module instances
+	 * @return TableRows|array|string
+	 *
+	 */
+	protected function textformatters(Page $page, Field $field, $value, array $textformatters) {
+
+		foreach($textformatters as $module) {
+			/** @var Textformatter $module */
+			if(is_array($value)) {
+				foreach($value as $k => $v) {
+					if(!is_string($v)) continue; 
+					$module->formatValue($page, $field, $v); 
+					$value[$k] = $v; 
+				}
+
+			} else if(is_string($value)) {
+				$module->formatValue($page, $field, $value); 
+			}
+		}
+		
+		return $value; 
+	}
+
+	/**
+	 * Format Table value for front-end output
+	 *
+	 * This primarily entity encodes all strings.
+	 *
+	 * This method is only used when $page->outputFormatting is true. 
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @param TableRows $value
+	 * @return TableRows
+	 *
+	 */
+	public function ___formatValue(Page $page, Field $field, $value) {
+		
+		/** @var TableRows $value */
+		
+		$modules = $this->wire()->modules;
+
+		if(!$value instanceof TableRows) {
+			return $this->getBlankValue($page, $field);
+		}
+		
+		$formattedValue = $value->makeNew();
+		$formattedValue->data('preventSaving', true); 
+		$cols = $this->getColumnsByName($field); 
+		$language = $this->wire()->languages ? $this->wire()->user->language : null;
+		$selectableOptions = array();
+
+		foreach($value as /* $n => */ $item) {
+			/** @var TableRow $item */
+
+			$formattedItem = $formattedValue->makeBlankItem();
+			$formattedItem->rowId($item->id);
+
+			foreach($cols as $name => $col) {
+
+				$itemValue = $item->get($name); 
+				$settings = empty($col['settings']) ? array() : $col['settings'];
+				$textformatters = array();
+				
+				// find all textformatters defined for this field
+				if(!empty($settings['textformatters'])) {
+					foreach(explode(',', $settings['textformatters']) as $moduleName) {
+						$module = $modules->get(trim($moduleName)); 
+						if(!$module instanceof Textformatter) {
+							// Textformatter not found
+							continue;
+						}
+						$textformatters[] = $module; 
+					}
+				} else if($col['valid'] === 'textTags') {
+					$itemValue = $this->sanitizeTextTags($col, $itemValue, 'labelValue', false);
+					if(is_array($itemValue)) {
+						foreach($itemValue as $k => $v) {
+							$itemValue[$k] = htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
+						}
+					} else if(is_string($itemValue)) {
+						$itemValue = htmlspecialchars($itemValue, ENT_QUOTES, 'UTF-8');
+					}
+				}
+
+				// format dates/times
+				if($itemValue && ($col['type'] === 'date' || $col['type'] === 'datetime')) {
+					$itemValue = $this->formatDate($itemValue, $settings);
+				} else if($col['type'] === 'time' && strlen("$itemValue")) {
+					$itemValue = wireDate($settings['timeFormat'], strtotime("2022-12-15 $itemValue"));	
+				}
+			
+				/*
+				if($itemValue && ($col['type'] == 'float' || $col['type'] == 'double')) {
+					if(isset($settings['precision']) && strlen($settings['precision'])) {
+						$itemValue = number_format((float) $itemValue, $settings['precision'], '.', '');
+					}
+				}
+				*/
+
+				if($language && $col['valid'] == 'LanguagesPageFieldValue') {
+					// convert a LanguagePageFieldValue to string in user's language
+					/** @var LanguagesPageFieldValue $itemValue */
+					$field->set('langBlankInherit', 1); // 1=no inherit, since it is defined per column instead
+					$langValue = $itemValue->getLanguageValue($language);
+					if(!strlen("$langValue") && !empty($col['settings']['inherit'])) {
+						// inherit from default language
+						$langValue = $itemValue->getDefaultValue();
+					}
+					$itemValue = $langValue;
+				}
+				
+				// format selectable options when applicable
+				$valueType = isset($settings['formattedValueType']) ? $settings['formattedValueType'] : 'value';
+				if($valueType != 'value' && strpos($col['schema'], '[options]') !== false && !empty($itemValue)) {
+					if(isset($selectableOptions[$name])) {
+						$options = $selectableOptions[$name];
+					} else {
+						$options = $this->getSelectColumnOptions($field, $col);
+						$selectableOptions[$name] = $options;
+					}
+					if(is_array($itemValue)) {
+						if($valueType === 'title') {
+							foreach($itemValue as $k => $v) {
+								if(isset($options[$v])) $itemValue[$k] = $v;
+							}
+						} else if($valueType === 'assoc') {
+							$a = [];
+							foreach($itemValue as $v) {
+								$a[$v] = isset($options[$v]) ? $options[$v] : $v;
+							}
+							$itemValue = $a;
+						} else if($valueType === 'assoc2') {
+							$a = [];
+							foreach($itemValue as $k => $v) {
+								$a[$k] = [ 
+									'value' => $v, 
+									'title' => (isset($options[$v]) ? $options[$v] : $v) 
+								];
+							}
+							$itemValue = $a;
+						}
+					} else if(is_string($itemValue)) {
+						if($valueType === 'title') {
+							if(isset($options[$itemValue])) $itemValue = $options[$itemValue];
+						} else if($valueType === 'assoc') {
+							$itemValue = [ $itemValue => (isset($options[$itemValue]) ? $options[$itemValue] : $itemValue) ];
+						} else if($valueType === 'assoc2') {
+							$itemValue = [ 
+								'value' => $itemValue, 
+								'title' => (isset($options[$itemValue]) ? $options[$itemValue] : $itemValue) 
+							];
+						}
+						
+					}
+				}
+				
+				// run textformatters
+				if(count($textformatters)) {
+					$itemValue = $this->textformatters($page, $field, $itemValue, $textformatters);
+				}
+
+				$formattedItem->set($name, $itemValue); 
+			}
+
+			$formattedValue->add($formattedItem); 
+		}
+	
+		$limit = $value->getLimit();
+		
+		if($limit) {
+			$formattedValue->setLimit($limit);
+			$formattedValue->setStart($value->getStart());
+			$formattedValue->setTotal($value->getTotal());
+		}
+
+		$formattedValue->isFormatted(true);
+		$formattedValue->resetTrackChanges(true); 
+		
+		return $formattedValue; 
+	}
+
+	/**
+	 * Format a date value using given settings
+	 * 
+	 * @param int|string $itemValue
+	 * @param array $settings
+	 * @return string
+	 * 
+	 */
+	protected function formatDate($itemValue, $settings) {
+		$dateFormat = isset($settings['dateOutputFormat']) ? $settings['dateOutputFormat'] : '';
+		$dateFormat = "$dateFormat " . (isset($settings['timeOutputFormat']) ? $settings['timeOutputFormat'] : '');
+		$dateFormat = trim($dateFormat);
+		if(!empty($dateFormat)) {
+			$datetime = $this->wire()->datetime;
+			$itemValue = $datetime->formatDate($itemValue, $dateFormat);
+		}
+		return $itemValue;
+	}
+
+	/**
+	 * Render a markup string of the value
+	 *
+	 * Non-markup components should also be entity encoded where appropriate.
+	 *
+	 * Most Fieldtypes don't need to implement this since the default covers most scenarios.
+	 *
+	 * This is different from formatValue() in that it always returns a string (or object that can be
+	 * typecast to a string) that is output ready with markup. Further, this method may be used to render
+	 * specific properties in compound fieldtypes. The intention here is primarily for admin output purposes,
+	 * but can be used front-end where applicable.
+	 *
+	 * This is different from Inputfield::renderValue() in that the context may be outside that of an Inputfield,
+	 * as Inputfields can have external CSS or JS dependencies.
+	 *
+	 * @param Page $page Page that $value comes from
+	 * @param Field $field Field that $value comes from
+	 * @param mixed $value Optionally specify the $page->field value. If null or not specified, it will be retrieved.
+	 * @param string $property Optionally specify the property or index to render. If omitted, entire value is rendered.
+	 * @return string|MarkupFieldtype Returns a string or object that can be output as a string, ready for output.
+	 * 	Return a MarkupFieldtype value when suitable so that the caller has potential specify additional
+	 * 	config options before typecasting it to a string.
+	 *
+	 */
+	public function ___markupValue(Page $page, Field $field, $value = null, $property = '') {
+		if(is_null($value)) $value = $page->get($field->name); 
+		if($property == 'count') return count($value); 
+		$options = array();
+		if(!empty($property) && is_string($property)) {
+			// most likely from Lister/ListerPro
+			$options['columns'] = array($property);
+			$options['useHead'] = false; // thead for 1 col is likely not necessary
+		}
+		$p = $this->wire()->page;
+		if($p && $p->template->name === 'admin' && stripos($this->wire()->config->adminTheme, 'uikit')) {
+			$options['tableClass'] = 'ft-table uk-table uk-table-small uk-table-divider';
+		}
+		if($value instanceof TableRows) {
+			$out = $value->render($options); 
+		} else if($value instanceof TableRow) {
+			$class = $this->getArrayClass($field);
+			$rows = new $class($page, $field);
+			$rows->add($value); 
+			$out = $rows->render($options); 
+		} else {
+			$out = $this->wire()->sanitizer->entities((string) $value); 
+		}
+		return $out; 
+	}
+
+	/**
+	 * Return the Inputfield used for inputting Table data
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @return Inputfield|InputfieldTable
+	 *
+	 */
+	public function getInputfield(Page $page, Field $field) {
+		/** @var InputfieldTable $inputfield */
+		$inputfield = $this->wire()->modules->get('InputfieldTable'); 
+		$inputfield->setField($field);
+		$inputfield->setPage($page); 
+		return $inputfield;
+	}
+
+	/**
+	 * Return the DB schema used by Table
+	 *
+	 * @param Field $field
+	 * @return array
+	 *
+	 */
+	public function getDatabaseSchema(Field $field) {
+
+		if(!$field->get('maxCols')) $field->set('maxCols', self::defaultCols); 
+		
+		$schema = parent::getDatabaseSchema($field); 
+		
+		$schema['data'] = 'INT UNSIGNED NOT NULL AUTO_INCREMENT';
+		$schema['keys']['primary'] = 'PRIMARY KEY (data)'; 
+		$schema['keys']['pages_id'] = 'UNIQUE (pages_id, sort)';
+		
+		unset($schema['keys']['data']); 
+
+		for($n = 1; $n <= $field->get('maxCols'); $n++) {
+			$name = $this->sanitizeFieldName($field->{"col{$n}name"}, true);
+			$type = $field->{"col{$n}type"};
+			$options = $field->{"col{$n}options"};
+			if(empty($name) || empty($type)) continue; 
+			if(!isset($this->colTypes[$type])) continue;
+			$typeSQL = $this->colTypes[$type]['type'];
+			if(!empty($this->colTypes[$type]['default'])) $typeSQL .= " DEFAULT " . $this->colTypes[$type]['default']; 
+			if(strlen("$options")) {
+				$typeSQL = $this->populateOptionsSchema($typeSQL, $options);
+			} 
+			if(strpos($typeSQL, ']') && strpos($typeSQL, ':')) { 
+				$typeSQL = $this->populateSettingsSchema($typeSQL, $field, $n);
+			}
+			$schema[$name] = $typeSQL;
+			$index = "INDEX";
+			if(isset($this->colTypes[$type]['index'])) $index = $this->colTypes[$type]['index'];
+			$schema['keys'][$name] = "$index `$name` (`$name`)";
+		}
+		
+		if($field->get('paginationLimit')) {
+			// if pagination is active, indicate that not all data may be present in a value
+			$schema['xtra']['all'] = false;
+		}
+
+		return $schema;
+	}
+
+	/**
+	 * Convert "[options]" in an SQL schema to the actual list of options (for ENUM or SET)
+	 *
+	 * @param string $typeSQL
+	 * @param array|string $options
+	 * @return string Converted SQL string
+	 *
+	 */
+	protected function populateOptionsSchema($typeSQL, $options) { 
+		$database = $this->wire()->database;
+		
+		if(!is_array($options)) $options = explode("\n", $options); 
+		$optionsString = '';	
+		
+		foreach($options as $option) {
+			// check for commas which aren't allowed in enum/set
+			$option = ltrim($option, '+ '); 
+			if(strpos($option, '=') !== false) {
+				/** @noinspection PhpUnusedLocalVariableInspection */
+				list($option, $label) = explode('=', $option);
+			}
+			if(strpos($option, ',') !== false) $option = str_replace(',', self::enumCommaReplacement, $option); 
+			if(strpos($option, "'") !== false) $option = str_replace("'", self::enumAposReplacement, $option); 
+			$option = $database->quote(trim($option)); 
+			$optionsString .= "$option,";
+		}
+		
+		$optionsString = rtrim($optionsString, ',');
+		$typeSQL = str_replace('[options]', $optionsString, $typeSQL); 
+		
+		return $typeSQL;
+	}
+
+	/**
+	 * Convert "[int:setting_name]" in an SQL schema to the setting value 
+	 *
+	 * @param string $typeSQL
+	 * @param Field $field
+	 * @param int $n
+	 * @return string Converted SQL string
+	 *
+	 */
+	protected function populateSettingsSchema($typeSQL, Field $field, $n) {
+		if(strpos($typeSQL, ']') === false) return $typeSQL;
+		
+		$col = $this->getColumn($field, $n);
+		
+		// custom integer variable in typeSQL that refers to a setting
+		while(preg_match('/\[(int|string):([_a-zA-Z0-9]+)\]/', $typeSQL, $matches)) {
+			$settingType = $matches[1];
+			$settingName = $matches[2]; // i.e. "digits", "precision", etc.
+			$settingValue = $col['settings'][$settingName];
+			if($settingType === 'int') $settingValue = (int) $settingValue;
+			$typeSQL = str_replace($matches[0], $settingValue, $typeSQL);
+		}
+		
+		return $typeSQL;
+	}
+
+	/**
+	 * Check whether schema needs change and commit changes if $commit is true
+	 *
+	 * If $commit is not true, needed changes that don't erase data will still be committed. 
+	 *
+	 * Returns array if confirmation queries indicating what will be changed next time $commit is true. 
+	 *
+	 * @param Field $field
+	 * @param bool $commit
+	 * @return array
+	 *
+	 */
+	public function _checkSchema(Field $field, $commit = false) {
+		
+		$database = $this->wire()->database;
+
+		// retrieve current field definitions
+		if(!$field->get('maxCols')) $field->set('maxCols', self::defaultCols); 
+		
+		$cols = array();
+		$colNumbers = array();
+		$confirmQueries = array();
+		$oldName = '';
+		$newName = '';
+		$hasSelectOptions = false; 
+		$renameColumn = $field->get('renameColumn');
+
+		if($renameColumn && strpos($renameColumn, '=')) {
+			// note $field->renameColumn is a temporary field with old=new value
+			list($oldName, $newName) = explode('=', $renameColumn); 
+			$oldName = $this->sanitizeFieldName($oldName); 
+			$newName = $this->sanitizeFieldName($newName); 
+			if(in_array($newName, $this->reservedColNames)) $newName = '';
+		}
+		
+		for($n = 1; $n <= (int) $field->get('maxCols'); $n++) {
+
+			$name = $this->sanitizeFieldName($field->{"col{$n}name"}, true);
+			if(empty($name)) continue;
+			if(isset($cols[$name])) continue; // duplicate
+			$typeName = $field->{"col{$n}type"};
+			if(empty($typeName)) continue;
+			if($typeName == 'ckeditor') $typeName = 'textareaCKE'; // TMP
+			if($typeName == 'tinymce') $typeName = 'textareaMCE'; // TMP
+			$typeSQL = $this->colTypes[$typeName]['type']; 
+			$options = $field->{"col{$n}options"};
+
+			if(strpos($typeSQL, '[options]')) {
+				// convert enum or set values to MySQL CSV
+				$typeSQL = $this->populateOptionsSchema($typeSQL, explode("\n", "$options")); 
+				$hasSelectOptions = true; 
+			} 
+			
+			if(strpos($typeSQL, ']')) {
+				// custom setting in SQL schema
+				$typeSQL = $this->populateSettingsSchema($typeSQL, $field, $n);
+			}
+
+			$cols[$name] = array(
+				'name' => $name,
+				'newName' => $oldName === $name && strlen("$newName") ? $newName : '', 
+				'typeName' => $typeName, 
+				'typeSQL' => $typeSQL, 
+			);
+
+			$colNumbers[$name] = $n;
+		}
+
+		// retrieve current schema as it is in the DB table
+		$schema = array();
+		$table = $database->escapeTable($field->getTable()); 
+		$query = $database->prepare("SHOW COLUMNS FROM `$table`"); 
+		$query->execute();
+
+		while($row = $query->fetch(\PDO::FETCH_ASSOC)) {
+
+			$name = $this->sanitizeFieldName($row['Field']);	
+			if(in_array($name, array('data', 'sort', 'pages_id'))) continue; 
+
+			$typeSQL = $row['Type']; 
+			$pos = strpos($typeSQL, '('); 
+			$t = $pos ? substr($typeSQL, 0, $pos) : null;
+
+			if(in_array($t, array('enum', 'set', 'varchar', 'decimal'))) { 
+				// fine then, we'll take that
+			} else {
+				if(preg_match('/\(\d+\)/', $typeSQL)) {
+					$typeSQL = preg_replace('/\(\d+\)/', '', $typeSQL); 
+				} else if(!is_null($t)) {
+					$typeSQL = $t;
+				}
+			}
+
+			$schema[$name] = array(
+				'name' => $name, 
+				'typeSQL' => $typeSQL, 
+			);
+		}
+
+		// figure out if any fields need to be deleted from the schema
+		foreach($schema as $name => $dbcol) {
+			if(isset($cols[$name])) continue; 
+			try {
+				if($commit) {
+					$sql = "ALTER TABLE `$table` DROP `$name`";
+					$this->debugMessage($sql); 
+					$query = $database->prepare($sql);
+					$query->execute();
+				} else {
+					$confirmQueries[] = "Column: '$name' - Delete";
+				}
+			} catch(\Exception $e) {
+				$this->error($e->getMessage()); 
+			}
+		}
+		 
+		// compare definitions to DB table, adding or modifying fields where appropriate
+		// if $commit is true, we make the changes now. If not, we just document the changes in $confirmQueries array
+		foreach($cols as $name => $col) {
+
+			$typeName = $col['typeName'];
+			if(!$name || empty($this->colTypes[$typeName])) continue; 
+			
+			$colType = $this->colTypes[$typeName]; 
+			if(!isset($colType['index'])) $colType['index'] = 'INDEX'; 
+			
+			$typeSQL = $col['typeSQL'];
+			if(empty($typeSQL)) continue; 
+			
+			$hasNameChange = $col['newName'] && !isset($cols[$col['newName']]); 
+			$hasTypeChange = isset($schema[$name]) 
+				&& $schema[$name]['typeSQL'] != $typeSQL 
+				&& $schema[$name]['typeSQL'] != str_replace('\\', '', $typeSQL); 
+			
+			if($hasTypeChange) {
+				$oldTypeSQL = $schema[$name]['typeSQL'];
+				$newTypeSQL = $typeSQL;
+			} else {
+				$oldTypeSQL = '';
+				$newTypeSQL = '';
+			}
+			
+			$sql = '';
+
+			if(!isset($schema[$name])) {
+				// add new col to DB schema
+				$sql = "ALTER TABLE `$table` ADD `$name` $typeSQL";
+				// $index = "$colType[index] `$name` (`$name`)"; 
+				$commit = true; // we always automatically commit new field additions
+
+			} else if($hasTypeChange || $hasNameChange) { 
+				// name or type has changed
+				if($hasTypeChange) $this->debugMessage($schema[$name]['typeSQL'] . " != $typeSQL"); 
+				if($hasNameChange) $this->debugMessage("$name != $col[newName]"); 
+				$newName = $hasNameChange ? $col['newName'] : $name; 
+				if($commit) try {
+					$sql = "ALTER TABLE `$table` DROP INDEX `$name`";
+					$this->debugMessage($sql, Notice::debug); 
+					$database->exec($sql); 
+				} catch(\Exception $e) { 
+					$this->error($e->getMessage());
+				}
+				if($commit) {
+					$sql = "ALTER TABLE `$table` CHANGE `$name` `$newName` $typeSQL";
+					if($hasNameChange) {
+						$name = $newName; // so index updated as well
+						$n = $colNumbers[$oldName]; 
+						$field->set("col{$n}name", $newName); 
+					}
+				} else {
+					if($hasTypeChange) {
+						if($hasSelectOptions) {
+							$confirmQueries[] = "Column '$name' - Update selectable options and/or change type to '$typeName'";
+						} else {
+							$confirmQueries[] = "Column '$name' - Change type to '$typeName'\n`OLD: $name $oldTypeSQL` \n`NEW: $name $newTypeSQL`";
+						}
+					}
+					if($hasNameChange) $confirmQueries[] = "Column '$name' - Change name to '$newName'";
+				}
+			}
+
+			if($sql && $commit && !count($confirmQueries)) try {
+				$this->debugMessage($sql); 
+				$query = $database->prepare($sql); 
+				$query->execute();
+
+				$index = "$colType[index] `$name` (`$name`)"; 
+				$sql = "ALTER TABLE `$table` ADD $index";
+				$this->debugMessage($sql); 
+				$query = $database->prepare($sql); 
+				$query->execute();
+
+			} catch(\Exception $e) {
+				$this->error($e->getMessage()); 
+			}
+		}
+
+		return $confirmQueries; 
+	}
+
+	/**
+	 * Reorder our field definitions to be consistent with their sort orders
+	 *
+	 * @param Field $field
+	 *
+	 */
+	public function reorder(Field $field) {
+		
+		$languages = $this->wire()->languages;
+		$defs = array();
+
+		for($n = 1; $n <= $field->get('maxCols'); $n++) {
+			$sort = $field->{"col{$n}sort"}; 
+			
+			$def = array(
+				'name' => $this->sanitizeFieldName($field->{"col{$n}name"}, true),
+				'label' => $field->{"col{$n}label"},
+				'type' => $field->{"col{$n}type"},
+				'width' => $field->{"col{$n}width"},
+				'options' => $field->{"col{$n}options"},
+				'selector' => $field->{"col{$n}selector"},
+				'settings' => $field->{"col{$n}settings"},
+				'sort' => $field->{"col{$n}sort"}
+			);
+			
+			if($def['type'] == 'delete') {
+				continue; 
+			}
+			
+			if($languages) {
+				foreach($languages as $language) {
+					/** @var Language $language */
+					if($language->isDefault()) continue;
+					$label = $field->{"col{$n}label$language"};
+					$def["label$language"] = $label;
+				}
+			}
+			
+			if(!$def['name']) $sort = (int) $field->get('maxCols'); // move to end of list
+			while(isset($defs[$sort])) $sort++;
+			$defs[$sort] = $def; 
+		}
+
+		// sort by the 'sort' value
+		ksort($defs);
+		// convert to predictable 0-based array
+		$tmp = array();
+		foreach($defs as $def) $tmp[] = $def;
+		$defs = $tmp;
+
+		for($n = 1; $n <= (int) $field->get('maxCols'); $n++) {
+			$i = $n-1; 
+			if(isset($defs[$i])) {
+				$def = $defs[$i];
+				$field->set("col{$n}name", $def['name']); 
+				$field->set("col{$n}label", $def['label']); 
+				$field->set("col{$n}type", $def['type']); 
+				$field->set("col{$n}width", $def['width']); 
+				$field->set("col{$n}options", $def['options']);
+				$field->set("col{$n}selector", $def['selector']);
+				$field->set("col{$n}settings", $def['settings']); 
+				$field->set("col{$n}sort", $n); 
+				
+				if($languages) {
+					foreach($languages as $language) {
+						if($language->isDefault()) continue;
+						$field->set("col{$n}label$language", $def["label$language"]);
+					}
+				}
+			} else {	
+				unset($field->{"col{$n}name"}); 
+				unset($field->{"col{$n}label"}); 
+				unset($field->{"col{$n}type"}); 
+				unset($field->{"col{$n}width"}); 
+				unset($field->{"col{$n}options"});
+				unset($field->{"col{$n}selector"});
+				unset($field->{"col{$n}settings"}); 
+				unset($field->{"col{$n}sort"}); 
+				
+				if($languages) {
+					foreach($languages as $language) {
+						if($language->isDefault()) continue;
+						unset($field->{"col{$n}label$language"});
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * There are no other fieldtypes compatible with this one
+	 *
+	 * @param Field $field
+	 * @return Fieldtypes
+	 *
+	 */
+	public function ___getCompatibleFieldtypes(Field $field) {
+		$fieldtypes = new Fieldtypes();
+		return $fieldtypes;
+	}
+
+	/**
+	 * Get information for use in selectors
+	 *
+	 * @param Field $field
+	 * @param array $data
+	 * @return array
+	 *
+	 */
+	public function ___getSelectorInfo(Field $field, array $data = array()) {
+		
+		$pages = $this->wire()->pages;
+
+		$info = parent::___getSelectorInfo($field, $data); 
+		$info['input'] = 'none'; 
+		unset($info['subfields']['data']); 
+		$language = $this->wire()->languages ? $this->wire()->user->language : null;
+	
+		// $this->message($info); // for debugging
+
+		foreach($this->getColumns($field) as $col) {
+			
+			$name = $col['name'];
+			$label = $col['label'];
+			if($language && !empty($col["label$language"])) $label = $col["label$language"];
+			$info['subfields'][$name]['label'] = $label;
+			
+			if($col['valid'] == 'Page' || $col['valid'] == 'PageArray') {
+				
+				$info['subfields'][$name]['operators'] = array('@=', '@!='); 
+				$labelField = empty($col['settings']['labelField']) ? 'title|name' : $col['settings']['labelField'];	
+				$options = array();
+				
+				if(!empty($col['selector'])) {
+					$findOptions  = array('allowCustom' => true); 
+					
+					if($col['input'] == 'autocomplete') {
+						$info['subfields'][$name]['input'] = 'autocomplete';
+						$info['subfields'][$name]['selector'] = $col['selector'];
+						$info['subfields'][$name]['searchFields'] = $col['settings']['searchField'];
+						$info['subfields'][$name]['labelFieldName'] = $labelField;
+						
+					} else if($pages->count($col['selector'], $findOptions) > 50) {
+						$info['subfields'][$name]['input'] = 'autocomplete';
+						$info['subfields'][$name]['selector'] = $col['selector'];
+						$info['subfields'][$name]['searchFields'] = $labelField;
+						$info['subfields'][$name]['labelFieldName'] = $labelField;
+						
+					} else {
+						$info['subfields'][$name]['input'] = 'select';
+						foreach($pages->find($col['selector'], $findOptions) as $item) {
+							$pageLabel = $item->get($labelField);
+							if(!strlen("$pageLabel")) $pageLabel = $item->get('title|name');
+							$options[$item->id] = $pageLabel;
+						}
+					}
+				}
+				
+				$info['subfields'][$name]['options'] = $options;
+			}
+		}
+
+		return $info; 
+	}
+
+	/**
+	 * Extend loadPageField to support pagination
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @return array|null
+	 * @throws WireException
+	 * 
+	 */
+	public function ___loadPageField(Page $page, Field $field) {
+		
+		// non-paginated/sorted load or outside the context of the page editor
+		if(!$page->id || !$this->wire()->process instanceof WirePageEditor) {
+			$result = parent::___loadPageField($page, $field);
+			return $result;
+		}
+		
+		// everything below is only executed if user is in the page editor
+
+		$input = $this->wire()->input;
+		$adminAjax = $this->wire()->config->ajax;
+		
+		if($adminAjax && $input->get('reset')) {
+			// reset filters and sorts
+			$sessionData['sort'] = '';
+			$sessionData['find'] = '';
+			$this->sessionData($page, $field, $sessionData);
+			$result = parent::___loadPageField($page, $field);
+			return $result;
+			
+		} else if($adminAjax && $input->get('table_row_ids')) {
+			$rowIDs = explode(',', $input->get('table_row_ids'));
+			foreach($rowIDs as $key => $rowID) $rowIDs[$key] = (int) $rowID;
+			$this->setLoadPageFieldFilters($field, "data=" . implode('|', $rowIDs));
+			$result = parent::___loadPageField($page, $field);
+			return $result;
+		}	
+
+		// manage pagination and sorting info in the session when loaded in the page editor
+		// @todo admin validation needed here
+		$sortRequest = $adminAjax ? trim((string) $input->get($field->name . '_table_sort')) : '';
+		$findRequest = $adminAjax ? trim((string) $input->get($field->name . '_table_find')) : null;
+		$sessionData = $this->sessionData($page, $field);
+		$orderByCols = array();
+		$pageNum = 0;
+
+		if($findRequest === null && isset($sessionData['find'])) {
+			// if no findRequest here, use one from session
+			$findRequest = $sessionData['find'];
+		}
+		
+		if(!$adminAjax || $sortRequest || $findRequest !== null) {
+			// regular load request, or ajax sort request, or ajax find request
+
+			if($field->get('paginationLimit') && !$adminAjax) {
+				// set what pagination will be loaded based on session data
+				$pageNum = $input->pageNum();
+				if($pageNum == 1 && !empty($sessionData['pageNum'])) {
+					$input->setPageNum($sessionData['pageNum']);
+				}
+			}
+
+			if($sortRequest) {
+				// ajax sort request
+				$desc = strpos($sortRequest, '-') === 0; 
+				$sortRequest = $this->wire()->sanitizer->fieldName(ltrim($sortRequest, '-'));
+				if($desc) $sortRequest = "-$sortRequest";
+				$sessionData['sort'] = $sortRequest;
+			}
+
+			if($findRequest !== null) {
+				// ajax find request
+				$sessionData['find'] = trim((string) $findRequest, ', ');
+				$this->setLoadPageFieldFilters($field, $sessionData['find']);
+			}
+
+			if($sortRequest || $findRequest !== null) {
+				// if either sort or find requested, save the request in session
+				$this->sessionData($page, $field, $sessionData);
+			}
+
+			// allow for alternate sorting 
+			$orderByCols = $field->get('orderByCols');
+			if(!empty($sessionData['sort']) && $orderByCols && count($orderByCols)) {
+				// update the Field orderByCols property to reflect the one requested (followed by original value)
+				$field->setQuietly('orderByCols', array_merge(array($sessionData['sort']), $orderByCols));
+			} else {
+				$orderByCols = array();
+			}
+		}
+	
+		// load the page field values within the context of our sort/find requests
+		$value = parent::___loadPageField($page, $field);
+		
+		// disallow completely empty pagination which would occcur if all rows deleted on last pagination
+		if(!empty($value['_pagination_start']) && $value['_pagination_start'] >= $value['_pagination_total']) {
+			// reset to first pagination
+			$pageNum = 1;
+			$sessionData['pageNum'] = 1;
+			$input->setPageNum(1);
+			$this->sessionData($page, $field, $sessionData);
+			$value = parent::___loadPageField($page, $field);
+		}
+		
+		// after loaded, restore original settings
+		if($findRequest !== null) $this->setLoadPageFieldFilters($field, null);
+		if($pageNum) $input->setPageNum($pageNum);
+		if(count($orderByCols)) $field->setQuietly('orderByCols', $orderByCols);
+
+		return $value;
+	}
+
+	/**
+	 * Save a page field
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @return bool
+	 * @throws WireDatabaseQueryException
+	 * @throws WireException
+	 * 
+	 */
+	public function ___savePageField(Page $page, Field $field) {
+		if($this->fieldHasFileColumns($field)) {
+			$values = $page->get($field->name);
+			$removedRows = $values->getItemsRemoved();
+			if(count($removedRows)) {
+				$this->deleteTableRowsFiles($field, $removedRows);
+			}
+		}
+		return parent::___savePageField($page, $field);
+	}
+
+	/**
+	 * Apply a where condition to a load query (used by getLoadQuery method)
+	 *
+	 * @param Field $field
+	 * @param DatabaseQuerySelect $query
+	 * @param string $col The column name
+	 * @param string $operator The comparison operator
+	 * @param mixed $value The value to find
+	 * @return DatabaseQuery $query
+	 * @throws WireException
+	 *
+	 */
+	protected function getLoadQueryWhere(Field $field, DatabaseQuerySelect $query, $col, $operator, $value) {
+		$column = $this->getColumnByName($field, $col);
+		if($column) {
+			if($column['type'] == 'date' || $column['type'] == 'datetime' || $column['type'] === 'time') {
+				$value = $this->_sanitizeValue($column, $value);
+				$value = $this->sleepColumn($column, $value);
+				if($operator == '%=') $operator = '=';
+				$dateOperators = array('=', '!=', '<', '>', '>=', '<=');
+				if(!in_array($operator, $dateOperators)) {
+					throw new WireException("Unrecognized operator for date/time: $operator");
+				}
+			} else if($column['valid'] == 'PageArray') {
+				if($operator == '!=') {
+					$operator = '!~=';
+				} else {
+					$operator = '~=';
+				}
+				$value = $this->_sanitizeValue($column, $value);
+				$value = $this->sleepColumn($column, $value);
+
+			} else if(is_array($value)) {
+				$value = $this->wire()->sanitizer->array($value, 'text'); // for core 3.0.141+ only
+				
+			} else {
+				$value = $this->wire()->sanitizer->text($value);
+			}
+		}
+		return parent::getLoadQueryWhere($field, $query, $col, $operator, $value);
+	}
+	
+	/**
+	 * Delete specific rows (for tables with single primary key)
+	 *
+	 * #pw-internal
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @param TableRows|WireArray|Wire $value WireArray of items or a single item
+	 * @return int Number of rows deleted
+	 * @throws WireException
+	 *
+	 */
+	public function ___deletePageFieldRows(Page $page, Field $field, $value) {
+		$this->deleteTableRowsFiles($field, $value);
+		return parent::___deletePageFieldRows($page, $field, $value); 
+	}
+	
+	/**
+	 * Delete the given Field from the given Page.
+	 *
+	 * Must delete entries from field's database table that belong to the Page.
+	 *
+	 * @param Page $page
+	 * @param Field $field Field object
+	 * @return bool True on success, false on DB delete failure.
+	 * @throws WireException
+	 *
+	 */
+	public function ___deletePageField(Page $page, Field $field) {
+		// no need to delete on a new Page because it's not in the table yet
+		if($page->isNew()) return true;
+		if($this->fieldHasFileColumns($field)) {
+			$value = $page->get($field->name);
+			if($value instanceof TableRows) $this->deleteTableRowsFiles($field, $value);
+		}
+		return parent::___deletePageField($page, $field);
+	}
+
+	/**
+	 * Delete files in table rows
+	 * 
+	 * @param Field $field
+	 * @param TableRows|TableRow|TableRow[] $rows
+	 * 
+	 */
+	protected function deleteTableRowsFiles(Field $field, $rows) {
+		if($rows instanceof TableRow) {
+			$rows = array($rows);
+		}
+		$fileCols = $this->findColumns($field, 'type', array('file', 'image'));
+		if(!empty($fileCols)) {
+			foreach($rows as $row) {
+				/** @var TableRow $row */
+				foreach($fileCols as $col) {
+					$fileValue = $row->get($col['name']);
+					if($fileValue instanceof Pagefile) {
+						$this->message("Deleted file: $fileValue");
+						$fileValue->unlink();
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Does given field have any file-type columns?
+	 * 
+	 * @param Field $field
+	 * @return bool
+	 * 
+	 */
+	public function fieldHasFileColumns(Field $field) {
+		return count($this->findColumns($field, 'type', array('file', 'image'))) > 0;
+	}
+
+	/**
+	 * Get or set session data
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param array|null $sessionData Specify an array to set, or null to get
+	 * @return array
+	 * 
+	 */
+	public function sessionData(Page $page, Field $field, $sessionData = null) {
+		$default = array(
+			'pageNum' => 0, 
+			'sort' => '', 
+			'find' => '',
+		);
+		$sessionKey = "{$field->name}_$page->id";
+		if($sessionData) {
+			// set
+			$this->wire()->session->setFor('FieldtypeTable', $sessionKey, $sessionData);
+		} else {
+			// get
+			$sessionData = $this->wire()->session->getFor('FieldtypeTable', $sessionKey);
+			if(!is_array($sessionData)) $sessionData = array();
+			$sessionData = array_merge($default, $sessionData);
+		}
+		return $sessionData;
+	}
+
+	/**
+	 * Return the query used for Autojoining this field (if different from getLoadQuery) or NULL if autojoin not
+	 * allowed.
+	 *
+	 * @param Field $field
+	 * @param DatabaseQuerySelect $query
+	 * @return DatabaseQuerySelect|NULL
+	 *
+	 */
+	public function getLoadQueryAutojoin(Field $field, DatabaseQuerySelect $query) {
+		return null;
+	}
+
+	/**
+	 * Sanitize a field name
+	 *
+	 * Same as Sanitizer::fieldName, but enforces lowercase
+	 *
+	 * @param string $fieldName
+	 * @param bool $checkReserved
+	 * @return string
+	 *
+	 */
+	public function sanitizeFieldName($fieldName, $checkReserved = false) {
+		$fieldName = $this->wire()->sanitizer->fieldName((string) $fieldName); 
+		$fieldName = strtolower($fieldName); 
+		if($checkReserved) {
+			if(in_array($fieldName, $this->reservedColNames)) {
+				$this->error(sprintf($this->_('You may not name a column "%s" because it is a reserved word'), $fieldName));
+				$fieldName .= "_1";
+			}
+		}
+		return $fieldName; 
+	}
+
+	/**
+	 * Return a new LanguagesPageFieldValue
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param array|string|null $values
+	 * @return LanguagesPageFieldValue
+	 * 
+	 */
+	public function newLanguagesPageFieldValue(Page $page, Field $field, $values = null) {
+		$config = $this->wire()->config;
+		if(!wireClassExists('LanguagesPageFieldValue')) {
+			// this if() condition should likely not ever occur since LanguageSupport.module already does this
+			$file = $config->paths('LanguageSupport') . 'LanguagesPageFieldValue.php';
+			if(is_file($file)) $this->wire()->files->___include($file);
+		}
+		return new LanguagesPageFieldValue($page, $field, $values);
+	}
+
+	/**
+	 * Analyze and update a column setting if it needs anything
+	 * 
+	 * For use by the getConfigInputfields method
+	 * 
+	 * @param string $setting
+	 * @param string $settingValue
+	 * @return string
+	 * 
+	 */
+	public function adjustColumnSetting($setting, $settingValue) {
+	
+		if($setting === 'settingsField') {
+			if($settingValue != '[ckeditor]' && $settingValue != '[tinymce]') return $settingValue;
+
+			// find an example of a CKE or MCE field to initially populate
+			foreach($this->wire()->fields as $field) {
+				/** @var Field $field */
+				if($field->type->className() != 'FieldtypeTextarea') continue;
+				$cls = $field->get('inputfieldClass');
+				if($cls === 'InputfieldCKEditor' && $settingValue === '[ckeditor]') {
+					$settingValue = $field->name;
+					break;
+				} else if($cls === 'InputfieldTinyMCE' && $settingValue === '[tinymce]') {
+					$settingValue = $field->name;
+					break;
+				}
+			}
+
+			// if nothing found, then just return blank
+			if($settingValue === '[ckeditor]' || $settingValue === '[tinymce]') $settingValue = '';
+		}
+		
+		return $settingValue;
+	}
+
+	protected $porter = null;
+	
+	/**
+	 * @return FieldtypeTablePorter
+	 * 
+	 */
+	public function porter() {
+		if($this->porter) return $this->porter;
+		require_once(__DIR__ . '/FieldtypeTablePorter.php'); 
+		$this->porter = new FieldtypeTablePorter();
+		$this->wire($this->porter);
+		return $this->porter; 
+	}
+	
+	/**
+	 * Export table rows value for a page to an array
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @param TableRows|null $value Value is not actually used here for FieldtypeTable
+	 * @param array $options
+	 * @return array
+	 *
+	 */
+	public function ___exportValue(Page $page, Field $field, $value, array $options = array()) {
+		return $this->porter()->exportValue($page, $field, $value, $options);
+	}
+
+	/**
+	 * Import a previously exported array
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @param array $value
+	 * @param array $options
+	 * @return WireData Note: populates DB directly, does not return a TableRows value
+	 *
+	 */
+	public function ___importValue(Page $page, Field $field, $value, array $options = array()) {
+		return $this->porter()->importValue($page, $field, $value, $options);
+	}
+
+	/**
+	 * Get associative array of options (name => default) that Fieldtype supports for importValue
+	 *
+	 * #pw-internal
+	 *
+	 * @param Field $field
+	 * @return array
+	 *
+	 */
+	public function getImportValueOptions(Field $field) {
+		return $this->porter()->getImportValueOptions($field);
+	}
+
+
+	/**
+	 * @return array
+	 * 
+	 */
+	public function getColTypes() {
+		return $this->colTypes;
+	}
+
+	/**
+	 * #pw-internal
+	 * 
+	 * @return FieldtypeTableTools
+	 * 
+	 */
+	public function tools() {
+		if($this->tools !== null) return $this->tools;
+		require_once(__DIR__ . '/FieldtypeTableTools.php');
+		$this->tools = new FieldtypeTableTools($this);
+		return $this->tools;	
+	}
+	
+	/**
+	 * Whether or not given Page/Field has any files connected with it
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @return bool
+	 *
+	 */
+	public function hasFiles(Page $page, Field $field) {
+		if($page->get('_version')) return $this->tools()->getFilesFromPage($page, $field, true);
+		return $this->tools()->getFilesFromDatabase($page, $field, true);
+	}
+	
+	/**
+	 * Get array of full path/file for all files managed by given page and field
+	 *
+	 * This method requires ProcessWire 3.0.233+
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @return array
+	 *
+	 */
+	public function getFiles(Page $page, Field $field) {
+		if($page->get('_version')) return $this->tools()->getFilesFromPage($page, $field);
+		return $this->tools()->getFilesFromDatabase($page, $field);
+	}
+
+	/**
+	 * Get path where files are (or would be) stored
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @return string
+	 *
+	 */
+	public function getFilesPath(Page $page, Field $field) {
+		return $page->filesPath();
+	}
+
+	/**
+	 * Get class to use for TableRow instances
+	 * 
+	 * @param TableField|Field $field
+	 * @return string
+	 * 
+	 */
+	public function getRowClass($field) {
+		return $field instanceof TableField ? $field->getRowClass() : "\\ProcessWire\\TableRow";
+	}
+
+	/**
+	 * Get class to use for TableRows WireArray instances
+	 *
+	 * @param TableField|Field $field
+	 * @return string
+	 *
+	 */
+	public function getArrayClass($field) {
+		return $field instanceof TableField ? $field->getArrayClass() : "\\ProcessWire\\TableRows";
+	}
+
+	/**
+	 * Get class name to use Field objects of this type (must be class that extends Field class)
+	 *
+	 * @param array $a Field data from DB (if needed)
+	 * @return string Return class name or blank to use default Field class
+	 * @since 3.0.146
+	 *
+	 */
+	public function getFieldClass(array $a = array()) {
+		return 'TableField';
+	}
+
+	/**
+	 * Configure the FieldtypeTable for details tab
+	 *
+	 * @param Field $field
+	 * @return InputfieldWrapper
+	 *
+	 */
+	public function ___getConfigInputfields(Field $field) {
+		$numActiveColumns = 0;
+		if(!$field->get('maxCols')) $field->set('maxCols', self::defaultCols);
+		$inputfields = parent::___getConfigInputfields($field);
+		$this->reorder($field);
+		require_once(__DIR__ . '/config.php'); 
+		return FieldtypeTable_getConfigInputfields($field, $inputfields);
+	}
+	
+}

@@ -1,0 +1,41 @@
+#ComboConfigFields .ComboConfigField, #ComboConfigFields .ComboConfigField > .InputfieldHeader, #ComboConfigFields .ComboConfigField > .InputfieldContent {
+  background: rgba(255, 255, 255, 0.4);
+}
+#ComboConfigFields .ComboConfigField > .InputfieldHeader > .fa:first-child {
+  cursor: move;
+}
+#ComboConfigFields .ComboConfigField + .ComboConfigField {
+  margin-top: 14px;
+}
+#ComboConfigFields .ComboConfigFieldDeletePending > .InputfieldHeader {
+  background: red;
+  color: white;
+  text-decoration: line-through;
+}
+#ComboConfigFields .ComboConfigFieldDeletePending > .InputfieldHeader i.fa {
+  color: white !important;
+}
+#ComboConfigFields .ComboConfigFieldDeletePending > .InputfieldContent {
+  background: red;
+}
+#ComboConfigFields .ComboDetachIcon {
+  display: none !important;
+}
+#ComboConfigFields .ComboStateDetached .ComboDetachIcon {
+  display: inline-block !important;
+  position: relative;
+  top: 3px;
+}
+#ComboConfigFields .ComboAdvancedNote {
+  clear: left;
+}
+
+#_i0_fieldset {
+  display: none;
+}
+
+#Inputfield__comboPhpDoc pre {
+  margin-bottom: 2em;
+}
+
+/*# sourceMappingURL=ComboConfig.css.map */

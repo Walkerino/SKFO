@@ -1,0 +1,17 @@
+.InputfieldFormBuilderFileUpload + .InputfieldFormBuilderFileUpload {
+	/* gap between file upload inputs */
+	margin-top: 8px;
+}
+
+.InputfieldForm input[type=radio], 
+.InputfieldForm input[type=checkbox] {
+	/* slightly larger radios and checkboxes and better align with labels */
+	transform : scale(1.2);
+	position: relative;
+	top: 2px;
+}
+
+.InputfieldFieldset > .InputfieldContent > p.notes {
+	/* larger bottom margin for notes in fieldset */
+	margin-bottom: 1.5em;
+}

@@ -1,0 +1,17 @@
+
+/* Hide the wrapper when configured to do so */
+.InputfieldComboHideWrap > .InputfieldHeader { 
+	display: none; 
+}
+.InputfieldComboHideWrap > .InputfieldContent { 
+	padding: 0; 
+}
+.InputfieldForm .InputfieldComboHideWrap {
+	margin-bottom: 0;
+	border: none;
+	outline: none;
+}
+
+.InputfieldCombo .InputfieldImageButtonCrop {
+	display: none; /* crop does not work in Combo */ 
+}

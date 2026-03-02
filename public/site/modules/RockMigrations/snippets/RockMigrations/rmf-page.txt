@@ -1,0 +1,22 @@
+// Add a page field via RockMigrations
+return [
+  'type' => 'page',
+  'label' => '$1',
+  'derefAsPage' => ${2:FieldtypePage::derefAsPageOrFalse},
+  // inputfield options:
+  // 'inputfield' => 'InputfieldSelect', // Select
+  // 'inputfield' => 'InputfieldRadios', // Radio Buttons
+  // 'inputfield' => 'InputfieldPageListSelect', // Page List Select
+  // 'inputfield' => 'InputfieldPageAutocomplete', // Page Auto Complete (single)
+  // 'inputfield' => 'InputfieldTextTags', // Text Tags (single)
+  // 'inputfield' => 'InputfieldSelectMultiple', // Select Multiple
+  // 'inputfield' => 'InputfieldCheckboxes', // Checkboxes
+  // 'inputfield' => 'InputfieldAsmSelect', // AsmSelect
+  // 'inputfield' => 'InputfieldPageAutocomplete', // Page Auto Complete
+  // 'inputfield' => 'InputfieldTextTags', // Text Tags
+  // 'inputfield' => 'InputfieldPageListSelectMultiple', // Page List Select Multiple
+  'inputfield' => 'InputfieldPageListSelect',
+  'findPagesSelector' => '${4:id>0,template!=admin}',
+  'labelFieldName' => '${5:title}',
+  'icon' => '${6:link}',
+];

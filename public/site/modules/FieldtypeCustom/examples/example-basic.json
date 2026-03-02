@@ -1,0 +1,55 @@
+{
+  "first_name": {
+    "type": "text",
+    "label": "First name",
+    "required": true,
+    "columnWidth": 50
+  },
+  "last_name": {
+    "type": "text",
+    "label": "Last name",
+    "required": true,
+    "columnWidth": 50
+  },
+  "email": {
+    "type": "email",
+    "label": "Email",
+    "placeholder": "person@company.com",
+    "required": true
+  },
+  "colors": {
+    "type": "checkboxes",
+    "label": "What are your favorite colors?",
+    "options": {
+      "r": "Red",
+      "g": "Green",
+      "b": "Blue"
+    },
+    "optionColumns": 1
+  },
+  "address": {
+    "type": "fieldset",
+    "label": "Address",
+    "children": {
+      "address_street": {
+        "type": "text",
+        "label": "Street"
+      },
+      "address_city": {
+        "type": "text",
+        "label": "City",
+        "columnWidth": 50
+      },
+      "address_state": {
+        "type": "text",
+        "label": "State/province",
+        "columnWidth": 25
+      },
+      "address_zip": {
+        "type": "text",
+        "label": "Zip/post code",
+        "columnWidth": 25
+      }
+    }
+  }
+}

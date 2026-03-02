@@ -1,0 +1,24 @@
+{
+  "name": "processwire-dashboard",
+  "version": "1.5.9",
+  "description": "Configurable dashboard for ProcessWire's admin interface",
+  "scripts": {
+    "dev": "parcel src/*.js src/*.css --dist-dir . --no-source-maps --no-hmr",
+    "build": "parcel build src/*.js src/*.css --dist-dir . --no-source-maps",
+    "bump": "bump package.json package-lock.json VERSION *.module --commit \"Release v%s\" --tag \"v\"",
+    "docs": "docsify serve docs"
+  },
+  "author": "Philipp Daun",
+  "license": "GPL-3.0",
+  "private": true,
+  "devDependencies": {
+    "@babel/core": "^7.17.10",
+    "parcel": "^2.5.0",
+    "postcss": "^8.4.13",
+    "postcss-nested": "^6.2.0"
+  },
+  "dependencies": {
+    "lodash": "^4.17.21",
+    "version-bump-prompt": "^6.1.0"
+  }
+}

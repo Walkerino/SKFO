@@ -1,0 +1,1053 @@
+<?php namespace ProcessWire;
+
+/**
+ * ProcessWire Form Builder File Inputfield
+ *
+ * Copyright (C) 2023 by Ryan Cramer Design, LLC
+ * 
+ * PLEASE DO NOT DISTRIBUTE
+ * 
+ */
+
+require_once(dirname(__FILE__) . '/InputfieldFormBuilder.php'); 
+
+/**
+ * File upload Inputfield for Form Builder
+ * 
+ * @property string $extensions
+ * @property int $maxFiles
+ * @property int $maxFileSize
+ * @property bool $usePreview
+ * @property bool $useHeader Show a header with each file item?
+ * @property bool|int $hideInputs
+ * @property string|null $hookID
+ * @property string $checkboxClass
+ * @property string $itemTag Tag to use for file item wrapper (default=fieldset)
+ * @property string $itemClass Class to use for file item wrapper
+ * @property string $itemWrapTag Tag to wrap item content in (optional, default='').
+ * @property string $itemWrapClass Class to use for element wrapping item content (optional, default='')
+ * @property string $itemHeaderTag Tag to use for header in file item (default=legend)
+ * @property string $itemHeaderClass Class to use for header in file item
+ * @property string $itemBodyTag Tag to use for element wrapping item inputs but not header (optional, default='')
+ * @property string $itemBodyClass Class to use for element wrappitem item inputs but not header (optional, default='')
+ * @property string $inputWrapTag tag to use for element wrapping <input type=file> (optional, default='')
+ * @property string $inputWrapClass Class to use for element wrapping <input type=file> (optional, default='');
+ * 
+ * @property int $descRows Number of rows for description input or 0 to disable
+ * @property string $descLabel Label/placeholder text for description input
+ * @property int $descLength Max allowed length for description
+ * @property string $descClass Class name to add to description input
+ * 
+ * @property string $addFileLabel Label for the "add file" link
+ * @property string $addFileClass Additional class names to add to "add file" link
+ * 
+ * @property string $deleteLabel Label for delete checkbox
+ * 
+ * @property int $entryID Present only when populated by hookEntriesSave() method
+ * @property array $value
+ * 
+ * @method string renderFileInput($name, $n)
+ * @method string renderDescInput($name, $n, $value = '')
+ * @method InputfieldText|InputfieldTextarea getDescInputfield($name, $n)
+ * @method string renderFileInputSet($name, $filename, $desc, $n)
+ * @method string renderFileDelete($name, $filename)
+ *
+ */
+class InputfieldFormBuilderFile extends InputfieldFormBuilder implements InputfieldHasArrayValue, InputfieldFormBuilderInterface {
+
+	/**
+	 * Return information about this module
+	 *
+	 */
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'File (for FormBuilder)',
+			'version' => 3,
+			'summary' => 'Form Builder file(s) upload input',
+			'requires' => 'FormBuilder', 
+		);
+	}
+	
+	const defaultExtensions = 'pdf doc docx xls xlsx gif jpg jpeg png';
+
+	/**
+	 * @var FormBuilder
+	 * 
+	 */
+	protected $forms;
+
+	/**
+	 * Names of file fields in the form
+	 * 
+	 * @var array
+	 * 
+	 */
+	protected static $fileFieldNames = array();
+
+	/**
+	 * File fields in the form
+	 * 
+	 * @var array
+	 * 
+	 */	
+	protected static $fileFields = array();
+
+	/**
+	 * Cached srcPath for hookEntriesSave hook
+	 * 
+	 * @var string
+	 *
+	 */
+	protected $srcPath = '';
+
+	/**
+	 * Initialize the file upload settings
+	 *
+	 */
+	public function init() {
+		$this->forms = $this->wire('forms');
+		parent::init();
+		
+		parent::set('extensions', self::defaultExtensions);
+		
+		$this->set('maxFiles', 1);
+		$this->set('maxFileSize', 1048576);
+
+		$this->set('descRows', 0);
+		$this->set('descLabel', $this->_('Description'));
+		$this->set('descLength', 2048);
+		$this->set('descClass', '');
+		
+		$this->set('usePreview', false);
+		$this->set('hideInputs', false);
+		$this->set('useHeader', false);
+		
+		$this->set('checkboxClass', '');
+		
+		$this->set('itemTag', 'fieldset');
+		$this->set('itemClass', ''); // i.e. 'card'
+		$this->set('itemWrapTag', '');
+		$this->set('itemWrapClass', ''); // i.e. 'card-body'
+		$this->set('itemHeaderTag', 'legend');
+		$this->set('itemHeaderClass', ''); // i.e. 'card-title'
+		$this->set('itemBodyTag', '');
+		$this->set('itemBodyClass', ''); // i.e. uk-card-body
+		
+		$this->set('addFileLabel', $this->_('+ Add file'));
+		$this->set('addFileClass', ''); // class names to add to add file link
+		
+		$this->set('deleteLabel', $this->_('delete'));
+
+		$this->attr('type', 'file');
+		$this->attr('value', array());
+	}
+
+	/**
+	 * Set property
+	 * 
+	 * @param string $key
+	 * @param mixed $value
+	 * @return Inputfield|InputfieldFormBuilderFile|WireData
+	 * 
+	 */
+	public function set($key, $value) {
+		if($key === 'extensions') return $this->setExtensions($value);
+		if($key === 'maxFiles' || $key === 'maxFileSize') $value = (int) $value;
+		return parent::set($key, $value);
+	}
+
+	/**
+	 * Check to ensure that the containing form as an 'enctype' attr needed for uploading files
+	 *
+	 */
+	protected function checkFormEnctype() {
+		$parent = $this->parent;
+		while($parent) {
+			if($parent->attr('method') == 'post') {
+				if(!$parent->attr('enctype')) $parent->attr('enctype', 'multipart/form-data');
+				break;
+			}
+			$parent = $parent->parent;
+		}
+	}
+	
+	/**
+	 * Set allowed file extensions
+	 * 
+	 * @param string|array $extensions
+	 * @return self
+	 * 
+	 */
+	public function setExtensions($extensions) {
+		if($extensions === parent::get('extensions')) {
+			return $this;
+		}
+		if($extensions === self::defaultExtensions) {
+			parent::set('extensions', $extensions);
+			return $this; 
+		}
+		if(!is_array($extensions)) {
+			$extensions = explode(' ', $extensions);
+		}
+		foreach($extensions as $key => $ext) {
+			$ext = trim($ext, '.');
+			if(!ctype_alnum($ext) && !empty($ext)) {
+				$ext = preg_replace('/[^a-zA-Z0-9]/', '', $ext);
+			}
+			if(empty($ext) || !ctype_alnum($ext)) {
+				unset($extensions[$key]); 
+			} else {
+				$extensions[$key] = $ext;
+			}
+		}
+		$extensions = implode(' ', $extensions);
+		if(empty($extensions)) $extensions = self::defaultExtensions;
+		parent::set('extensions', strtolower($extensions));
+		return $this;
+	}
+
+	/**
+	 * Set the parent of this Inputfield
+	 *
+	 * @param InputfieldWrapper $parent
+	 * @return $this
+	 *
+	 */
+	public function setParent(InputfieldWrapper $parent) {
+		parent::setParent($parent);
+		$this->checkFormEnctype();
+		return $this;
+	}
+
+	/**
+	 * Render the filesize string
+	 * 
+	 * @param string $file
+	 * @return string
+	 *
+	 */
+	protected function renderFilesize($file) {
+		$filesize = (int) @filesize($file); 
+		$out = wireBytesStr($filesize, 1);
+		$out = "<span class='InputfieldFormBuilderFileSize filesize detail'>($out)</span>";
+		return $out; 
+	}
+
+	/**
+	 * Render and return the output for the <input type='file'> elements
+	 * 
+	 * @return string
+	 *
+	 */
+	public function ___render() {
+
+		$sanitizer = $this->wire()->sanitizer;
+		$form = $this->getFbForm();
+		
+		if(!$form || !($form->saveFlags & FormBuilderProcessor::saveFlagDB)) {
+			$error = $this->_('File fields require that you enable the "Save to entries database" action.');
+			$this->error("$error (formID: $this->formID)");
+			return "<p>$error</p>";
+		}
+
+		if($this->maxFiles < 1) $this->maxFiles = 1;
+		
+		$attrs = $this->getAttributes();
+		unset($attrs['value']); 
+		// if(substr($attrs['name'], -1) != ']') $attrs['name'] .= '[]';
+		$attrs['name'] = str_replace('[]', '', $attrs['name']);
+		
+		$value = $this->attr('value');
+		$savePath = $this->getSavePath();
+		$numSet = 0;
+		$descRows = (int) $this->descRows;
+
+		$itemTag = $this->itemTag;
+		$itemClass = $this->itemClass;
+		$itemWrapTag = $this->itemWrapTag;
+		$itemWrapClass = $this->itemWrapClass;
+		$itemWrapStart = '';
+		$itemWrapStop = '';
+		$itemHeaderTag = $this->itemHeaderTag;
+		$itemHeaderClass = $this->itemHeaderClass;
+		$itemBodyTag = $this->itemBodyTag;
+		$itemBodyClass = $this->itemBodyClass; 
+		$itemBodyStart = '';
+		$itemBodyStop = '';
+
+		/**
+		 * <li class='InputfieldFormBuilderFileUpload'> 
+		 *   <div class='itemClass'>
+		 *     <div class='itemWrapClass'> 
+		 *       // itemWrap element is optional and not used by default
+		 *       <label class='itemHeaderClass'>Header text</label>
+		 *       <div class='itemBodyClass'> 
+		 *          // itemBody wrapping element is optional and not used by default
+		 *          ...
+		 *       </div>
+		 *     </div>
+		 *   </div>
+		 * </li>
+		 *         
+		 */
+		
+		$out = '';
+
+		$filesizeLabel = sprintf($this->_('File size too large (max=%s)'), wireBytesStr($this->maxFileSize)); 
+		$filesizeLabel = $sanitizer->entities1($filesizeLabel);
+		
+		$badTypeLabel = $this->_('Invalid file: extension does not match type');
+		$badTypeLabel = $sanitizer->entities1($badTypeLabel);
+		
+		$fieldLabel = $sanitizer->entities($this->label);
+		
+		if($itemWrapClass && empty($itemWrapTag)) $itemWrapTag = 'div';
+		if($itemWrapTag) {
+			$itemWrapStart = $itemWrapClass ? "<$itemWrapTag class='$itemWrapClass'>" : "<$itemWrapTag>";
+			$itemWrapStop = "</$itemWrapTag>";
+		}
+		if($itemBodyClass && empty($itemBodyTag)) $itemBodyTag = 'div';
+		if($itemBodyTag) {
+			$itemBodyStart = $itemBodyClass ? "<$itemBodyTag class='$itemBodyClass'>" : "<$itemBodyTag>";
+			$itemBodyStop = "</$itemWrapTag>";
+		}
+		
+		for($n = 0; $n < $this->maxFiles; $n++) {
+		
+			$o = '';
+			$name = $attrs['name'] . "_$n";
+
+			if(isset($value[$n])) {
+				// a value is already set
+				if(is_array($value[$n])) {
+					$filename = $value[$n]['file']; 
+					$desc = $value[$n]['desc'];
+				} else {
+					$filename = $value[$n];
+					$desc = '';
+				}
+				$basename = basename($filename);
+				$filename = $savePath . $basename;
+				$class = 'InputfieldFormBuilderFileItem InputfieldFormBuilderFileItemSet';
+				$o .= $this->renderFileInputSet($name, $filename, $desc, $n);
+				$numSet++;
+					
+			} else {
+				// collecting new value
+				$class = 'InputfieldFormBuilderFileUpload';
+				if($this->hideInputs) $class .= ' InputfieldFormBuilderFileUploadHidden';
+				$o .= $this->renderFileInput($name, $n);
+				if($descRows > 0) $o .= $this->renderDescInput($name, $n);
+			}
+		
+			if($itemBodyStart) $o = $itemBodyStart . $o . $itemBodyStop;
+		
+			if($this->maxFiles > 1 && $itemTag && ($this->usePreview || $this->descRows > 0)) {
+				$itemAttrs = $itemClass ? " class='$itemClass'" : '';
+				$headerAttrs = $itemHeaderClass ? " class='$itemHeaderClass'" : '';
+				$header = '';
+				if($this->useHeader && $itemHeaderTag) {
+					$header =
+						"<$itemHeaderTag$headerAttrs>" .
+							sprintf($this->_('%s #%d'), $fieldLabel, $n + 1) .
+						"</$itemHeaderTag>";
+				}
+				$o =
+					"<$itemTag$itemAttrs>" .
+						$itemWrapStart . 
+						$header . $o .
+						$itemWrapStop . 
+					"</$itemTag>";
+			}
+			
+			$out .=	"<li class='$class'>$o</li>";
+		}
+		
+		$out .= "</ul>";
+		
+		$class = 'InputfieldFormBuilderFileList';
+		if($this->descRows > 0) $class .= ' InputfieldFormBuilderFileListDesc';
+		if($this->hideInputs && !$numSet) $class .= ' InputfieldFormBuilderFileListHidden';
+		
+		$out =
+			"<ul class='$class' " .
+				"data-maxsize='$this->maxFileSize' " .
+				"data-maxsize-label='$filesizeLabel' " .
+				"data-badtype-label='$badTypeLabel'" .
+				">" . 
+				$out . 
+			"</ul>";
+
+		if($this->hideInputs) {
+			$class = $this->addFileClass ? " class='$this->addFileClass'" : "";
+			$out .= "<p class='InputfieldFormBuilderFileAdd'><button$class href='#' type='button'>$this->addFileLabel</button>";
+		}
+		
+		return $out; 
+	}
+
+	/**
+	 * Render <input type=file>
+	 * 
+	 * @param string $name
+	 * @param int $n
+	 * @return string
+	 * 
+	 */
+	protected function ___renderFileInput($name, $n) {
+		
+		$out = '';
+		$attrs = $this->getAttributes();
+		unset($attrs['name']); 
+		
+		if(empty($attrs['accept'])) {
+			$extensions = explode(' ', $this->extensions);
+			if(count($extensions)) $attrs['accept'] = '.' . implode(', .', $extensions); 
+		}
+		
+		if($this->maxFiles > 1 && $n > 0) {
+			$attrs['id'] = "$attrs[id]_$n";
+		}
+	
+		$attrStr = $this->getAttributesString($attrs);
+		$attrStr = " name='$name' $attrStr";
+	
+		$maxSize = (int) $this->maxFileSize;
+		if($maxSize > 0) {
+			$class = 'InputfieldFormBuilderFileMaxSize';
+			$out .= "<input type='hidden' class='$class' name='MAX_FILE_SIZE' value='$maxSize' />";
+		}
+		
+		$o = "<input $attrStr />";
+		
+		if($this->inputWrapClass || $this->inputWrapTag) {
+			$inputWrapTag = $this->inputWrapTag ? $this->inputWrapTag : '<div>';
+			$inputWrapAttr = $this->inputWrapClass ? " class='$this->inputWrapClass'" : "";
+			$o = "<$inputWrapTag$inputWrapAttr>$o</$inputWrapTag>";
+		}
+		
+		$out .= $o;
+
+		if($this->usePreview) {
+			$img = '<img src="" alt="" />';
+			$out .= "<div class='InputfieldFormBuilderFilePreviewImage'>$img</div>";
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Render description input
+	 * 
+	 * @param string $name
+	 * @param int $n
+	 * @param string $value
+	 * @return string
+	 * 
+	 */
+	protected function ___renderDescInput($name, $n, $value = '') {
+		$f = $this->getDescInputfield($name, $n);
+		if(strlen($value)) $f->attr('value', $value);
+		if(!$f) return '';
+		$out = $f->render();
+		return "<div class='InputfieldFormBuilderFileInputDesc'>$out</div>";
+	}
+
+	/**
+	 * Render a file item that has already been set with a file
+	 * 
+	 * @param string $name
+	 * @param string $filename
+	 * @param string $desc
+	 * @param int $n
+	 * @return string
+	 * 
+	 */
+	protected function ___renderFileInputSet($name, $filename, $desc, $n) {
+		
+		$sanitizer = $this->wire()->sanitizer;
+		
+		$basename = basename($filename);
+		$basenameEnt = $sanitizer->entities($basename);
+		$fileURL = $this->entryID ? $this->forms->getFileURL($this->formID, $this->entryID, $filename) : '';
+
+		if($fileURL) {
+			$fileURL = $sanitizer->entities($fileURL);
+			$fileDisplayName = "<a class='InputfieldFormBuilderFileName' target='_blank' href='$fileURL'>$basenameEnt</a> ";
+		} else {
+			$fileDisplayName = "<span class='InputfieldFormBuilderFileName'>$basenameEnt</span> ";
+		}
+		
+		$desc = $this->descRows > 0 ? $this->renderDescInput($name, $n, $desc) : '';
+		$tokenValue = $sanitizer->entities($this->getFileToken($basename, $n));
+		
+		$out = 
+			$fileDisplayName .
+			$this->renderFilesize($filename) . ' ' .
+			$this->renderFileDelete("_delete_$name", $basename) .
+			$desc . 
+			"<input type='hidden' name='$name' value='$basenameEnt' />" .
+			"<input type='hidden' name='_tok_$name' value='$tokenValue' />";
+		
+		if(!$this->itemBodyClass && !$this->itemBodyTag) {
+			$out = "<div>$out</div>";
+		}
+		
+		return $out;
+	}
+
+	/**
+	 * Render file deletion checkbox
+	 *
+	 * @param string $name Deletion checkbox name attribute
+	 * @param string $filename File basename associated with checkbox
+	 * @return string
+	 * 
+	 */
+	protected function ___renderFileDelete($name, $filename) {
+		
+		$label = $this->deleteLabel;
+		if($label === 'delete') $label = ucfirst($label);
+		
+		/** @var InputfieldCheckbox $checkbox */
+		$checkbox = $this->wire()->modules->get('InputfieldCheckbox');
+		$checkbox->attr('name', $name);
+		$checkbox->attr('value', $filename);
+		$checkbox->label = $label;
+		if($this->checkboxClass) $checkbox->addClass($this->checkboxClass);
+		
+		$labelAttrs = $checkbox->labelAttrs; 
+		
+		if(is_array($labelAttrs)) { // >= 3.0.141+
+			$labelAttrs['class'] = (isset($labelAttrs['class']) ? "$labelAttrs[class] " : '') . 'InputfieldFormBuilderFileDelete';
+			$checkbox->labelAttrs = $labelAttrs;
+		}
+	
+		$parent = $this->getParent();
+		if($parent) {
+			$out = $parent->renderInputfield($checkbox);
+		} else {
+			$out = $checkbox->render();
+		}
+		
+		if(!is_array($labelAttrs)) { // < 3.0.141
+			$out = str_replace('<label>', "<label class='InputfieldFormBuilderFileDelete'>", $out);
+		}
+		
+		return $out;
+	}
+	
+	/**
+	 * Get description Inputfield
+	 *
+	 * @param string $name
+	 * @param int $n
+	 * @return InputfieldText|InputfieldTextarea|null
+	 *
+	 */
+	protected function ___getDescInputfield($name, $n) {
+		$rows = (int) $this->descRows;
+
+		if($rows < 1) {
+			return null;
+		} else if($rows > 1) {
+			/** @var InputfieldTextarea $f */
+			$f = $this->wire()->modules->get('InputfieldTextarea');
+			$f->attr('rows', $rows);
+		} else {
+			/** @var InputfieldText $f */
+			$f = $this->wire()->modules->get('InputfieldText');
+		}
+		
+		$name = 'desc__' . $name;
+
+		$f->attr('name', $name);
+		$f->attr('placeholder', $this->descLabel);
+		$f->attr('aria-label', $this->descLabel);
+
+		if($this->descClass) $f->addClass($this->descClass);
+		if($this->descLength) $f->maxlength = $this->descLength;
+		$f->stripTags = true;
+
+		return $f;
+	}
+
+
+	/**
+	 * Render the value of this field without inputs
+	 * 
+	 * @return string
+	 *
+	 */
+	public function ___renderValue() {
+
+		$out = '';
+		$sanitizer = $this->wire()->sanitizer;
+
+		foreach($this->attr('value') as /* $n => */ $filename) {
+			
+			if(is_array($filename)) {
+				$desc = $sanitizer->entities($filename['desc']);
+				if(strlen($desc)) $desc = "- $desc";
+				$filename = $filename['file'];
+			} else {
+				$desc = '';
+			}
+
+			$basename = $sanitizer->entities(basename($filename));
+			$ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION)); 
+
+			$url = $sanitizer->entities($this->forms->getFileURL($this->formID, $this->entryID, $filename));
+			$class = '';
+			
+			if(in_array($ext, array('png', 'jpg', 'jpeg', 'gif'))) {
+				$class = 'class="pw-modal"';
+			}
+			
+			$a = "<a target='_blank' $class href='$url'>$basename</a>";
+			$size = $this->renderFilesize($filename);
+			
+			$out .= "<li>$a $size $desc</li>";
+		}
+		
+		if($out) {
+			$out = "<ul class='InputfieldFormBuilderFileList'>$out</ul>";
+		}
+
+		return $out; 
+	}
+
+	/**
+	 * Return a location where the file will be saved
+	 * 
+	 * @return string
+	 *
+	 */
+	public function getSavePath() {
+		$savePath = '';
+		if($this->entryID) {
+			$form = $this->getFbForm();
+			if($form) {
+				$savePath = $form->entries()->getFilesPath($this->entryID);
+			}
+		}
+		if(!$savePath) {
+			$savePath = $this->forms->getFilesPath(true); // true=get tmp dir
+		}
+		return $savePath;
+	}
+
+	/**
+	 * Reduce a filename (or basename) to a basename with only allowed ascii characters
+	 * 
+	 * @param string $filename
+	 * @return string
+	 *
+	 */
+	protected function sanitizeBasename($filename) {
+		$info = pathinfo($filename);
+		if(isset($info['extension'])) {
+			$basename = basename($info['basename'], ".$info[extension]");
+		} else {
+			$basename = $info['basename']; 
+		}
+		$basename = preg_replace('/[^-_a-zA-Z0-9]/', '-', trim($basename));
+		if(isset($info['extension'])) {
+			$ext = preg_replace('/[^-_a-zA-Z0-9]/', '-', $info['extension']);
+			return "$basename.$ext";
+		} else {
+			return $basename;
+		}
+	}
+
+	/**
+	 * Process fiel upload submission
+	 *
+	 * @param WireInputData $input
+	 * @return $this
+	 *
+	 */
+	public function ___processInput(WireInputData $input) {
+		
+		$files = $this->wire()->files;
+		$sanitizer = $this->wire()->sanitizer;
+		
+		// parent::___processInput($input);
+
+		$savePath = $this->getSavePath();
+		$tempPath = $this->forms->getFilesPath(true);
+		
+		$name = str_replace('[]', '', $this->attr('name'));
+		$value = array(); // $this->attr('value'); /** @var array $value */
+		$extensions = explode(' ', trim($this->extensions));
+		$maxFileSize = (int) $this->maxFileSize;
+		$descRows = (int) $this->descRows;
+		$descLength = (int) $this->descLength;
+		
+		foreach($extensions as $key => $extension) {
+			if(empty($extension)) {
+				unset($extensions[$key]); 
+			} else {
+				$extensions[$key] = strtolower($extension); 
+			}
+		}
+		
+		// populate value attribute for existing files (those with input[type=hidden])
+		for($n = 0; $n < $this->maxFiles; $n++) {
+			$uploadName = $name . "_$n";
+			
+			if(!isset($input[$uploadName])) continue;
+			
+			$basename = $this->sanitizeBasename($input[$uploadName]);
+			if(empty($basename)) continue;
+
+			$tokenName = "_tok_$uploadName";
+			if(!isset($input[$tokenName])) continue;
+			$tokenValue = $this->getFileToken($basename, $n);
+			if($input[$tokenName] !== $tokenValue) continue;
+			
+			$pathname = $savePath . $basename;
+			if(!is_file($pathname) || !is_writable($pathname)) continue;
+			if($descRows) {
+				$value[$n] = array('file' => $pathname, 'desc' => ''); 
+			} else {
+				$value[$n] = $pathname;
+			}
+		}
+
+		// deletions
+		for($n = 0; $n < $this->maxFiles; $n++) {
+			// check for deleted files
+			$deleteName = "_delete_{$name}_$n";
+			$deleteValue = $input[$deleteName];
+			if(empty($deleteValue) || !isset($value[$n])) continue;
+			if(is_array($value[$n])) {
+				$basename = $this->sanitizeBasename($value[$n]['file']);
+			} else {
+				$basename = $this->sanitizeBasename($value[$n]);
+			}
+			if($deleteValue !== $basename) continue;
+			$filename = $savePath . $basename;
+			if(is_file($filename) && is_writable($filename)) {
+				$files->unlink($filename);
+				unset($value[$n]);
+				$this->message(sprintf($this->_('Deleted: %s'), $basename));
+			}
+		}
+
+		/*
+		// restore the value attribute to have full path
+		foreach($value as $n => $v) {
+			if(is_array($v)) {
+				$value[$n]['file'] = $savePath . $this->sanitizeBasename($v['file']);
+			} else {
+				$value[$n] = $savePath . $this->sanitizeBasename($v);
+			}
+		}
+		*/
+
+		// uploads
+		for($n = 0; $n < $this->maxFiles; $n++) {
+			
+			// skip if a file is already populated for this
+			if(isset($value[$n])) {
+				continue;
+			}
+			
+			$uploadName = $name . "_$n";
+			
+			// skip if no upload present for this
+			if(!isset($_FILES[$uploadName])) continue;
+			
+			// process newly uploaded file
+			$ul = $this->wire(new WireUpload($uploadName)); /** @var WireUpload $ul */
+			$ul->setDestinationPath($savePath);
+			$ul->setOverwrite(false);
+			$ul->setMaxFiles(1);
+			$ul->setValidExtensions($extensions);
+
+			if($maxFileSize && method_exists($ul, 'setMaxFileSize')) {
+				$ul->setMaxFileSize($maxFileSize);
+			}
+			
+			foreach($ul->execute() as $basename) {
+				// add additional files to our $value
+				$filename = $savePath . $basename;
+				if($this->maxFileSize && filesize($filename) > $this->maxFileSize) {
+					$this->error("$filename - " . sprintf($this->_('Exceeds max file size of %d bytes.'), $this->maxFileSize));
+					$files->unlink($filename);
+					unset($value[$n]);
+				} else if($descRows > 0) {
+					$value[$n] = array('file' => $filename, 'desc' => '');
+				} else {
+					$value[$n] = $filename;
+				}
+				break; // only handling 1 file here
+			}
+
+			$n1 = $n+1;
+			foreach($ul->getErrors() as $error) {
+				$this->error("$this->label #$n1: $error");
+			}
+		}
+	
+		// descriptions
+		if($descRows > 0) {
+			$sanitizerName = $descRows > 1 ? 'textarea' : 'text';
+			for($n = 0; $n < $this->maxFiles; $n++) {
+				if(!isset($value[$n])) continue;
+				$v = $value[$n];
+				if(is_array($v)) {
+					$file = $v['file'];
+					$desc = $v['desc'];
+				} else {
+					$file = $v;
+					$desc = '';
+				}
+				$descName = "desc__{$name}_$n";
+				if(isset($input[$descName])) {
+					$desc = $sanitizer->$sanitizerName($input[$descName], array('maxLength' => $descLength));
+				}
+				$value[$n] = array(
+					'file' => $file, 
+					'desc' => $desc, 
+				);
+			}
+		}
+
+		if($savePath === $tempPath) {
+			// file is in temporary save path and needs to be moved to an entry
+			// add a hook to the entry save that will move this file to its final destination
+			$this->hookID = $this->forms->addHookAfter('FormBuilderEntries::save', $this, 'hookEntriesSave');
+			self::$fileFieldNames[] = $name;
+			self::$fileFields[$name] = $this;
+		}
+
+		// make $value the new value attribute of this inputfield	
+		$values = array();
+		foreach($value as $v) $values[] = $v; // force renumber
+		$this->setAttribute('value', $values);  
+		
+		return $this; 
+	}
+
+	/**
+	 * Hook that moves the file from it's temporary location to a permanent one
+	 * 
+	 * @param HookEvent
+	 *
+	 */
+	public function hookEntriesSave(HookEvent $event) {
+		
+		$files = $this->wire()->files;
+
+		// this ensures this only runs once
+		if(!count(self::$fileFields)) return;
+
+		/** @var FormBuilderEntries $entries */
+		$entries = $event->object;	
+		$entryID = (int) $event->return;
+		if(!$entryID) return;
+
+		$entry = $event->arguments[0]; 
+		$entry['id'] = $entryID;
+		$descRows = (int) $this->descRows;
+
+		foreach(self::$fileFields as $name => $inputfield) {
+			/** @var InputfieldFormBuilderFile $inputfield */
+			
+			if(!$inputfield->srcPath()) {
+				$inputfield->srcPath($inputfield->getSavePath());
+			}
+
+			$value = $entry[$name];
+			$srcPath = $inputfield->srcPath();
+			$dstPath = $entries->getFilesPath($entryID);
+
+			foreach($value as $key => $v) {
+				if(is_array($v)) {
+					$pathname = $v['file'];
+					$desc = $v['desc'];
+				} else {
+					$pathname = $v;
+					$desc = '';
+				}
+				
+				$basename = basename($pathname); 
+				$srcFile = $srcPath . $basename;
+				$dstFile = $dstPath . $basename;
+			
+				if(method_exists($files, 'exists') && !$files->exists($srcFile, 'file')) {
+					// >= PW 3.0.180
+					unset($value[$key]);
+					continue; 
+				} else if(!is_file($srcFile)) {
+					// <= PW 3.0.179
+					unset($value[$key]); 
+					continue; 
+				}
+				
+				$files->copy($srcFile, $dstFile);
+				$files->unlink($srcFile);
+				if($descRows > 0) {
+					$value[$key] = array('file' => $dstFile, 'desc' => $desc); 
+				} else {
+					$value[$key] = $dstFile;
+				}
+			}
+
+			// update the value attribute to point to files in their new location
+			$inputfield->attr('value', $value);
+			$inputfield->set('entryID', $entryID);
+
+			// prevent infinite loop from next call
+			$this->removeHook($this->hookID); 
+
+			// populate updated value back to entries
+			$entry[$name] = $value; 
+			unset(self::$fileFields[$name]); 
+		}
+
+		$entries->save($entry); 
+
+		// set the entry ID		
+		$this->set('entryID', $entryID);
+
+		// clean out old files
+		$this->garbageCollection();
+	}
+	
+	/**
+	 * Get or set the srcPath (used by hookEntriesSave hook)
+	 *
+	 * @param string|null $path Specify only if you want to set it
+	 * @return string
+	 *
+	 */
+	public function srcPath($path = null) {
+		if(!is_null($path)) $this->srcPath = $path;
+		return $this->srcPath;
+	}
+	
+	/**
+	 * Get file token
+	 *
+	 * @param string $basename
+	 * @param int $n
+	 * @return string
+	 *
+	 */
+	protected function getFileToken($basename, $n) {
+		$forms = $this->wire()->forms; /** @var FormBuilder $forms */
+		return sha1($basename . $forms->licenseKey . $n . __FILE__);
+	}
+
+
+	/**
+	 * Clear out any files in the savePath that may be present from incompleted forms
+	 *
+	 * We consider a file expired if it's been sitting in the tmp dir for 3 or more hours.
+ 	 *
+	 * @todo perhaps move to FormBuilderMain, as this may be applicable to more than just this Inputfield.
+	 *
+	 */
+	protected function garbageCollection() {
+		$time = time();
+		$expired = 3600 * 3; // 3 hours
+		foreach(new \DirectoryIterator($this->forms->getFilesPath(true)) as $file) {	
+			if($file->isDot() || $file->isDir() || !$file->isFile()) continue;
+			if($time - $file->getMTime() > $expired) {
+				@unlink($file->getPathname());
+			}
+		}
+	}
+
+	/**
+	 * Inputfield configuration settings
+	 * 
+	 * @return InputfieldWrapper
+	 *
+	 */
+	public function ___getConfigInputfields() {
+
+		$modules = $this->wire()->modules;
+		$inputfields = parent::___getConfigInputfields();
+
+		/** @var InputfieldTextarea $f */
+		$f = $modules->get('InputfieldTextarea');
+		$f->attr('name', 'extensions');
+		$f->attr('value', $this->extensions);
+		$f->attr('rows', 3);
+		$f->label = $this->_('Valid file extensions');
+		$f->description = $this->_('Enter all file extensions allowed by this upload field. Separate each extension by a space. No periods or commas.');
+		$inputfields->append($f);
+		
+		/** @var InputfieldInteger $f */
+		$f = $modules->get('InputfieldInteger');
+		$f->attr('name', 'maxFileSize');
+		$f->attr('value', (int) $this->maxFileSize);
+		$f->attr('size', 15);
+		$f->label = $this->_('Max file size (per file) in bytes');
+		$f->notes = $this->_('Examples:') . ' ' .
+			$this->_('256000=250 KB, 512000=500 KB, 1048576=1 MB, 5242880=5 MB, 10485760=10 MB');
+		$inputfields->append($f);
+
+		/** @var InputfieldInteger $f */
+		$f = $modules->get('InputfieldInteger');
+		$f->attr('name', 'maxFiles');
+		$f->attr('value', (int) $this->maxFiles);
+		$f->attr('size', 4);
+		$f->label = $this->_('Max number of files allowed');
+		$f->description = $this->_('Must be 1 or greater');
+		$inputfields->append($f);
+		
+		/** @var InputfieldInteger$f */
+		$f = $modules->get('InputfieldInteger');
+		$f->attr('name', 'descRows');
+		$f->label = $this->_('Number of rows for file description inputs');
+		$f->description = $this->_('Specify 1 for single line text input, 2 or more for textarea input, or 0 to disable description input.');
+		$f->attr('value', (int) $this->descRows);
+		$inputfields->add($f);
+		
+		/** @var InputfieldInteger$f */
+		$f = $modules->get('InputfieldInteger');
+		$f->attr('name', 'descLength');
+		$f->label = $this->_('Max allowed length for each file description.');
+		$f->attr('value', (int) $this->descLength);
+		$f->showIf = 'descRows>0';
+		$inputfields->add($f);
+
+		/** @var InputfieldToggle $f */
+		$f = $modules->get('InputfieldToggle');
+		$f->attr('name', 'hideInputs');
+		$f->label = $this->_('Show one file upload input at a time?');
+		$f->description = $this->_('When enabled only one file upload input will appear at first, and another will be revealed each time the user selects a file (up to the max files limit).');
+		$f->notes = $this->_('This option is recommended for embed methods C and D only. Do not use with embed methods A or B.'); 	
+		$f->attr('value', (int) $this->hideInputs);
+		$f->showIf = 'maxFiles>1';
+		$inputfields->add($f);
+
+		/** @var InputfieldToggle $f */
+		$f = $modules->get('InputfieldToggle');
+		$f->attr('name', 'usePreview');
+		$f->label = $this->_('Show preview for image file uploads?');
+		$f->description = $this->_('When enabled a preview thumbnail image will appear after a user selects an image.');
+		$f->notes = $this->_('This feature is appropriate for image file uploads only (jpg, png, gif).'); 
+		$f->attr('value', (int) $this->usePreview);
+		$inputfields->add($f);
+
+		/** @var InputfieldToggle $f */
+		$f = $modules->get('InputfieldToggle');
+		$f->attr('name', 'useHeader');
+		$f->label = $this->_('Show a numbered headline with each file item?');
+		$example = $this->label ? "$this->label" : $this->name;
+		$f->notes = sprintf($this->_('Example: %s'), "$example #1"); 
+		$f->showIf = 'maxFiles>1';
+		$f->attr('value', (int) $this->useHeader);
+		$inputfields->add($f);
+
+		return $inputfields;
+	}
+
+
+}

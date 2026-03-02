@@ -1,0 +1,81 @@
+table.AdminDataTable tr td {
+	vertical-align: middle;
+}
+
+#promailer-spinner {
+	display: none;
+}
+
+#promailer-subscribers-list h2 {
+	margin-top: 0;
+}
+
+.pw-content .promailer-preview {
+	margin-top: 20px; 
+	margin-bottom: 0;
+}
+.pw-content .promailer-preview .detail {
+	padding-top: 3px;
+}
+
+@media screen and (min-width: 960px) {
+	#promailer-subscribers-sort {
+		float: right;
+	}
+}
+
+#promailer-subscribers-form {
+	display: none;
+}
+
+body.pw-ready #promailer-subscribers-form {
+	display: block;
+}
+
+#promailer-subscribers-table img {
+	float: left;
+	margin-right: 5px;
+	display: inline-block;
+}
+
+#promailer-subscribers-table span.promailer-id {
+	display: inline-block;
+	line-height: 40px;
+}
+
+#promailer-subscribers-table input[type=email],
+#promailer-subscribers-table input[type=text] {
+	width: 100%;
+}
+
+.AdminThemeDefault #promailer-subscribers-markup .InputfieldContent {
+	padding: 1em 0 0 0;
+	border: none;
+}
+
+.AdminThemeReno #promailer-subscribers-markup .InputfieldContent {
+	padding: 2em 0 0 0;
+	border-left: none;
+	border-right: none;
+	border-bottom: none;
+}
+
+/*
+.AdminThemeDefault #content > .pw-container > ul,
+.AdminThemeReno #content > ul {
+	list-style: square !important;
+	margin-left: 1em;
+	padding-left: 1em;
+	
+}
+*/
+.AdminThemeReno ul li strong {
+	font-weight: bold;
+}
+.AdminThemeDefault .pw-content > .pw-container > ul > li > ul > li,
+.AdminThemeReno .pw-content > ul > li > ul > li {
+	display: list-item;
+	list-style: disc;
+	margin: 0 0 0 2em;
+	padding: 0;
+}

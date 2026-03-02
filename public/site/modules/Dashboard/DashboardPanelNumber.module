@@ -1,0 +1,104 @@
+<?php namespace Daun\Dashboard;
+
+use NumberFormatter;
+use function ProcessWire\__;
+
+// Include abstract panel base class
+require_once dirname(__DIR__).'/Dashboard/DashboardPanel.class.php';
+
+class DashboardPanelNumber extends DashboardPanel
+{
+    public static function getModuleInfo()
+    {
+        return array_merge(
+            parent::getModuleInfo(),
+            [
+                'title'    => __('Dashboard Panel: Number', __FILE__),
+                'summary'  => __('Display a single number with trend indicator', __FILE__),
+                'author'   => 'Philipp Daun',
+                'version'  => '1.5.9',
+            ]
+        );
+    }
+
+    public function getIcon()
+    {
+        return 'bar-chart';
+    }
+
+    public function getContent()
+    {
+        return $this->view('panels/number', [
+            'number' => $this->number,
+            'detail' => $this->detail,
+            'trend' => $this->trend,
+        ]);
+    }
+
+    public function setup()
+    {
+        parent::setup();
+        $this->locale = $this->data['locale'] ?? setlocale(LC_ALL, 0);
+        $this->detail = $this->data['detail'] ?? '';
+        $this->number = $this->data['number'] ?? null;
+        $this->trend = $this->data['trend'] ?? null;
+        if (is_int($this->number) || is_float($this->number)) {
+            $this->number = $this->formatNumber($this->number);
+        }
+    }
+
+    private function formatNumber($number)
+    {
+        $formatted = $number;
+
+        try {
+            $style = NumberFormatter::DECIMAL;
+            $formatter = new NumberFormatter($this->locale, $style);
+            $formatted = $formatter->format($number);
+        } catch (\Throwable $th) {
+            $this->setTemporaryLocale();
+            $locale = localeconv();
+            $decimals = $this->getNumberOfDecimals($number);
+            $formatted = number_format($number, $decimals, $locale['decimal_point'], $locale['thousands_sep']);
+            $this->restoreLocales();
+        }
+
+        return $formatted;
+    }
+
+    private function getNumberOfDecimals($value)
+    {
+        if ((int) $value == $value) {
+            return 0;
+        } elseif (!is_numeric($value)) {
+            return 0;
+        }
+        $str = rtrim(number_format($value, 14 - log10($value)), '0');
+
+        return strlen($str) - strrpos($str, '.') - 1;
+    }
+
+    private function setTemporaryLocale()
+    {
+        if ($this->locale) {
+            $this->originalLocales = explode(';', setlocale(LC_ALL, 0));
+            setlocale(LC_ALL, $this->locale);
+        }
+    }
+
+    private function restoreLocales()
+    {
+        if ($this->locale && $this->originalLocales) {
+            foreach ($this->originalLocales as $localeSetting) {
+                if (strpos($localeSetting, '=') !== false) {
+                    list($category, $locale) = explode('=', $localeSetting);
+                    $category = (int) $category;
+                } else {
+                    $category = LC_ALL;
+                    $locale = $localeSetting;
+                }
+                setlocale($category, $locale);
+            }
+        }
+    }
+}

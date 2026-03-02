@@ -1,0 +1,353 @@
+<?php namespace ProcessWire;
+
+/**
+ * Inputfield for FieldtypeFunctional
+ * 
+ * This is a commercial module, part of the ProcessWire ProFields package
+ * DO NOT DISTRIBUTE
+ *
+ * ProcessWire 3.x, Copyright 2022 by Ryan Cramer
+ * https://processwire.com
+ * 
+ * @property Page $hasPage Page connected with this Inputfield
+ * @property string $richtextSettingsField Existing CKEditor or TinyMCE Field to use for configuration of CKEditor fields.
+ * @property int $textareaRows Quantity of rows to use for textarea fields
+ * @property int|bool $naked Display functional fields without wrapping Fieldset?
+ * 
+ * @todo option to render field without parent fieldset (like Combo)
+ * 
+ */
+class InputfieldFunctional extends Inputfield { 
+	
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'Functional Fields',
+			'version' => 3,
+			'summary' => 'Inputfield that contains fields mapped to definitions directly in template file',
+			'requires' => 'FieldtypeFunctional, ProcessWire>=3.0.184',
+		);
+	}
+
+	/**
+	 * Cached result of getInputfields() method
+	 * 
+	 * @var InputfieldWrapper
+	 * 
+	 */
+	protected $inputfields;
+	
+	/**
+	 * Value set from setTextDefinitions() method
+	 * 
+	 * @var array
+	 * 
+	 */
+	protected $definitions;
+
+	/**
+	 * Construct and define default config values
+	 * 
+	 */
+	public function __construct() {
+		parent::__construct();
+		$this->set('richtextSettingsField', '');
+		$this->set('textareaRows', 5); 
+		$this->set('naked', 0);
+	}
+
+	/**
+	 * Set the text definitions (set by the Fieldtype)
+	 * 
+	 * @param array $defs
+	 * 
+	 */
+	public function setTextDefinitions(array $defs) {
+		$this->definitions = $defs;
+	}
+
+	/**
+	 * Get Inputfields to be rendered and processed here
+	 * 
+	 * Each Inputfield object is set with a “textdomain” property that indicates the text it translates.
+	 * 
+	 * Caches result to $this->inputfields
+	 * 
+	 * @return InputfieldWrapper
+	 * @throws WireException
+	 * 
+	 */
+	protected function getInputfields() {
+	
+		if($this->inputfields) return $this->inputfields;
+		
+		//$this->addClass('InputfieldWrapper', 'wrapClass'); // @todo borderless option
+		//$inputfields = new InputfieldWrapper();
+	
+		$modules = $this->wire()->modules;
+		$inputfields = $modules->get('InputfieldFieldset'); /** @var InputfieldFieldset $inputfields */
+		$value = $this->attr('value');
+		$page = $this->hasPage;
+		$languages = $this->wire()->languages;
+		$fieldsets = array();
+		
+		if(!$this->definitions) return $inputfields;
+		
+		if($page && $languages && $page->template->noLang) $languages = null;
+		
+		$inputfieldFallbacks = array(
+			'textarea' => 'InputfieldTextarea',
+			'richtext' => ($modules->isInstalled('InputfieldTinyMCE') ? 'InputfieldTinyMCE' : 'InputfieldCKEditor'),
+		);
+		
+		foreach($this->definitions as $textdomain => $def) {
+
+			$type = isset($def['type']) ? $def['type'] : '';
+			$name = $this->attr('name') . '__' . $textdomain;
+			
+			/** @var Inputfield $inputfield */
+		
+			// get the appropriate Inputfield module
+			if($type == 'richtext') {
+				$f = $this->get('richtextSettingsField');
+				if($f) $f = $this->wire()->fields->get($f);
+				if($f) {
+					$inputfield = $f->getInputfield($page); 
+				} else {
+					$inputfield = $modules->get($inputfieldFallbacks[$type]);
+				}
+			} else if($type == 'textarea') {
+				$inputfield = $modules->get('InputfieldTextarea');
+				$inputfield->set('rows', $this->textareaRows);
+				$inputfield->attr('placeholder', $def['text']);
+			} else if($type == 'fieldset') {
+				$inputfield = $modules->get('InputfieldFieldset');
+				$fieldsets[$name] = $inputfield;
+			} else {
+				$inputfield = $modules->get('InputfieldText');
+				$inputfield->attr('placeholder', $def['text']); 
+			}
+			
+			// populate default values to Inputfield
+			$inputfield->attr('name', $name); 
+			$inputfield->attr('value', $def['text']);
+			$inputfield->label = '';
+			$inputfield->notes = '';
+	
+			// set a textdomain property for matching with text by other methods in this class
+			$inputfield->set('textdomain', $textdomain);
+		
+			// label can be either in $def or in $def['meta'];
+			$label = !empty($def['label']) ? $def['label'] : '';
+
+			// other meta settings specified to add to Inputfield instance
+			if(!empty($def['meta'])) {
+				foreach($def['meta'] as $k => $v) {
+					$inputfield->set($k, $v);
+					if($k == 'label' && !$label) $label = $v;
+				}
+			}
+		
+			// when no label, do not show header for the Inputfield and never collapse it
+			if(!$label) {
+				$inputfield->skipLabel = Inputfield::skipLabelHeader;
+				$inputfield->collapsed = Inputfield::collapsedNo;
+			}
+		
+			// if we have a value available, populate it
+			if(!empty($value[$textdomain])) {
+				$inputfield->attr('value', $value[$textdomain]);
+			}
+		
+			// multi-language support
+			if($languages && $type != 'fieldset') {
+				$inputfield->useLanguages = true;
+				foreach($languages as $language) {
+					if($language->isDefault()) continue;
+					if(isset($value["$textdomain.$language"])) {
+						$v = $value["$textdomain.$language"];
+						$inputfield->set("value$language", $v);
+						if(!$type || $type == 'text' || $type == 'textarea') {
+							$inputfield->set("placeholder$language", $v);
+						}
+					}
+				}
+			}
+			
+			$inputfield->resetTrackChanges();
+			$inputfields->add($inputfield);
+		}
+	
+		// construct any Fieldsets that were found
+		foreach($fieldsets as $fieldset) {
+			/** @var InputfieldFieldset $fieldset */
+			$names = explode(',', $fieldset->attr('value'));
+			$fieldset->attr('value', '');
+			foreach($names as $name) {
+				$name = $this->attr('name') . '__' . trim($name); 
+				$inputfield = $inputfields->getChildByName($name);
+				if(!$inputfield) continue;
+				$inputfields->remove($inputfield); 
+				$fieldset->add($inputfield); 
+			}
+		}
+		
+		$this->inputfields = $inputfields;
+		
+		return $inputfields;
+	}
+
+	/**
+	 * Render ready
+	 * 
+	 * @param Inputfield|null $parent
+	 * @param bool $renderValueMode
+	 * @return bool
+	 * 
+	 */
+	public function renderReady(Inputfield $parent = null, $renderValueMode = false) {
+		$inputfields = $this->getInputfields();
+		$inputfields->renderReady($parent, $renderValueMode);
+		if($this->naked) $this->addClass('InputfieldFunctionalNaked', 'wrapClass');
+		return parent::renderReady($parent, $renderValueMode);
+	}
+
+	/**
+	 * Render Inputfield
+	 * 
+	 * @return string
+	 * 
+	 */
+	public function ___render() {
+		$inputfields = $this->getInputfields();
+		if($inputfields->count()) {
+			//$value = $this->attr('value');
+			//$this->setValues($value, $inputfields);	
+			return $inputfields->render();
+		} else {
+			return 
+				'<p>' . wireIconMarkup('info-circle') . ' ' . 
+				$this->_('There aren’t any Functional fields defined yet.') . ' ' . 
+				"<a href='https://processwire.com/blog/posts/functional-fields/#functional-functions' target='_blank'>" . 
+				$this->_('How to define functional fields') . ' ' .  wireIconMarkup('angle-right') . 
+				"</a></p>";
+		}
+	}
+
+	/**
+	 * Render non-editable value
+	 * 
+	 * @return string
+	 * 
+	 */
+	public function ___renderValue() {
+		return $this->getInputfields()->renderValue();
+	}
+
+	/**
+	 * Process input
+	 * 
+	 * @param WireInputData $input
+	 * @return $this
+	 * 
+	 */
+	public function ___processInput(WireInputData $input) {
+		
+		/** @var FieldtypeFunctional $fieldtype */
+		$fieldtype = $this->hasField->type; 
+		$values = $fieldtype->newValue(); 
+		$inputfields = $this->getInputfields();
+		$languages = $this->wire()->languages;
+		$value = $this->attr('value'); 
+		$this->setValues($value, $inputfields);
+		$numChanges = 0;
+		
+		foreach($inputfields->getAll() as $inputfield) {
+			/** @var Inputfield $inputfield */
+			$textdomain = $inputfield->get('textdomain');
+			$inputfield->resetTrackChanges();
+			$inputfield->processInput($input);
+			$values[$textdomain] = $inputfield->attr('value');
+			if($languages && $inputfield->useLanguages) {
+				foreach($languages as $language) {
+					if($language->isDefault()) continue;
+					$values["$textdomain.$language"] = $inputfield->get("value$language");
+				}
+			}
+			if($inputfield->isChanged()) {
+				$numChanges++;
+			}
+		}
+		
+		$this->attr('value', $values); 
+		if($numChanges) $this->trackChange('value');
+		
+		return $this;
+	}
+
+	/**
+	 * Set values to the individual Inputfields managed by this class
+	 * 
+	 * @param FunctionalWireData|array $values Array of values indexed by textdomain 
+	 * @param InputfieldWrapper|null $inputfields Inputfields to set values to (all need a 'textdomain' property matching those in $values)
+	 * 
+	 */
+	public function setValues($values, $inputfields = null) {
+		
+		$languages = $this->wire()->languages;
+		if(!$inputfields) $inputfields = $this->getInputfields();
+		
+		foreach($inputfields->getAll() as $inputfield) {
+			/** @var Inputfield $inputfield */
+			if($inputfield instanceof InputfieldWrapper) continue;
+			$textdomain = $inputfield->get('textdomain');
+			if(isset($values[$textdomain])) {
+				$inputfield->attr('value', $values[$textdomain]);
+			}
+			if($languages && $inputfield->useLanguages) {
+				foreach($languages as $language) {
+					if($language->isDefault()) continue;
+					$key = "$textdomain.$language";
+					$val = isset($values[$key]) ? $values[$key] : '';
+					$inputfield->set("value$language", $val);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Get values from all the Inputfields managed by this calss
+	 * 
+	 * @param InputfieldWrapper|null $inputfields Optionally provide Inputfields (default=auto)
+	 * @return FunctionalWireData 
+	 * 
+	 */
+	public function getValues($inputfields = null) {
+
+		/** @var FieldtypeFunctional $fieldtype */
+		$fieldtype = $this->hasField->type;
+		$values = array();
+		$languages = $this->wire()->languages;
+		
+		if(!$inputfields) $inputfields = $this->getInputfields();
+		
+		foreach($inputfields->getAll() as $inputfield) {
+			if($inputfield instanceof InputfieldWrapper) continue;
+			/** @var Inputfield $inputfield */
+			$textdomain = $inputfield->get('textdomain');
+			$values[$textdomain] = $inputfield->attr('value');
+			if($languages && $inputfield->useLanguages) {
+				foreach($languages as $language) {
+					if($language->isDefault()) continue;
+					$v = (string) $inputfield->get("value$language");
+					if(strlen($v)) {
+						$values["$textdomain.$language"] = $v;
+					} else {
+						unset($values["$textdomain.$language"]);
+					}
+				}
+			}
+		}
+
+		return $fieldtype->newValue($values);
+	}
+}

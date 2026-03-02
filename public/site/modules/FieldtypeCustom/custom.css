@@ -1,0 +1,12 @@
+/* Hide the wrapper when configured to do so */
+.InputfieldCustomHideWrap > .InputfieldHeader {
+	display: none;
+}
+.InputfieldCustomHideWrap > .InputfieldContent {
+	padding: 0;
+}
+.InputfieldForm .InputfieldCustomHideWrap {
+	margin-bottom: 0;
+	border: none;
+	outline: none;
+}

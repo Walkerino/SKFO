@@ -1,0 +1,588 @@
+<?php namespace Daun\Dashboard;
+
+use ProcessWire\Module;
+use ProcessWire\Process;
+use ProcessWire\WireData;
+use function ProcessWire\__;
+use function ProcessWire\wireIconMarkup;
+
+/**
+ * ProcessWire Dashboard
+ * Module class.
+ *
+ * @author Philipp Daun <post@philippdaun.net>
+ * @license GPL-3.0
+ *
+ * @version 1.5.9
+ */
+
+// Include abstract panel base class
+require_once 'DashboardPanel.class.php';
+
+// Include panel instance helpers
+require_once 'DashboardPanelInstance.class.php';
+
+class Dashboard extends Process implements Module
+{
+    public static function getModuleInfo()
+    {
+        return [
+            'title'       => __('Dashboard', __FILE__),
+            'summary'     => __('Configurable dashboard page', __FILE__),
+            'href'        => 'https://github.com/daun/processwire-dashboard',
+            'author'      => 'Philipp Daun',
+            'version'     => '1.5.9',
+            'icon'        => 'compass',
+            'permission'  => 'dashboard-view',
+            'permissions' => [
+                'dashboard-view' => 'View dashboard',
+            ],
+            'page' => [
+                'name'  => 'dashboard',
+                'title' => __('Dashboard', __FILE__),
+            ],
+            'requires' => [
+                'PHP>=7.0',
+                'ProcessWire>=3.0.165',
+            ],
+            'installs' => [
+                'DashboardPanelAddNew',
+                'DashboardPanelChart',
+                'DashboardPanelCollection',
+                'DashboardPanelHelloWorld',
+                'DashboardPanelNotice',
+                'DashboardPanelNumber',
+                'DashboardPanelPageList',
+                'DashboardPanelShortcuts',
+                'DashboardPanelTemplate',
+            ],
+            'autoload' => 10, // high priority to always load base class
+            'singular' => true,
+        ];
+    }
+
+    /**
+     * Prefix of all panel modules: DashboardPanelExample.
+     */
+    const panelModulePrefix = 'DashboardPanel';
+
+    /**
+     * Supported panel sizes.
+     */
+    const panelSizes = [
+        'micro',  // 1/6
+        'mini',   // 1/4
+        'small',  // 1/3
+        'normal', // 1/2
+        'large',  // 2/3
+        'full',   // 1/1
+    ];
+
+    /**
+     * Default panel size (can be overridden).
+     */
+    const defaultPanelSize = 'normal';
+
+    /**
+     * Fallback panel size (if default is configured wrong).
+     */
+    const fallbackPanelSize = 'normal';
+
+    /**
+     * Cached output of InputfieldIcon to check for supported icon names.
+     */
+    static protected $iconField = null;
+
+    /**
+     * Module initialization.
+     *
+     * Overwrite the parent::init() method with an empty method to
+     * disable auto-asset loading, which wo do manually in ready() once
+     * we're sure we're on the dashboard page
+     */
+    public function init()
+    {
+    }
+
+    /**
+     * Ready: define texts and view folders.
+     */
+    public function ready()
+    {
+        $this->version = self::getModuleInfo()['version'];
+        $this->texts = (object) [
+            'title'                 => $this->_x('Dashboard', 'title'),
+            'usernav'               => $this->_('Dashboard'),
+            'headline'              => $this->_('Welcome, %s'),
+            'headline_without_user' => $this->_('Welcome'),
+            'panel_not_found'       => $this->_('Dashboard panel not found: %s'),
+            'empty_panel_notice'    => $this->_('Your dashboard is empty'),
+            'setup_hint'            => $this->wire()->sanitizer->entitiesMarkdown(
+                $this->_('Learn how to add and configure panels reading the [documentation](%s).')
+            ),
+            'get_started'     => $this->_('Get started'),
+            'get_started_url' => 'https://daun.github.io/processwire-dashboard/#/getting-started',
+            'docs_url'        => 'https://daun.github.io/processwire-dashboard/',
+            'repo_url'        => 'https://github.com/daun/processwire-dashboard',
+        ];
+
+        if ($this->isAdmin()) {
+            $this->addUserNavItem();
+        }
+
+        if (!$this->isDashboardProcess()) {
+            return;
+        }
+
+        $this->installOnHomepage = false;
+        $this->viewFolder = $this->config->paths->{$this} . 'views';
+
+        $this->panels = new DashboardPanelArray();
+        $this->panelsFlattened = new DashboardPanelArray();
+
+        // After getting panels, also generate the flattened panel array
+        $this->addHookAfter('getPanels', function ($event) {
+            $this->panelsFlattened = $event->return->flatten();
+        }, ['priority' => 999]);
+
+        // Add classname to allow styling
+        $this->addHookAfter('AdminTheme::getExtraMarkup', function ($event) {
+            $event->object->addBodyClass("$this");
+        });
+
+        $this->modules->loadModuleFileAssets($this);
+    }
+
+    /**
+     * Check if we're in the admin.
+     */
+    protected function isAdmin()
+    {
+        return $this->page && $this->page->template == 'admin';
+    }
+
+    /**
+     * Check if we're on the dashboard page.
+     */
+    protected function isDashboardProcess()
+    {
+        return $this->page && $this->page->template == 'admin' && $this->page->process == $this;
+    }
+
+    /**
+     * Add the dashboard page to the user dropdown navigation.
+     */
+    protected function addUserNavItem()
+    {
+        $this->addHookAfter('AdminThemeFramework::getUserNavArray', function ($event) {
+            $page = $this->getDashboardPageInNav() ?: $this->getDashboardPage();
+            if ($page && $page->viewable) {
+                $icon = $this->modules->getModuleInfoProperty($this, 'icon');
+                $nav = $event->return;
+                array_unshift($nav, [
+                    'url'   => $page->url,
+                    'title' => $this->texts->usernav,
+                    'icon'  => $icon,
+                ]);
+                $event->return = $nav;
+            }
+        });
+    }
+
+    /**
+     * Get the first admin page with this module assigned as process.
+     */
+    protected function getDashboardPage()
+    {
+        $admin = $this->wire()->pages->get($this->wire()->config->adminRootPageID);
+        $children = $admin->children('include=hidden, check_access=0');
+
+        return $admin->and($children)->get("process={$this}");
+    }
+
+    /**
+     * Get the first visible dashboard page in the navigation.
+     */
+    protected function getDashboardPageInNav()
+    {
+        $admin = $this->wire()->pages->get($this->wire()->config->adminRootPageID);
+        $pages = $admin->children('check_access=0');
+
+        return $pages->get("process={$this}");
+    }
+
+    /**
+     * Execute the main view and render the dashboard.
+     */
+    public function ___execute()
+    {
+        // Redirect admin homepage to process page if in navigation
+        if ($this->page->id === $this->wire()->config->adminRootPageID) {
+            $page = $this->getDashboardPageInNav();
+            if ($page) {
+                $this->session->redirect($page->url);
+                return;
+            }
+        }
+
+        // Ignore ajax requests that are not requesting a panel render
+        if ($this->config->ajax && !$this->input->post->dashboard) {
+            return;
+        }
+
+        // Load settings from hook
+        $this->settings = $this->getSettings();
+
+        // Load panel instances from hook
+        $this->panels = $this->getPanels();
+
+        // Check if we have any panels to render via ajax
+        if ($this->config->ajax && $this->input->post->dashboard) {
+            $key = $this->input->post->key;
+            $panel = $this->input->post->panel;
+            return $this->renderInstanceByKey($key, $panel);
+        }
+
+        // Set browser title
+        $title = $this->getBrowserTitle();
+        $this->browserTitle($title);
+
+        // Set headline
+        if ($headline = $this->getHeadline()) {
+            $this->headline($headline);
+        } else {
+            $this->headline($title);
+            // Add custom body class to hide empty headline
+            $this->addHookAfter('AdminTheme::getExtraMarkup', function ($event) {
+                $event->object->addBodyClass('DashboardNoHeadline');
+            });
+        }
+
+        // Render main view
+        return $this->view('dashboard', [
+            'module'   => "$this",
+            'settings' => $this->settings,
+            'panels'   => $this->renderPanels($this->panels),
+            'texts'    => $this->texts,
+            'version'  => $this->version,
+        ]);
+    }
+
+    /**
+     * Get the unique key of a panel among all (nested) panels
+     * by checking the array of flattened panels.
+     */
+    public function getPanelKey($panel)
+    {
+        return $this->panelsFlattened->getItemKey($panel);
+    }
+
+    /**
+     * Render all installed dashboard panel modules.
+     */
+    private function renderPanels($panels)
+    {
+        $tabPanels = $panels->find('type=tab');
+        $preparedTabs = array_map(function ($tab) {
+            return $this->prepareTab($tab);
+        }, $tabPanels->getArray());
+
+        $nonTabPanels = $panels->find('type!=tab');
+        $renderedPanels = array_map(function ($instance) {
+            return $this->renderInstance($instance);
+        }, $nonTabPanels->getArray());
+
+        return $this->view('panels', [
+            'tabs'   => array_filter($preparedTabs),
+            'panels' => array_filter($renderedPanels),
+        ]);
+    }
+
+    /**
+     * Render a single instance.
+     */
+    private function renderInstance($instance)
+    {
+        if ($instance instanceof DashboardPanelGroup) {
+            return $this->renderGroup($instance);
+        } elseif ($instance instanceof DashboardPanelInstance) {
+            return $this->renderPanel($instance);
+        }
+
+        return false;
+    }
+
+    /**
+     * Render a single instance, referenced by key.
+     */
+    private function renderInstanceByKey($key, $panel = false)
+    {
+        if (!$key && $key !== 0 && $key !== '0') {
+            throw new \Exception('Missing parameter: key');
+        }
+        if ($panel !== false && !$panel) {
+            throw new \Exception('Missing parameter: panel');
+        }
+
+        $instance = $this->panelsFlattened[(int) $key] ?? false;
+
+        if (!$instance) {
+            throw new \Exception('No panel found with requested key');
+        }
+        if ($panel !== false && $panel !== $instance->panel) {
+            throw new \Exception('Mismatching panel types');
+        }
+
+        return $this->renderInstance($instance);
+    }
+
+    /**
+     * Render a single panel.
+     */
+    private function renderPanel($instance)
+    {
+        $className = $this->getPanelClassName($instance['panel'] ?? '');
+        $module = $this->modules->$className;
+        if ($this->isValidPanel($module)) {
+            $key = $this->getPanelKey($instance);
+            return $module->render($instance, $key);
+        } elseif ($this->config->debug) {
+            $error = sprintf($this->texts->panel_not_found, $className);
+            $this->error($error);
+        }
+    }
+
+    /**
+     * Render a group of panels.
+     */
+    private function renderGroup($instance, $view = null)
+    {
+        $size = $this->sanitizePanelSize($instance['size'] ?? false);
+        $icon = $this->renderIcon($instance['icon'] ?? false);
+        $title = $instance->title;
+        $margin = $instance->margin ?? false;
+        $align = $instance->align ?? '';
+
+        // Render child panels
+        $panels = $this->renderPanels($instance->panels);
+
+        // Render view
+        return $this->view('group', [
+            'settings' => $this->settings,
+            'size'     => $size,
+            'icon'     => $icon,
+            'title'    => $title,
+            'margin'   => $margin,
+            'align'    => $align,
+            'panels'   => $panels,
+        ]);
+    }
+
+    /**
+     * Prepare tab group for display: add anchor and render panels.
+     */
+    private function prepareTab($tab)
+    {
+        $id = $tab->title ?: bin2hex(random_bytes(12));
+        $tab->anchor = $this->wire()->sanitizer->pageName($id);
+        $tab->panels = $this->renderPanels($tab->panels);
+
+        return $tab;
+    }
+
+    /**
+     * Check if a given panel is valid.
+     */
+    private function isValidPanel($panel)
+    {
+        return is_object($panel) && $panel instanceof DashboardPanel;
+    }
+
+    /**
+     * Return fully qualified panel class name from short name
+     * hello-world -> DashboardPanelHelloWorld.
+     */
+    private function getPanelClassName($name)
+    {
+        $panelName = $this->wire()->sanitizer->pascalCase($name);
+
+        return self::panelModulePrefix.$panelName;
+    }
+
+    /**
+     * Sanitize panel size to one of allowed values.
+     */
+    public function sanitizePanelSize($input)
+    {
+        $size = $this->wire()->sanitizer->option($input, self::panelSizes);
+        if (!$size) {
+            $default = $this->settings->defaultPanelSize;
+            $size = $this->wire()->sanitizer->option($default, self::panelSizes);
+        }
+
+        return $size ?: self::fallbackPanelSize;
+    }
+
+    /**
+     * Hook to add and configure visible dashboard panels.
+     *
+     * @return WireArray
+     */
+    protected function ___getPanels()
+    {
+        return $this->panels;
+    }
+
+    /**
+     * Hook to set and add dashboard settings.
+     *
+     * @return WireData
+     */
+    protected function ___getSettings()
+    {
+        $settings = new WireData();
+        $settings->displayIcons = false;
+        $settings->defaultPanelSize = self::defaultPanelSize;
+
+        return $settings;
+    }
+
+    /**
+     * Hook to set main headline.
+     *
+     * @return string
+     */
+    protected function ___getHeadline()
+    {
+        $userLabel = $this->renderUserLabel();
+        $text = $userLabel ? $this->texts->headline : $this->texts->headline_without_user;
+
+        return sprintf($text, $userLabel);
+    }
+
+    /**
+     * Hook to set browser title.
+     *
+     * @return string
+     */
+    protected function ___getBrowserTitle()
+    {
+        return $this->texts->title;
+    }
+
+    /**
+     * Render user label.
+     *
+     * @return string
+     */
+    protected function renderUserLabel()
+    {
+        // Get user label from AdminThemeUiKit config
+        $userLabel = $this->modules->getConfig('AdminThemeUikit', 'userLabel') ?: '{title|name}';
+        $user = $this->user;
+
+        if (strpos($userLabel, '{') !== false) {
+            if (strpos($userLabel, '{Name}') !== false) {
+                $userLabel = str_replace('{Name}', ucfirst($user->name), $userLabel);
+            } elseif (strpos($userLabel, '{name}') !== false) {
+                $userLabel = str_replace('{name}', $user->name, $userLabel);
+            }
+            if (strpos($userLabel, '{') !== false) {
+                $userLabel = $user->getText($userLabel, true, true);
+            }
+        } else {
+            $userLabel = $this->wire('sanitizer')->entities($userLabel);
+        }
+
+        return $userLabel;
+    }
+
+    /**
+     * Render icon as markup.
+     *
+     * @param string|array $icons Icon or icon array, in order of preference
+     *
+     * @return string Icon markup
+     */
+    public function renderIcon($icons)
+    {
+        $class = '';
+
+        if (empty($icons)) {
+            return '';
+        } elseif (is_string($icons)) {
+            $icons = [$icons];
+        }
+
+        if (is_array($icons)) {
+            $classes = array_map(function ($icon) {
+                if (strpos($icon, 'icon-') === 0) {
+                    $icon = str_replace('icon-', 'fa-', $icon);
+                }
+                if (strpos($icon, 'fa-') !== 0) {
+                    $icon = "fa-{$icon}";
+                }
+                return $icon;
+            }, $icons);
+            $class = array_reduce($classes, function ($selectedClass, $classToCheck) {
+                return $this->hasIcon($classToCheck) ? $classToCheck : $selectedClass;
+            }, reset($classes));
+        }
+
+        return "<i class='fa fa-fw {$class}'></i>";
+    }
+
+    protected function hasIcon($icon)
+    {
+        if (!static::$iconField) {
+            $module = $this->wire()->modules('InputfieldIcon');
+            static::$iconField = $module ? $module->render() : '';
+        }
+        return preg_match("/\b{$icon}\b/", static::$iconField);
+    }
+
+    /**
+     * Render view with supplied data.
+     */
+    public function view(string $view, array $data)
+    {
+        $filename = $this->viewFolder. DIRECTORY_SEPARATOR . $view;
+        return $this->files->render($filename, $data);
+    }
+
+    /**
+     * Install: set admin page process.
+     */
+    public function ___install()
+    {
+        try {
+            parent::___install();
+            if ($this->installOnHomepage) {
+                // Set the admin process to use this module
+                $admin = $this->wire()->pages->get($this->wire()->config->adminRootPageID);
+                $admin->process = $this;
+                $admin->save();
+            }
+        } catch (\Throwable $th) {
+            $this->error($th->getMessage());
+        }
+    }
+
+    /**
+     * Uninstall: restore admin page process.
+     */
+    public function ___uninstall()
+    {
+        try {
+            parent::___uninstall();
+            if ($this->installOnHomepage) {
+                // Restore the admin process to use ProcessHome again
+                $admin = $this->wire()->pages->get($this->wire()->config->adminRootPageID);
+                $admin->process = 'ProcessHome';
+                $admin->save();
+            }
+        } catch (\Throwable $th) {
+            $this->error($th->getMessage());
+        }
+    }
+}

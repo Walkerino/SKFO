@@ -1,0 +1,12 @@
+.InputfieldTextareas {
+	// Textareas without wrapper
+	&.InputfieldTextareasNaked {
+		> .InputfieldHeader { 
+			display:none !important; 
+		}
+		> .InputfieldContent { 
+			padding:0 !important; 
+			border:0 !important; 
+		}
+	}
+}

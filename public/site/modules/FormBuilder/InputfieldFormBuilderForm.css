@@ -1,0 +1,11 @@
+.InputfieldForm .InputfieldFormBuilderForm:not(.InputfieldRenderValueMode) > .InputfieldHeader:not(.InputfieldHeaderHidden) + .InputfieldContent label.InputfieldHeader {
+	font-weight: normal;
+}
+
+fieldset.InputfieldFormBuilderForm {
+}
+
+.InputfieldFormBuilderForm > .InputfieldHeader > .InputfieldFormBuilderFormLabel {
+	margin-top: 0;
+	margin-bottom: 0;
+}
