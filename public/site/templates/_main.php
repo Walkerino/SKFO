@@ -33,16 +33,17 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		$isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
 		$isHotelsRequest = preg_match('#^/hotels(?:/|$)#', (string) $requestPath) === 1;
 		$isRegionsRequest = preg_match('#^/regions(?:/|$)#', (string) $requestPath) === 1;
+		$isPlacesRequest = preg_match('#^/places(?:/|$)#', (string) $requestPath) === 1;
 		$isArticlesRequest = preg_match('#^/articles(?:/|$)#', (string) $requestPath) === 1;
 	$isHotelsPage = $page->name === 'hotels' || $page->path === '/hotels/' || in_array($templateName, ['hotels', 'hotel'], true) || $isHotelsRequest;
 	$isReviewsPage = $page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest;
-	$isRegionsPage = $page->name === 'regions' || $page->path === '/regions/' || $templateName === 'region' || $isRegionsRequest;
+	$isRegionsPage = $page->name === 'regions' || $page->path === '/regions/' || in_array($templateName, ['regions', 'region', 'places', 'place'], true) || $isRegionsRequest || $isPlacesRequest;
 	$isArticlesPage = $page->name === 'articles' || $page->path === '/articles/' || $isArticlesRequest;
-	$isTourTemplate = in_array($templateName, ['tour', 'hotel', 'reviews', 'regions', 'region', 'articles'], true) || $isReviewsPage || $isRegionsPage || $isArticlesPage;
-	$isTourNavActive = $templateName === 'tour';
+	$isTourTemplate = in_array($templateName, ['tour', 'tours', 'hotel', 'reviews', 'regions', 'region', 'places', 'place', 'articles', 'article'], true) || $isReviewsPage || $isRegionsPage || $isArticlesPage;
+	$isTourNavActive = in_array($templateName, ['tour', 'tours'], true);
 	$isHotelsNavActive = $templateName === 'hotel' || $isHotelsPage;
 	$isReviewsNavActive = $templateName === 'reviews' || $isReviewsPage;
-	$isRegionsNavActive = in_array($templateName, ['regions', 'region'], true) || $isRegionsPage;
+	$isRegionsNavActive = in_array($templateName, ['regions', 'region', 'places', 'place'], true) || $isRegionsPage;
 	$isArticlesNavActive = $templateName === 'articles' || $isArticlesPage;
 	$normalizeHeadTitleKey = static function(string $value): string {
 		$value = trim($value);
@@ -52,11 +53,14 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$headTitleByTemplate = [
 		'home' => 'Главная',
 		'tour' => 'Тур',
+		'tours' => 'Туры',
 		'hotels' => 'Отели',
 		'hotel' => 'Отель',
 		'reviews' => 'Отзывы',
 		'regions' => 'Регионы',
 		'region' => 'Регион',
+		'places' => 'Места',
+		'place' => 'Место',
 		'articles' => 'Статьи',
 		'article' => 'Статья',
 		'profile' => 'Профиль',
@@ -71,6 +75,8 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		'reviews' => 'Отзывы',
 		'regions' => 'Регионы',
 		'region' => 'Регион',
+		'places' => 'Места',
+		'place' => 'Место',
 		'articles' => 'Статьи',
 		'article' => 'Статья',
 		'profile' => 'Профиль',
@@ -87,6 +93,9 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	}
 	if ($requestPath === '/regions' || $requestPath === '/regions/') {
 		$pageTitleForHead = 'Регионы';
+	}
+	if ($requestPath === '/places' || $requestPath === '/places/') {
+		$pageTitleForHead = 'Места';
 	}
 	if ($requestPath === '/articles' || $requestPath === '/articles/') {
 		$pageTitleForHead = 'Статьи';
