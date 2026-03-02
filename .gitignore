@@ -20,4 +20,5 @@ public/site/install/
 .DS_Store
 .idea/
 .vscode/
+_import/
 EOF
