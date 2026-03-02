@@ -1,0 +1,6 @@
+// Add a RockIcons field via RockMigrations
+return [
+  'type' => 'text',
+  'inputfieldClass' => 'InputfieldRockIcons',
+  'label' => '$1',
+];

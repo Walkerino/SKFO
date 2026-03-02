@@ -1,0 +1,82 @@
+<?php namespace Daun\Dashboard;
+
+use function ProcessWire\__;
+
+// Include abstract panel base class
+require_once dirname(__DIR__).'/Dashboard/DashboardPanel.class.php';
+
+class DashboardPanelTemplate extends DashboardPanel
+{
+    public static function getModuleInfo()
+    {
+        return array_merge(
+            parent::getModuleInfo(),
+            [
+                'title'    => __('Dashboard Panel: Template', __FILE__),
+                'summary'  => __('Display the output of any file in the templates folder', __FILE__),
+                'author'   => 'Philipp Daun',
+                'version'  => '1.5.8',
+            ]
+        );
+    }
+
+    public function getIcon()
+    {
+        return 'code';
+    }
+
+    public function getTitle()
+    {
+        $basename = basename($this->template, '.php');
+
+        return $this->sanitizer()->pascalCase($basename);
+    }
+
+    public function getContent()
+    {
+        if (!is_file($this->templatePath)) {
+            $error = sprintf($this->_('Template file missing: %s'), $this->template);
+            $this->error($error);
+
+            return;
+        }
+
+        try {
+            return $this->files->render($this->templatePath, $this->variables);
+        } catch (\Throwable $th) {
+            $this->error($th->getMessage());
+        }
+    }
+
+    public function getScripts()
+    {
+        return [$this->replaceFileExtension($this->templateFile, 'js')];
+    }
+
+    public function getStylesheets()
+    {
+        return [$this->replaceFileExtension($this->templateFile, 'css')];
+    }
+
+    public function getAttributes()
+    {
+        return ['data-file' => $this->templateFile];
+    }
+
+    public function setup()
+    {
+        parent::setup();
+        $this->templateFile = ltrim($this->data['template'] ?? '', DIRECTORY_SEPARATOR);
+        $this->templatePath = $this->templateFile ? $this->config->paths->templates.$this->templateFile : null;
+        $this->variables = $this->data['variables'] ?? [];
+    }
+
+    protected function replaceFileExtension($path, $new_extension)
+    {
+        $dirname = pathinfo($path, PATHINFO_DIRNAME);
+        $filename = pathinfo($path, PATHINFO_FILENAME);
+        $dir = $dirname ? $dirname.DIRECTORY_SEPARATOR : '';
+
+        return $dir . $filename . '.' . $new_extension;
+    }
+}

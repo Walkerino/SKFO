@@ -1,0 +1,6 @@
+// Add a RockPageBuilder field via RockMigrations
+return [
+  'type' => 'RockPageBuilder',
+  'label' => '$1',
+  'icon' => 'cubes',
+];

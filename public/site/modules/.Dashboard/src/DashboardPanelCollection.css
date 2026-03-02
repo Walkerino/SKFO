@@ -1,0 +1,148 @@
+/* Variables */
+
+:root {
+  --dashboard-panel-collection-img-radius: 4px;
+  --dashboard-panel-collection-img-height: 30px;
+  --dashboard-panel-collection-color-radius: 50%;
+}
+
+.DashboardPanelCollection {
+  .uk-card-footer {
+    font-size: .85em;
+    color: var(--dashboard-color-text-light);
+    > div {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+  }
+
+  /* Bold first or title column */
+  td:first-child,
+  .DashboardTableColumn__title {
+    font-weight: bold;
+  }
+}
+
+/* Action column */
+
+.DashboardTableColumn__actions__ {
+  text-align: right !important;
+  white-space: nowrap;
+  .tablesorter-header-inner {
+    display: none;
+  }
+  a,
+  .fa {
+    display: inline-block;
+  }
+  > :not(:first-child) {
+    margin-left: .25em;
+  }
+  .fa {
+    cursor: not-allowed;
+    color: var(--dashboard-color-icon);
+    opacity: .4;
+  }
+  a {
+    /* color: inherit; */
+  }
+  a .fa {
+    opacity: 1;
+    cursor: inherit;
+    /* color: var(--dashboard-color-icon); */
+  }
+}
+
+/* Icon column */
+
+.DashboardTableColumn__page_icon {
+  width: 40px;
+}
+
+/* Image column */
+
+.DashboardPanelCollection td.is-image-column {
+  .AdminThemeUikit & {
+    padding-top: 7px;
+    padding-bottom: 7px;
+    vertical-align: middle;
+  }
+  img {
+    border-radius: var(--dashboard-panel-collection-img-radius);
+    max-height: var(--dashboard-panel-collection-img-height);
+    width: auto;
+  }
+}
+
+/* Color column */
+
+.DashboardPanelCollection td.is-color-column {
+  vertical-align: middle;
+  span {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    border-radius: var(--dashboard-panel-collection-color-radius);
+  }
+}
+
+/* Switch wrapper */
+
+.uk-switch {
+  --switch-width: 1.9em;
+  --switch-height: 1.1em;
+  --switch-pointer-offset: 2px;
+  --switch-pointer-size: calc(var(--switch-height) - 2 * var(--switch-pointer-offset));
+  --switch-active-color: var(--dashboard-color-button-hover-bg, currentColor);
+  position: relative;
+  display: inline-block;
+  width: var(--switch-width);
+  height: var(--switch-height);
+  transform: translateY(0.2em);
+}
+
+/* Hide default HTML checkbox */
+
+.uk-switch input {
+  display: none;
+}
+
+/* Switch slider */
+
+.uk-switch-slider {
+  background-color: rgba(0,0,0,0.22);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  border-radius: 999vw;
+  bottom: 0;
+  cursor: pointer;
+  transition-property: background-color;
+	transition-duration: .2s;
+}
+
+/* Switch pointer */
+.uk-switch-slider:before {
+  content: '';
+  background-color: #fff;
+  position: absolute;
+  width: var(--switch-pointer-size);
+  height: var(--switch-pointer-size);
+  left: var(--switch-pointer-offset);
+  bottom: var(--switch-pointer-offset);
+  border-radius: 50%;
+  transition-property: transform, box-shadow;
+	transition-duration: .2s;
+}
+
+/* Active slider */
+input:checked + .uk-switch-slider {
+  background-color: var(--switch-active-color) !important;
+}
+
+/* Animate to active state */
+input:checked + .uk-switch-slider:before {
+  transform: translateX(-100%) translateX(calc(var(--switch-width) - var(--switch-pointer-offset) * 2));
+}

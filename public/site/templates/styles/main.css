@@ -2598,6 +2598,11 @@ h6,
   gap: 10px;
 }
 
+a.place-card {
+  text-decoration: none;
+  color: inherit;
+}
+
 .place-card-image {
   border-radius: 12px;
   background: radial-gradient(circle at 20% 0%, #fef3c7, transparent 55%),

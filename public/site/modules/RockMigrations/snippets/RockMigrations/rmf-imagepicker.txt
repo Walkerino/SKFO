@@ -1,0 +1,7 @@
+// rmf-imagepicker
+return [
+  'type' => 'RockImagePicker',
+  'label' => '$1',
+  'sourcepage' => ${2:1},
+  'sourcefield' => '${3:yourfieldname}',
+];

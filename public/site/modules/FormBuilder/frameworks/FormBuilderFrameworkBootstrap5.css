@@ -1,0 +1,25 @@
+.InputfieldHeader {
+	/* use bold headers */
+	font-weight: bold;
+}
+
+.Inputfield .form-check {
+	/* override padding from bootstrap’s form-check */
+	padding-left: 0;
+}
+.Inputfield .form-check .form-check-input {
+	/* override margins and padding from bootstrap’s form-check-input */
+	margin-left: 0;
+	padding-left: 0;
+}
+
+.InputfieldCheckbox .InputfieldHeaderHidden + .InputfieldContent {
+	/* checkbox with no InputfieldHeader, description or notes */
+	/* consider a negative top margin for better alignment in some cases, i.e. margin-top: -1.5em */
+}
+
+.InputfieldFormBuilderFile input + input {
+	/* small gap between file inputs */
+	margin-top: 8px; 
+}
+

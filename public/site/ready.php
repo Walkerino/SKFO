@@ -14,6 +14,31 @@ if(!defined("PROCESSWIRE")) die();
  *
  */
 
+// Remove ProcessWire from SeoMaster tag.
+$wire->addHookAfter('Page::render', function($event) {
+	$page = $event->object;
+	$html = $event->return;
+	$html = str_replace('<meta name="generator" content="ProcessWire">', '', $html);
+	$event->return = $html;
+});
+
+// Hide admin footer for non-superusers.
+$wire->addHookAfter('Page::render', function($event) {
+	$currentPage = wire()->page;
+	if(!$currentPage || !$currentPage->template || $currentPage->template->name !== 'admin') return;
+
+	$user = wire()->user;
+	if($user->hasRole('superuser')) return;
+
+	$markup = $event->return;
+	$markup = str_replace(
+		'</body>',
+		'<style>#pw-footer, footer#pw-footer { display: none !important; visibility: hidden !important; }</style></body>',
+		$markup
+	);
+	$event->return = $markup;
+});
+
 /** @var User $user */
 $user = wire('user');
 if(!$user || !$user->isSuperuser()) return;

@@ -1,0 +1,463 @@
+table.InputfieldTable {
+	width: 100%;
+	
+	th {
+		vertical-align: bottom;
+		text-align: left;
+	}
+	
+	th,
+	td {
+		padding: 0.35em 0.2em;
+		padding: 5px 3px;
+	}
+	.InputfieldTableActionSort + td {
+		// select column after Sort column
+		padding-left: 0.4em;
+		padding-left: 5px;
+	}
+	td:has(+ td[class*="InputfieldTableAction"]) {
+		// select column before first InputfieldTableAction column
+		padding-right: 0.4em;
+		padding-right: 5px;
+	}
+	
+	td {
+		.InputfieldTableRowSortHandle {
+			cursor: move;
+		}
+		label.checkbox {
+			display: block;
+			clear: both;
+			> span.checkbox {
+				display: inline-block;
+				float: left;
+				width: 8%;
+				max-width: 20px;
+			}
+			span.pw-no-select {
+				float: left;
+				display: inline-block;
+				width: auto;
+				width: 92%;
+				padding-left: 0.25em;
+			}
+		}
+		.inline-checkboxes {
+			margin-top: 9px;
+		}
+		label.inline-checkbox {
+			padding-right: 10px;
+			display: inline-block;
+			clear: none;
+			> span.checkbox {
+				margin-right: 5px;
+			}
+			span.pw-no-select {
+			}
+		}
+	}
+	
+	tbody {
+		tr {
+			td {
+				text-align: left;
+			}
+			td:first-child {
+				padding-left: 0;
+			}
+			td:last-child {
+				padding-right: 0;
+			}
+			td.InputfieldTableActionDelete {
+				text-align: right;
+			}
+
+			td.InputfieldTableAction {
+				vertical-align: middle;
+			}
+			td.InputfieldTableActionRow,
+			td.InputfieldTableActionDelete,
+			td.InputfieldTableActionClone {
+				width: 17px;
+			}
+			td.InputfieldTableActionRow {
+				overflow: hidden;
+			}
+		}
+	
+		tr.InputfieldTableRowSelected {
+			border-color: #fff;
+		}
+		// make only one sortable handle visible for a selection group
+		tr.InputfieldTableRowSelected:not(.ui-sortable-placeholder) td:first-child {
+			border-color: #000;
+		}
+	}
+	
+	> thead,
+	> tbody {
+		> tr {
+			td:first-child,
+			td:last-child,
+			th:last-child {
+				/* drag and delete icons */
+				max-width: 20px;
+				border-left: none;
+				border-right: none;
+			}
+			td:first-child,
+			td.InputfieldTableActionSort {
+				text-align: left;
+			}
+			th:last-child,
+			td.InputfieldTableActionDelete {
+				text-align: right;
+				max-width: 20px; 
+			}
+		}
+	}
+
+	tr {
+		&.InputfieldTableRowTemplate {
+			display: none;
+		}
+	}
+
+	tr.InputfieldTableRowDeleted {
+		input,
+		select,
+		label {
+			text-decoration: line-through;
+		}
+	}
+
+	.InputfieldTableRowDeleteLink {
+		cursor: pointer;
+	}
+
+	.InputfieldTablePagerNav {
+		margin-top: 0;
+	}
+}
+
+.Inputfields table.InputfieldTable {
+	// table.InputfieldTable with additional specificity
+	td {
+		input[type=text],
+		input[type=email],
+		input[type=date],
+		input[type=datetime],
+		input[type=url],
+		textarea,
+		select {
+			min-width: 0;
+			width: 100%;
+		}
+	}
+	
+	.asmListItem {
+		a.asmListItemRemove:hover,
+		a.asmListItemRemove {
+			/* AsmSelect trash icon inherits AdminDataTable <a> color, so this reverts that */
+			color: inherit;
+		}
+	}
+	
+}
+
+table.InputfieldTableNested {
+	// nested table
+	width: 100%;
+	.InputfieldCKEditorInline {
+		width: 100%;
+	}
+}
+
+table.InputfieldTableHasNested {
+	// table that has another table nested within it
+	border-spacing: 0;
+	border-collapse: collapse;
+	
+	td table.InputfieldTableNested {
+		width: 100%;
+		margin: 0.5em 0 0 0;
+		border: none;
+
+		td,
+		th {
+			text-align: left;
+			border: none;
+			padding-right: 0.35em;
+		}
+		
+		th {
+			padding-top: 1em;
+		}
+		
+		td {
+			padding-top: 0;
+			padding-bottom: 0.5em;
+		}
+
+		+ table.InputfieldTableNested th {
+			padding-top: 0.25em;
+		}
+	}
+	
+	tr:hover {
+		th,
+		td {
+			/* disable the default background hover color */
+			background-color: inherit;
+		}
+	}
+	
+	&:not(.InputfieldTableSearch) {
+		> tbody > tr > td {
+			padding-bottom: 1em;
+			padding-top: 0;
+			border-bottom: 2px solid;
+			border-color: initial;
+		}
+	}
+	
+	> tbody {
+		> tr.ui-sortable-helper {
+			background-color: #fff;
+
+			&,
+			> td:nth-child(2) {
+				width: 100%;
+			}
+		}
+		
+		> tr.ui-sortable-helper > td,
+		> tr:nth-child(2) > td {
+			/* ensure the first row has a border, since other borders are applied to bottom */
+			border-top: 2px solid;
+			border-color: initial;
+		}
+		
+		> tr > td {
+			&.InputfieldTableActionSort,
+			&.InputfieldTableActionClone,
+			&.InputfieldTableActionRow,
+			&.InputfieldTableActionDelete {
+				/* sort and trash icon actions */
+				padding-top: 0.8em; 
+				//padding-top: 4px;
+				text-align: center;
+			}
+		}
+		
+		> td:first-child {
+			.rowNum {
+				position: relative;
+				top: 2px;
+			}
+		}
+	}
+}
+
+table.InputfieldTableEmpty {
+	display: none;
+}
+
+
+// language tabs
+.InputfieldTable .InputfieldTable_langTabs {
+	&.ui-tabs {
+		margin: 0;
+		padding: 0;
+		> ul {
+			display: block;
+		}
+	}
+	> ul.ui-tabs {
+		// @todo verify this one is in use
+		display: none;
+	}
+
+	/*
+	.InputfieldTable_langTab.ui-tabs {
+		.ui-tabs-panel {
+			padding: 0.35em 0 0 0;
+		}
+	}
+	 */
+}
+
+.AdminThemeReno .InputfieldTable {
+	.InputfieldTable_langTabs .ui-tabs-nav,
+	.InputfieldTable_langTabs .ui-tabs-nav li {
+		padding-top: 0;
+		margin-top: 0;
+	}
+}
+
+.AdminThemeReno, .AdminThemeDefault {
+	.InputfieldTable tr:hover {
+		th,
+		td {
+			/* disable the default background hover color */
+			background-color: inherit;
+		}
+	}
+}
+
+.AdminThemeUikit {
+	.InputfieldTable {
+		.selectize-input {
+			min-height: 40px;
+			overflow: initial;
+
+			&.dropdown-active {
+				padding-bottom: 8px;
+			}
+		}
+
+		.InputfieldTextTagsSmall {
+			input {
+				display: none;
+			}
+
+			.selectize-control {
+				.selectize-input {
+					min-height: 30px;
+					height: 30px;
+					padding: 2px 3px 2px;
+				}
+			}
+		}
+
+		select.uk-form-small {
+			font-size: .875rem;
+		}
+	}
+}
+
+// pagination
+.InputfieldTableHasPagination {
+	.InputfieldTablePagerNote {
+		padding-top: 0.5em;
+		float: right;
+	}
+}
+
+.InputfieldTablePagerNavContent {
+	> p:last-child {
+		margin-bottom: 0;
+	}
+}
+
+.InputfieldTableDeleteAll {
+	display: none;
+	border: 2px solid red;
+	padding: 0.5em 1em;
+	color: crimson;
+}
+
+.InputfieldTableSearch:not(.InputfieldTableSearchActive) {
+	display: none;
+}
+
+// Inputfield
+.Inputfield.InputfieldTable {
+	> .InputfieldContent .InputfieldTableSearchToggle {
+		/* find/filters get moved to header by js */
+		display: none;
+	}
+
+	> .InputfieldHeader {
+		.InputfieldTableSearchToggle {
+			/* find/filters link in header */
+			float: right;
+			margin-right: 0.5em;
+			font-weight: normal;
+			&:hover {
+				text-decoration: none;
+			}
+		}
+	}
+	
+	&.InputfieldStateCollapsed {
+		> .InputfieldHeader .InputfieldTableSearchToggle {
+			/* hide Find link in collapsed InputfieldHeader */
+			display: none;
+		}
+	}
+
+	input[type=number] {
+		width: 100%;
+	}
+	
+	textarea {
+		/* limit textarea resizes to vertical only, so resize does not change column widths */
+		resize: vertical;
+	}
+
+	.InputfieldTableAddRow,
+	.InputfieldTableActionSelect {
+		margin-right: 1em;
+	}
+}
+
+.AdminThemeUikit {
+	.InputfieldTableActionRow,
+	.InputfieldTableActionSort,
+	.InputfieldTableActionDelete,
+	.InputfieldTableActionClone {
+		/* better match height of AdminThemeUikit inputs */
+		i {
+			position: relative;
+			top: 8px;
+		}
+	}
+	.InputfieldTableActionRow {
+		i {
+			top: 6px;
+		}
+	}
+	.InputfieldTableUseSmall {
+		.InputfieldTableActionRow,
+		.InputfieldTableActionSort,
+		.InputfieldTableActionDelete,
+		.InputfieldTableActionClone {
+			i {
+				position: relative;
+				top: 3px;
+			}
+		}
+		.InputfieldTableActionRow {
+			.uk-select {
+				height: 30px;
+			}
+			i {
+				top: 2px;
+			}
+		}
+	}
+	.InputfieldTableSelectAction {
+		top: -1px;
+	}
+}
+
+.InputfieldTableRowCloneLink {
+	cursor: pointer;
+}
+
+td.pwpf-table-checkbox {
+	vertical-align: middle;
+}
+
+.InputfieldTableImage {
+	> img {
+		margin-top: 2px;
+		max-width: 100%;
+	}
+}
+
+.InputfieldTableHeaderSortable:hover {
+	cursor: pointer;
+}

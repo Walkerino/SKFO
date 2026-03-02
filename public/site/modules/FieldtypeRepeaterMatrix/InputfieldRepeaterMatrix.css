@@ -1,0 +1,41 @@
+.InputfieldRepeaterMatrix .pw-hidden {
+	display: none;
+}
+
+.InputfieldRepeaterMatrixAddImage {
+	display: inline-block;
+	text-align: center;
+}
+
+.InputfieldRepeaterMatrixAddImage:hover {
+	text-decoration: none;
+	opacity: 0.8;
+}
+
+.InputfieldRepeaterMatrixAddImage > img {
+	max-width: 100%;
+	display: block;
+}
+
+.InputfieldRepeaterMatrixAddImage > span {
+	display: block;
+	font-size: 13px;
+	color: #777;
+}
+
+.AdminThemeUikit .InputfieldRepeaterMatrixUseAddSelect .InputfieldRepeaterPaste {
+	position: relative;
+	top: 3px;
+}
+
+.InputfieldRepeaterMatrixAddCustom { 
+	/* suggested by Spiria */
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.InputfieldRepeaterMatrixAddCustom span {
+	/* suggested by Spiria */
+	line-height: 1.3em;
+	padding-top: 10px
+}

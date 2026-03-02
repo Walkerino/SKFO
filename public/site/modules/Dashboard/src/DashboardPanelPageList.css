@@ -1,0 +1,34 @@
+.DashboardPanelPageList {
+  .uk-card-body {
+    .AdminThemeUikit & {
+      padding: 0;
+    }
+    .AdminThemeReno & {
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+  }
+
+  .PageList {
+    margin-top: -5px !important;
+    margin-bottom: -1px;
+    .AdminThemeUikit &,
+    .AdminThemeReno & {
+      margin-top: 0 !important;
+    }
+  }
+
+  .PageListRoot > .PageListLoading {
+    display: block;
+    margin: 30px 15px;
+  }
+
+  .AdminThemeUikit & {
+    .PageListRootHidden,
+    .PageListRoot {
+      > .PageList > .PageListItem {
+        padding-left: 8px !important;
+      }
+    }
+  }
+}

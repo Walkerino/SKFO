@@ -83,6 +83,78 @@ $getImageUrlFromValue = static function($imageValue): string {
 	return '';
 };
 
+$getFirstTextFromPage = static function(Page $item, array $fieldNames): string {
+	foreach ($fieldNames as $fieldName) {
+		if (!$item->hasField($fieldName)) continue;
+		$value = trim((string) $item->$fieldName);
+		if ($value !== '') return $value;
+	}
+	return '';
+};
+
+$getFirstImageUrlFromPage = static function(Page $item, array $fieldNames) use ($getImageUrlFromValue): string {
+	foreach ($fieldNames as $fieldName) {
+		if (!$item->hasField($fieldName)) continue;
+		$imageUrl = $getImageUrlFromValue($item->getUnformatted($fieldName));
+		if ($imageUrl !== '') return $imageUrl;
+	}
+	return '';
+};
+
+$truncateText = static function(string $value, int $length = 180): string {
+	$value = trim(strip_tags($value));
+	if ($value === '') return '';
+	$currentLength = function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
+	if ($currentLength <= $length) return $value;
+	$cut = function_exists('mb_substr') ? mb_substr($value, 0, $length, 'UTF-8') : substr($value, 0, $length);
+	return rtrim($cut) . '...';
+};
+
+$formatArticleDateFromPage = static function(Page $articlePage): string {
+	$timestamp = 0;
+	if ($articlePage->hasField('article_publish_date')) {
+		$timestamp = (int) $articlePage->getUnformatted('article_publish_date');
+	}
+	if ($timestamp <= 0) {
+		$timestamp = (int) $articlePage->getUnformatted('created');
+	}
+	return $timestamp > 0 ? date('d.m.Y', $timestamp) : '';
+};
+
+$titleFromName = static function(string $name): string {
+	$name = trim($name);
+	if ($name === '') return '';
+	$title = str_replace(['-', '_'], ' ', $name);
+	$title = preg_replace('/\s+/u', ' ', $title) ?? $title;
+	$title = trim($title);
+	if ($title === '') return '';
+	return function_exists('mb_convert_case') ? mb_convert_case($title, MB_CASE_TITLE, 'UTF-8') : ucwords($title);
+};
+
+$loadLegacyTitlesByIds = static function(array $pageIds) use ($database): array {
+	$pageIds = array_values(array_unique(array_map('intval', $pageIds)));
+	$pageIds = array_values(array_filter($pageIds, static fn(int $id): bool => $id > 0));
+	if (!count($pageIds)) return [];
+
+	$placeholders = implode(',', array_fill(0, count($pageIds), '?'));
+	$sql = "SELECT pages_id, data FROM field_title WHERE pages_id IN ($placeholders)";
+	$stmt = $database->prepare($sql);
+	foreach ($pageIds as $index => $id) {
+		$stmt->bindValue($index + 1, $id, \PDO::PARAM_INT);
+	}
+	$stmt->execute();
+
+	$map = [];
+	while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+		$pageId = (int) ($row['pages_id'] ?? 0);
+		$title = trim((string) ($row['data'] ?? ''));
+		if ($pageId > 0 && $title !== '') $map[$pageId] = $title;
+	}
+	return $map;
+};
+
+$defaultCardImage = $config->urls->templates . 'assets/image1.png';
+
 $searchRegion = trim((string) $input->get('where'));
 $searchTripDate = trim((string) $input->get('when'));
 $searchCompanion = trim((string) $input->get('with'));
@@ -93,23 +165,30 @@ $regionFieldClass = $searchRegion !== '' ? ' is-filled' : '';
 $tripDateFieldClass = $searchTripDate !== '' ? ' is-filled' : '';
 $companionFieldClass = $isTourSearchSubmitted ? ' is-filled' : '';
 
-$defaultTourImage = $config->urls->templates . 'assets/image1.png';
 $toursCatalog = [];
 
 if (isset($pages) && $pages instanceof Pages) {
-	$tourPages = $pages->find('template=tour, include=all, sort=title, limit=500');
+	$tourPages = $pages->find('template=tour, include=all, check_access=0, status<1024, sort=title, limit=500');
+	$tourPageIds = [];
+	foreach ($tourPages as $tourPage) {
+		if ($tourPage instanceof Page && $tourPage->id) $tourPageIds[] = (int) $tourPage->id;
+	}
+	$legacyTourTitlesById = $loadLegacyTitlesByIds($tourPageIds);
+
 	foreach ($tourPages as $tourPage) {
 		if (!$tourPage instanceof Page) continue;
 
 		$title = trim((string) $tourPage->title);
+		if ($title === '') $title = trim((string) ($legacyTourTitlesById[(int) $tourPage->id] ?? ''));
+		if ($title === '') $title = $titleFromName((string) $tourPage->name);
 		if ($title === '') continue;
 
-		$imageUrl = $tourPage->hasField('tour_cover_image') ? $getImageUrlFromValue($tourPage->getUnformatted('tour_cover_image')) : '';
-		if ($imageUrl === '') $imageUrl = $defaultTourImage;
+		$imageUrl = $getFirstImageUrlFromPage($tourPage, ['tour_cover_image', 'images']);
+		if ($imageUrl === '') $imageUrl = $defaultCardImage;
 
 		$toursCatalog[] = [
 			'title' => $title,
-			'region' => $tourPage->hasField('tour_region') ? trim((string) $tourPage->tour_region) : '',
+			'region' => $getFirstTextFromPage($tourPage, ['tour_region', 'region']),
 			'price' => $tourPage->hasField('tour_price') ? trim((string) $tourPage->tour_price) : '',
 			'duration' => $tourPage->hasField('tour_duration') ? $normalizeTourDuration((string) $tourPage->tour_duration) : '',
 			'image' => $imageUrl,
@@ -119,23 +198,86 @@ if (isset($pages) && $pages instanceof Pages) {
 }
 
 if (!count($toursCatalog) && $page->hasField('home_featured_tours') && $page->home_featured_tours->count()) {
+	$featuredTourIds = [];
+	foreach ($page->home_featured_tours as $tourPage) {
+		if ($tourPage instanceof Page && $tourPage->id) $featuredTourIds[] = (int) $tourPage->id;
+	}
+	$legacyFeaturedTitlesById = $loadLegacyTitlesByIds($featuredTourIds);
+
 	foreach ($page->home_featured_tours as $tourPage) {
 		if (!$tourPage instanceof Page) continue;
 		$title = trim((string) $tourPage->title);
+		if ($title === '') $title = trim((string) ($legacyFeaturedTitlesById[(int) $tourPage->id] ?? ''));
+		if ($title === '') $title = $titleFromName((string) $tourPage->name);
 		if ($title === '') continue;
 
-		$imageUrl = $tourPage->hasField('tour_cover_image') ? $getImageUrlFromValue($tourPage->getUnformatted('tour_cover_image')) : '';
-		if ($imageUrl === '') $imageUrl = $defaultTourImage;
+		$imageUrl = $getFirstImageUrlFromPage($tourPage, ['tour_cover_image', 'images']);
+		if ($imageUrl === '') $imageUrl = $defaultCardImage;
 
 		$toursCatalog[] = [
 			'title' => $title,
-			'region' => $tourPage->hasField('tour_region') ? trim((string) $tourPage->tour_region) : '',
+			'region' => $getFirstTextFromPage($tourPage, ['tour_region', 'region']),
 			'price' => $tourPage->hasField('tour_price') ? trim((string) $tourPage->tour_price) : '',
 			'duration' => $tourPage->hasField('tour_duration') ? $normalizeTourDuration((string) $tourPage->tour_duration) : '',
 			'image' => $imageUrl,
 			'url' => (string) $tourPage->url,
 		];
 	}
+}
+
+$placesCatalog = [];
+if (isset($pages) && $pages instanceof Pages) {
+	$placePages = $pages->find('template=place, include=all, check_access=0, status<1024, sort=title, limit=1000');
+	foreach ($placePages as $placePage) {
+		if (!$placePage instanceof Page) continue;
+		$title = trim((string) $placePage->title);
+		if ($title === '') continue;
+
+		$region = $getFirstTextFromPage($placePage, ['place_region', 'region']);
+		$summarySource = $getFirstTextFromPage($placePage, ['place_summary', 'summary', 'content']);
+		$imageUrl = $getFirstImageUrlFromPage($placePage, ['place_image', 'place_cover_image', 'images']);
+		if ($imageUrl === '') $imageUrl = $defaultCardImage;
+
+		$placesCatalog[] = [
+			'title' => $title,
+			'region' => $region,
+			'summary' => $truncateText($summarySource, 180),
+			'image' => $imageUrl,
+			'url' => (string) $placePage->url,
+		];
+
+		if ($region !== '') $addRegionOption($region);
+	}
+}
+
+$articlesCatalog = [];
+if (isset($pages) && $pages instanceof Pages) {
+	$articlePages = $pages->find('template=article, include=all, check_access=0, status<1024, sort=-article_publish_date, limit=300');
+	foreach ($articlePages as $articlePage) {
+		if (!$articlePage instanceof Page) continue;
+		$title = trim((string) $articlePage->title);
+		if ($title === '') continue;
+
+		$topic = $getFirstTextFromPage($articlePage, ['article_topic', 'section']);
+		$imageUrl = $getFirstImageUrlFromPage($articlePage, ['article_cover_image', 'images']);
+
+		$articlesCatalog[] = [
+			'title' => $title,
+			'topic' => $topic,
+			'date' => $formatArticleDateFromPage($articlePage),
+			'image' => $imageUrl,
+			'url' => '/articles/?' . http_build_query([
+				'article' => (string) $articlePage->name,
+				'from' => 'home',
+				'back' => '/',
+			], '', '&', PHP_QUERY_RFC3986),
+		];
+	}
+}
+
+foreach ($toursCatalog as $tourItem) {
+	$tourRegion = trim((string) ($tourItem['region'] ?? ''));
+	if ($tourRegion !== '') $addRegionOption($tourRegion);
 }
 
 $filteredTours = [];
@@ -278,16 +420,12 @@ $forumExternalUrl = 'https://club.skfo.ru';
 
 		<section class="section section--hot-tours">
 		<?php
-		$toLower = static function(string $value): string {
-			return function_exists('mb_strtolower') ? mb_strtolower(trim($value), 'UTF-8') : strtolower(trim($value));
-		};
 		$tourUrlByTitle = [];
-		$tourPagesForLinks = $pages->find('template=tour, include=all, sort=title, limit=500');
-		foreach ($tourPagesForLinks as $tourPageForLink) {
-			if (!$tourPageForLink instanceof Page) continue;
-			$tourTitleForLink = trim((string) $tourPageForLink->title);
-			if ($tourTitleForLink === '') continue;
-			$tourUrlByTitle[$toLower($tourTitleForLink)] = (string) $tourPageForLink->url;
+		foreach ($toursCatalog as $tourItem) {
+			$tourTitleForLink = trim((string) ($tourItem['title'] ?? ''));
+			$tourUrlForLink = trim((string) ($tourItem['url'] ?? ''));
+			if ($tourTitleForLink === '' || $tourUrlForLink === '') continue;
+			$tourUrlByTitle[$toLower($tourTitleForLink)] = $tourUrlForLink;
 		}
 
 		$hotToursCards = [];
@@ -295,19 +433,27 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		if ($page->hasField('home_featured_tours') && $page->home_featured_tours->count()) {
 			foreach ($page->home_featured_tours as $tourPage) {
 				if (!$tourPage instanceof Page) continue;
-				$imageUrl = $tourPage->hasField('tour_cover_image') ? $getImageUrlFromValue($tourPage->getUnformatted('tour_cover_image')) : '';
+				$imageUrl = $getFirstImageUrlFromPage($tourPage, ['tour_cover_image', 'images']);
+				if ($imageUrl === '') $imageUrl = $defaultCardImage;
 				$title = trim((string) $tourPage->title);
-				$region = $tourPage->hasField('tour_region') ? trim((string) $tourPage->tour_region) : '';
+				$region = $getFirstTextFromPage($tourPage, ['tour_region', 'region']);
 				$price = $tourPage->hasField('tour_price') ? trim((string) $tourPage->tour_price) : '';
 				if ($title === '' && $region === '' && $price === '' && $imageUrl === '') continue;
 
 				$hotToursCards[] = [
 					'title' => $title,
 					'region' => $region,
-					'price' => $price,
+					'price' => $price !== '' ? $price : 'Цена уточняется',
 					'image' => $imageUrl,
 					'url' => (string) $tourPage->url,
 				];
+			}
+		}
+
+		if (!count($hotToursCards) && count($toursCatalog)) {
+			$hotToursCards = array_slice($toursCatalog, 0, 10);
+			foreach ($hotToursCards as $index => $tourCard) {
+				$hotToursCards[$index]['price'] = trim((string) ($tourCard['price'] ?? '')) !== '' ? trim((string) $tourCard['price']) : 'Цена уточняется';
 			}
 		}
 
@@ -315,18 +461,13 @@ $forumExternalUrl = 'https://club.skfo.ru';
 			foreach ($page->hot_tours_cards as $card) {
 				$imageUrl = '';
 				if ($card->hasField('hot_tour_image')) {
-					$cardImage = $card->getUnformatted('hot_tour_image');
-					if ($cardImage instanceof Pageimage) {
-						$imageUrl = $cardImage->url;
-					} elseif ($cardImage instanceof Pageimages && $cardImage->count()) {
-						$imageUrl = $cardImage->first()->url;
-					}
+					$imageUrl = $getImageUrlFromValue($card->getUnformatted('hot_tour_image'));
 				}
-
+				if ($imageUrl === '') $imageUrl = $defaultCardImage;
 				$hotToursCards[] = [
 					'title' => $card->hasField('hot_tour_title') ? trim((string) $card->hot_tour_title) : '',
 					'region' => $card->hasField('hot_tour_region') ? trim((string) $card->hot_tour_region) : '',
-					'price' => $card->hasField('hot_tour_price') ? trim((string) $card->hot_tour_price) : '',
+					'price' => $card->hasField('hot_tour_price') ? trim((string) $card->hot_tour_price) : 'Цена уточняется',
 					'image' => $imageUrl,
 					'url' => '',
 				];
@@ -336,46 +477,6 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					$hotToursCards[$lastIndex]['url'] = $tourUrlByTitle[$lastTitleKey];
 				}
 			}
-		}
-
-		if (!count($hotToursCards)) {
-			$hotToursCards = [
-				[
-					'title' => 'Посетить Аргунское ущелье',
-					'region' => 'Чеченская Республика',
-					'price' => 'от 15 000₽',
-					'image' => '',
-					'url' => isset($tourUrlByTitle[$toLower('Посетить Аргунское ущелье')]) ? $tourUrlByTitle[$toLower('Посетить Аргунское ущелье')] : '',
-				],
-				[
-					'title' => 'Взобраться на гору Эльбрус',
-					'region' => 'Кабардино-Балкарская Республика',
-					'price' => 'от 15 000₽',
-					'image' => '',
-					'url' => isset($tourUrlByTitle[$toLower('Взобраться на гору Эльбрус')]) ? $tourUrlByTitle[$toLower('Взобраться на гору Эльбрус')] : '',
-				],
-				[
-					'title' => 'Расслабиться в Суворовских термах',
-					'region' => 'Ставропольский край',
-					'price' => 'от 15 000₽',
-					'image' => '',
-					'url' => isset($tourUrlByTitle[$toLower('Расслабиться в Суворовских термах')]) ? $tourUrlByTitle[$toLower('Расслабиться в Суворовских термах')] : '',
-				],
-				[
-					'title' => 'Умчать в Старый Кахиб',
-					'region' => 'Республика Дагестан',
-					'price' => 'от 15 000₽',
-					'image' => '',
-					'url' => isset($tourUrlByTitle[$toLower('Умчать в Старый Кахиб')]) ? $tourUrlByTitle[$toLower('Умчать в Старый Кахиб')] : '',
-				],
-				[
-					'title' => 'Заглянуть в Замок на воде Шато Эркен',
-					'region' => 'Кабардино-Балкарская Республика',
-					'price' => 'от 15 000₽',
-					'image' => '',
-					'url' => isset($tourUrlByTitle[$toLower('Заглянуть в Замок на воде Шато Эркен')]) ? $tourUrlByTitle[$toLower('Заглянуть в Замок на воде Шато Эркен')] : '',
-				],
-			];
 		}
 		?>
 		<div class="container-hot-tours">
@@ -431,60 +532,55 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		<?php
 		$actualCards = [];
 
-			if ($page->hasField('home_actual_places') && $page->home_actual_places->count()) {
-				foreach ($page->home_actual_places as $placePage) {
-					if (!$placePage instanceof Page) continue;
-					$imageUrl = $placePage->hasField('place_image') ? $getImageUrlFromValue($placePage->getUnformatted('place_image')) : '';
-					$text = $placePage->hasField('place_summary') ? trim((string) $placePage->place_summary) : '';
-					$region = $placePage->hasField('place_region') ? trim((string) $placePage->place_region) : '';
-					$title = trim((string) $placePage->title);
-					if ($title === '' && $text === '' && $imageUrl === '') continue;
+		if ($page->hasField('home_actual_places') && $page->home_actual_places->count()) {
+			foreach ($page->home_actual_places as $placePage) {
+				if (!$placePage instanceof Page) continue;
+				$imageUrl = $getFirstImageUrlFromPage($placePage, ['place_image', 'place_cover_image', 'images']);
+				if ($imageUrl === '') $imageUrl = $defaultCardImage;
 
-					$actualCards[] = [
-						'title' => $title,
-						'text' => $text,
-						'region' => $region,
-						'image' => $imageUrl,
-					];
-				}
+				$title = trim((string) $placePage->title);
+				$text = $truncateText($getFirstTextFromPage($placePage, ['place_summary', 'summary', 'content']), 180);
+				$region = $getFirstTextFromPage($placePage, ['place_region', 'region']);
+				if ($title === '' && $text === '') continue;
+
+				$actualCards[] = [
+					'title' => $title,
+					'text' => $text,
+					'region' => $region,
+					'image' => $imageUrl,
+					'url' => (string) $placePage->url,
+				];
 			}
+		}
 
-			if (!count($actualCards) && $page->hasField('actual_cards') && $page->actual_cards->count()) {
-				foreach ($page->actual_cards as $card) {
-					$imageUrl = '';
-					if ($card->hasField('card_image')) {
-						$cardImage = $card->getUnformatted('card_image');
-						if ($cardImage instanceof Pageimage) {
-							$imageUrl = $cardImage->url;
-						} elseif ($cardImage instanceof Pageimages && $cardImage->count()) {
-							$imageUrl = $cardImage->first()->url;
-						}
-					}
+		if (!count($actualCards) && count($placesCatalog)) {
+			foreach (array_slice($placesCatalog, 0, 2) as $placeCard) {
+				$actualCards[] = [
+					'title' => trim((string) ($placeCard['title'] ?? '')),
+					'text' => trim((string) ($placeCard['summary'] ?? '')),
+					'region' => trim((string) ($placeCard['region'] ?? '')),
+					'image' => trim((string) ($placeCard['image'] ?? '')),
+					'url' => trim((string) ($placeCard['url'] ?? '')),
+				];
+			}
+		}
+
+		if (!count($actualCards) && $page->hasField('actual_cards') && $page->actual_cards->count()) {
+			foreach ($page->actual_cards as $card) {
+				$imageUrl = '';
+				if ($card->hasField('card_image')) {
+					$imageUrl = $getImageUrlFromValue($card->getUnformatted('card_image'));
+				}
+				if ($imageUrl === '') $imageUrl = $defaultCardImage;
 
 				$actualCards[] = [
 					'title' => $card->hasField('card_title') ? trim((string) $card->card_title) : '',
 					'text' => $card->hasField('card_text') ? trim((string) $card->card_text) : '',
 					'region' => $card->hasField('card_region') ? trim((string) $card->card_region) : '',
 					'image' => $imageUrl,
+					'url' => '',
 				];
 			}
-		}
-
-		if (!count($actualCards)) {
-			$actualCards = [
-				[
-					'title' => 'Джейрахское ущелье',
-					'text' => 'Гордость Ингушетии! Территория ущелья входит в состав Джейрахско-Ассинского заповедника.',
-					'region' => 'Ингушетия',
-					'image' => $config->urls->templates . 'assets/image1.png',
-				],
-				[
-					'title' => 'Озеро Кезеной-Ам',
-					'text' => 'Самое большое высокогорное и невероятной красоты озеро на Северном Кавказе.',
-					'region' => 'Чеченская Республика',
-					'image' => $config->urls->templates . 'assets/image1.png',
-				],
-			];
 		}
 		?>
 		<div class="container actual-grid">
@@ -512,13 +608,14 @@ $forumExternalUrl = 'https://club.skfo.ru';
 
 	<section class="section section--journal">
 		<?php
-		$mapHomeJournalArticle = static function(Page $articlePage) use ($getImageUrlFromValue): array {
-			$timestamp = $articlePage->hasField('article_publish_date') ? (int) $articlePage->getUnformatted('article_publish_date') : 0;
+		$mapHomeJournalArticle = static function(Page $articlePage) use ($getFirstTextFromPage, $getFirstImageUrlFromPage, $formatArticleDateFromPage, $defaultCardImage): array {
+			$imageUrl = $getFirstImageUrlFromPage($articlePage, ['article_cover_image', 'images']);
+			if ($imageUrl === '') $imageUrl = $defaultCardImage;
 			return [
 				'title' => trim((string) $articlePage->title),
-				'topic' => $articlePage->hasField('article_topic') ? trim((string) $articlePage->article_topic) : '',
-				'date' => $timestamp > 0 ? date('d.m.Y', $timestamp) : '',
-				'image' => $articlePage->hasField('article_cover_image') ? $getImageUrlFromValue($articlePage->getUnformatted('article_cover_image')) : '',
+				'topic' => $getFirstTextFromPage($articlePage, ['article_topic', 'section']),
+				'date' => $formatArticleDateFromPage($articlePage),
+				'image' => $imageUrl,
 				'url' => '/articles/?' . http_build_query([
 					'article' => (string) $articlePage->name,
 					'from' => 'home',
@@ -559,11 +656,13 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		}
 
 		if (count($homeJournalArticles) < 2) {
-			$catalogArticlePages = $pages->find('template=article, include=all, sort=-article_publish_date, limit=10');
-			foreach ($catalogArticlePages as $articlePage) {
-				if (!$articlePage instanceof Page || !$articlePage->id) continue;
-				$addHomeJournalArticle($mapHomeJournalArticle($articlePage));
+			foreach (array_slice($articlesCatalog, 0, 10) as $articleItem) {
+				$addHomeJournalArticle($articleItem);
 			}
+		}
+
+		if (!count($homeJournalArticles) && count($articlesCatalog)) {
+			$homeJournalArticles[] = $articlesCatalog[0];
 		}
 
 		if (!count($homeJournalArticles)) {
@@ -621,13 +720,37 @@ $forumExternalUrl = 'https://club.skfo.ru';
 			if ($page->hasField('home_featured_places') && $page->home_featured_places->count()) {
 				foreach ($page->home_featured_places as $placePage) {
 					if (!$placePage instanceof Page) continue;
-					$imageUrl = $placePage->hasField('place_image') ? $getImageUrlFromValue($placePage->getUnformatted('place_image')) : '';
+					$imageUrl = $getFirstImageUrlFromPage($placePage, ['place_image', 'place_cover_image', 'images']);
+					if ($imageUrl === '') $imageUrl = $defaultCardImage;
 					$title = trim((string) $placePage->title);
 					if ($title === '' && $imageUrl === '') continue;
 
 					$dagestanPlacesCards[] = [
 						'title' => $title,
 						'image' => $imageUrl,
+						'url' => (string) $placePage->url,
+					];
+				}
+			}
+
+			if (!count($dagestanPlacesCards) && count($placesCatalog)) {
+				foreach ($placesCatalog as $placeCard) {
+					$region = $toLower((string) ($placeCard['region'] ?? ''));
+					if ($region === '' || strpos($region, 'дагестан') === false) continue;
+					$dagestanPlacesCards[] = [
+						'title' => trim((string) ($placeCard['title'] ?? '')),
+						'image' => trim((string) ($placeCard['image'] ?? '')),
+						'url' => trim((string) ($placeCard['url'] ?? '')),
+					];
+				}
+			}
+
+			if (!count($dagestanPlacesCards) && count($placesCatalog)) {
+				foreach (array_slice($placesCatalog, 0, 10) as $placeCard) {
+					$dagestanPlacesCards[] = [
+						'title' => trim((string) ($placeCard['title'] ?? '')),
+						'image' => trim((string) ($placeCard['image'] ?? '')),
+						'url' => trim((string) ($placeCard['url'] ?? '')),
 					];
 				}
 			}
@@ -636,44 +759,16 @@ $forumExternalUrl = 'https://club.skfo.ru';
 				foreach ($page->dagestan_places_cards as $card) {
 					$imageUrl = '';
 					if ($card->hasField('dagestan_place_image')) {
-						$cardImage = $card->getUnformatted('dagestan_place_image');
-						if ($cardImage instanceof Pageimage) {
-							$imageUrl = $cardImage->url;
-						} elseif ($cardImage instanceof Pageimages && $cardImage->count()) {
-							$imageUrl = $cardImage->first()->url;
-						}
+						$imageUrl = $getImageUrlFromValue($card->getUnformatted('dagestan_place_image'));
 					}
+					if ($imageUrl === '') $imageUrl = $defaultCardImage;
 
 					$dagestanPlacesCards[] = [
 						'title' => $card->hasField('dagestan_place_title') ? trim((string) $card->dagestan_place_title) : '',
 						'image' => $imageUrl,
+						'url' => '',
 					];
 				}
-			}
-
-			if (!count($dagestanPlacesCards)) {
-				$dagestanPlacesCards = [
-					[
-						'title' => 'Сулакский каньон',
-						'image' => '',
-					],
-					[
-						'title' => 'Гамсутль',
-						'image' => '',
-					],
-					[
-						'title' => 'Экраноплан “Лунь”',
-						'image' => '',
-					],
-					[
-						'title' => 'Гуллинский мост',
-						'image' => '',
-					],
-					[
-						'title' => 'Беседка Имама Шамиля',
-						'image' => '',
-					],
-				];
 			}
 
 			$dagestanHasSlider = count($dagestanPlacesCards) > 5;
@@ -692,15 +787,25 @@ $forumExternalUrl = 'https://club.skfo.ru';
 							<?php foreach ($dagestanPlacesCards as $card): ?>
 								<?php
 								$backgroundStyle = '';
+								$cardUrl = trim((string) ($card['url'] ?? ''));
+								$isCardLink = $cardUrl !== '';
 								if (!empty($card['image'])) {
 									$image = htmlspecialchars($card['image'], ENT_QUOTES, 'UTF-8');
 									$backgroundStyle = " style=\"background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.2), rgba(17, 24, 39, 0.1)), url('{$image}');\"";
 								}
 								?>
-								<article class="place-card">
+								<?php if ($isCardLink): ?>
+									<a class="place-card" href="<?php echo $sanitizer->entities($cardUrl); ?>" aria-label="<?php echo $sanitizer->entities((string) $card['title']); ?>">
+								<?php else: ?>
+									<article class="place-card">
+								<?php endif; ?>
 									<div class="place-card-image"<?php echo $backgroundStyle; ?>></div>
 									<h3 class="place-card-title"><?php echo $sanitizer->entities($card['title']); ?></h3>
-								</article>
+								<?php if ($isCardLink): ?>
+									</a>
+								<?php else: ?>
+									</article>
+								<?php endif; ?>
 							<?php endforeach; ?>
 						</div>
 					</div>

@@ -1,0 +1,653 @@
+<?php namespace Daun\Dashboard;
+
+use ProcessWire\Field;
+use ProcessWire\Page;
+use ProcessWire\PageArray;
+use function ProcessWire\__;
+
+// Include abstract panel base class
+require_once dirname(__DIR__).'/Dashboard/DashboardPanel.class.php';
+
+class DashboardPanelCollection extends DashboardPanel
+{
+    public static function getModuleInfo()
+    {
+        return array_merge(
+            parent::getModuleInfo(),
+            [
+                'title'    => __('Dashboard Panel: Collection', __FILE__),
+                'summary'  => __('Display a collection of pages in a table', __FILE__),
+                'author'   => 'Philipp Daun',
+                'version'  => '1.5.8',
+            ]
+        );
+    }
+
+    public function getIcon()
+    {
+        return 'files-o';
+    }
+
+    public function getTitle()
+    {
+        $count = $this->collection->count;
+
+        return sprintf($this->_n('%d Page', '%d Pages', $count), $count);
+    }
+
+    /**
+     * Render the main content.
+     */
+    public function getContent()
+    {
+        if (!$this->collection->count) {
+            return $this->emptyMessage;
+        }
+
+        if ($this->actions !== false) {
+            $this->columns['actions__'] = ''; // $this->_('Actions');
+        }
+
+        $pages = $this->collection->getArray();
+        $columns = $this->parseColumnDefinitions();
+        $rows = array_map(function ($page) use ($columns) {
+            return array_map(function ($column) use ($page) {
+                return $this->renderCellContent($page, $column);
+            }, $columns);
+        }, $pages);
+
+        if ($this->showHeaders) {
+            $headers = array_map(function ($column) {
+                return [$column->label, $column->class];
+            }, $columns);
+            array_unshift($rows, $headers);
+        }
+
+        return $this->renderTable($rows, [
+            'header'   => $this->showHeaders,
+            'sortable' => $this->sortable,
+            'class'    => $this->actions !== false ? 'has-actions' : 'has-no-actions',
+        ]);
+    }
+
+    /**
+     * Parse column definitions and extract fieldname, column label and CSS class.
+     */
+    public function parseColumnDefinitions()
+    {
+        $labelField = $this->getLabelFieldname();
+
+        return array_map(function ($key, $value) use ($labelField) {
+            // Extract column and label
+            $column = $value;
+            $label = null;
+            if (is_string($key)) {
+                $column = $key;
+                $label = $value;
+            }
+
+            // Construct CSS class
+            $class = 'DashboardTableColumn__'.$this->sanitizer()->snakeCase($column);
+
+            // Special case: page icon column: no title by default
+            if ($column === 'page_icon' && $label === null) {
+                $label = '';
+            }
+
+            // Get label from field/template context
+            if ($label === null) {
+                $field = $this->fields->get($column);
+                if ($field instanceof Field) {
+                    $label = $field->getLabel();
+                    if ($this->template && $this->template->hasField($column)) {
+                        $context = $this->template->fields->getFieldContext($column);
+                        $label = $context->{$labelField} ?? $label;
+                    }
+                }
+            }
+
+            // Special case: icon as column header
+            if (strpos($label ?: '', 'fa-') === 0) {
+                $label = $this->renderIcon($label);
+            }
+
+            return (object) [
+                'column' => $column,
+                'label'  => $label,
+                'class'  => $class,
+            ];
+        }, array_keys($this->columns), array_values($this->columns));
+    }
+
+    /**
+     * Generate the content of a single row for a given page.
+     */
+    public function renderCellContent($page, $column)
+    {
+        $markup = $column->column;
+        $class = $column->class;
+
+        $field = $this->fields->get($markup);
+        $fieldtype = is_object($field)
+            ? "$field->type"
+            : (is_string($field)
+                ? $field
+                : null);
+
+        $content = null;
+
+        // Special case: action links
+        if ($markup === 'actions__') {
+            $content = $this->renderPageActions($page);
+        }
+        // Special case: page icon
+        elseif ($markup === 'page_icon') {
+            $content = $this->renderIcon($page->getIcon());
+        }
+        // Special case: page status
+        elseif ($markup === 'status__') {
+            $content = $this->renderStatusIcon($page);
+        }
+        // Special case: published status toggle
+        elseif ($markup === 'published__') {
+            $content = $this->renderStatusToggle($page, 'published');
+        }
+        // Special case: visible status toggle
+        elseif ($markup === 'visible__') {
+            $content = $this->renderStatusToggle($page, 'visible');
+        }
+        // Special case: system timestamps
+        elseif (in_array($markup, ['modified', 'created'])) {
+            $content = $this->datetime->date($this->dateFormat, $page->$markup);
+        }
+        // Special case: image fields
+        elseif ($fieldtype == 'FieldtypeImage') {
+            $class .= ' is-image-column';
+            $images = $page->get($markup)->slice(0, $this->maxImageNum);
+            $content = $this->renderImageThumbnails($images);
+        }
+        // Special case: color fields
+        elseif ($fieldtype == 'FieldtypeColorPicker') {
+            $class .= ' is-color-column';
+            $color = $page->getFormatted($markup);
+            $content = "<span style='background-color:{$color}'></span>";
+        }
+        // Special case: timestamp fields
+        // disabled for now (formatted datetime values work just as well)
+        elseif (false && $fieldtype == 'FieldtypeDatetime') {
+            $content = $this->datetime->date($this->dateFormat, $page->getUnformatted($markup));
+        }
+
+        // All others
+        if ($content === null) {
+            $content = $page->getText($markup, false, true); // $oneLine, $entities
+        }
+
+        return [$content, $class];
+    }
+
+    /**
+     * Define which field to use for getting a field's title per context
+     * "label" vs. multi-lang e.g. "label1108".
+     */
+    public function getLabelFieldname()
+    {
+        if ($this->languages && !$this->user->language->isDefault) {
+            return "label{$this->user->language->id}";
+        }
+
+        return 'label';
+    }
+
+    public function getFooter()
+    {
+        $footer = '';
+
+        // Buttons (add new)
+        $buttons = $this->renderFooterButtons();
+        if ($buttons) {
+            $footer .= "<div class='DashboardFooterButtons'>{$buttons}</div>";
+        }
+
+        // Pagination
+        if ($this->supportsPagination()) {
+            $pagination = $this->renderPaginationPager($this->collection);
+            $footer .= "<div class='DashboardFooterPagination'>{$pagination}</div>";
+        }
+
+        return $footer ? "<div>{$footer}</div>" : '';
+    }
+
+    protected function executeAjaxActions()
+    {
+        if (!$this->config->ajax) return;
+
+        $actions = $_POST['actions'] ?? null;
+        if (!$actions) return;
+
+        $changed = false;
+
+        foreach ($actions as $action => $pages) {
+            foreach ($pages as $pageId => $value) {
+                $page = $this->pages->get($pageId);
+                if (!$page->id) {
+                    continue;
+                }
+                try {
+                    switch ($action) {
+                    case 'publish':
+                        $publish = !!$value;
+                        $published = !$page->isUnpublished();
+                        if ($page->publishable() && $publish && !$published) {
+                            $page->removeStatus(Page::statusUnpublished);
+                            $page->save('status');
+                            $changed = true;
+                        }
+                        if (!$publish && $published) {
+                            $page->addStatus(Page::statusUnpublished);
+                            $page->save('status');
+                            $changed = true;
+                        }
+                        break;
+                    case 'show':
+                        $show = !!$value;
+                        $visible = !$page->isHidden();
+                        if ($page->editable() && $show && !$visible) {
+                            $page->removeStatus(Page::statusHidden);
+                            $page->save('status');
+                            $changed = true;
+                        }
+                        if (!$show && $visible) {
+                            $page->addStatus(Page::statusHidden);
+                            $page->save('status');
+                            $changed = true;
+                        }
+                        break;
+                    case 'trash':
+                        $trash = !!$value;
+                        $trashed = $page->isTrash();
+                        if ($trash && !$trashed) { // $page->trashable()
+                            $this->pages->trash($page);
+                            $changed = true;
+                        }
+                        if (!$trash && $trashed) { // $page->restorable()
+                            $this->pages->restore($page);
+                            $changed = true;
+                        }
+                        break;
+                    }
+                } catch (\Throwable $th) {
+                    echo $th->getMessage();
+                    die();
+                    throw $th;
+                }
+            }
+        }
+
+        // Update collection after changes, e.g. when pages trashed
+        if ($changed) {
+            $this->refetchCollection();
+        }
+    }
+
+    public function setup()
+    {
+        parent::setup();
+
+        $this->wire()->modules->get('JqueryUI')->use('vex');
+
+        $this->editUrl = $this->config->urls->admin.'page/edit/';
+        $this->addUrl = $this->config->urls->admin.'page/add/';
+        $this->listUrl = $this->config->urls->admin.'page/list/';
+
+        $this->collection = $this->data['collection'] ?? null;
+        $this->columns = $this->data['columns'] ?? [
+            'title' => $this->_('Title'),
+            'url'   => $this->_('URL'),
+        ];
+        $this->actions = $this->data['actions'] ?? ['view', 'edit'];
+        $this->pagination = $this->data['pagination'] ?? true;
+        $this->sortable = $this->data['sortable'] ?? false;
+        $this->showHeaders = $this->data['headers'] ?? true;
+        $this->dateFormat = $this->data['dateFormat'] ?? 'relative';
+        $this->emptyMessage = $this->data['emptyMessage'] ?? '';
+        $this->maxImageNum = $this->data['maxImageNum'] ?? 1;
+        $this->parent = $this->getPageFromObjectOrSelectorOrID($this->data['parent'] ?? null);
+        $this->template = $this->templates->get($this->data['template'] ?? null);
+        $this->listPage = $this->getPageFromObjectOrSelectorOrID($this->data['list'] ?? null);
+        $this->editMode = $this->data['editMode'] ?? self::windowModeBlank;
+        $this->viewMode = $this->data['viewMode'] ?? self::windowModeBlank;
+        $this->addUrlParams = $this->data['addUrlParams'] ?? [];
+        $this->confirmTrash = $this->data['confirmTrash'] ?? true;
+        $this->confirmTrashMessage = $this->data['confirmTrashMessage'] ?? $this->_('Are you sure?');
+
+        if (is_string($this->collection)) {
+            $this->collection = $this->pages->find($this->collection);
+        }
+
+        if (!$this->collection) {
+            $this->collection = new PageArray();
+        }
+
+        if (is_array($this->actions) && !count($this->actions)) {
+            $this->actions = false;
+        }
+
+        if ($this->config->ajax) {
+            $this->executeAjaxActions();
+            $this->refetchCollectionForPagination();
+        }
+
+        return true;
+    }
+
+    protected function supportsPagination()
+    {
+        return (
+            $this->pagination &&
+            $this->collection instanceof PageArray &&
+            $this->collection->hasPagination() &&
+            $this->collection->getSelectors()
+        );
+    }
+
+    protected function refetchCollection()
+    {
+        if (!($this->collection instanceof PageArray)) {
+            return;
+        }
+
+        /** @var \ProcessWire\Selectors $selectors */
+        $selectors = $this->collection->getSelectors();
+        if (!$selectors) {
+            return;
+        }
+
+        $this->collection = $this->pages->find($selectors, ['cache' => false]);
+    }
+
+    protected function refetchCollectionForPagination()
+    {
+        if (!$this->config->ajax) return;
+        if (!$this->supportsPagination()) return;
+
+        $this->wire()->input->setPageNum($_POST['page'] ?? 1);
+        $this->refetchCollection();
+    }
+
+    protected function renderPaginationSummary(PageArray $items)
+    {
+        return sprintf(
+            $this->_('Showing %d of %d'),
+            $items->count,
+            $items->getTotal()
+        );
+    }
+
+    protected function renderPaginationPager(PageArray $items)
+    {
+        /** @var \ProcessWire\MarkupPagerNav $pager */
+        $pager = $this->wire()->modules->get('MarkupPagerNav');
+
+        $summary = $items->getPaginationString();
+        $pagination = $pager->render($items, [
+            'numPageLinks' => 3,
+            'listClass' => 'uk-pagination',
+            'listMarkup' => "<ul class='uk-pagination DashboardPagination'>{out}</ul>",
+            'linkMarkup' => "<a href='{url}' data-pagination>{out}</a>",
+            'currentItemClass' => 'uk-active',
+            'separatorItemLabel' => '<span>&hellip;</span>',
+            'separatorItemClass' => 'DashboardPaginationSeparator',
+            'currentLinkMarkup' => "<a href='{url}' data-pagination>{out}</a>",
+            'nextItemLabel' => '<i class="fa fa-angle-right"></i>',
+            'previousItemLabel' => '<i class="fa fa-angle-left"></i>',
+            'nextItemClass' => '',
+            'previousItemClass' => '',
+            'lastItemClass' => '',
+        ]);
+
+        return "<div>{$summary}</div> {$pagination}";
+    }
+
+    /**
+     * Render footer buttons
+     * Taken from PageLister, so it should work for most cases.
+     */
+    protected function renderFooterButtons()
+    {
+        $action = '';
+        $out = '';
+
+        if ($this->parent && $this->parent->id && $this->parent->addable()) {
+            $action = "{$this->addUrl}?parent_id={$this->parent->id}";
+        } elseif ($this->template && ($parent = $this->template->getParentPage(true))) {
+            if ($parent->id) {
+                $action = "{$this->addUrl}?parent_id={$parent->id}";
+            } // defined parent
+            else {
+                $action = "{$this->addUrl}?template_id={$this->template->id}";
+            } // multiple possible parents
+        }
+
+        if ($action) {
+            $mode = $this->editMode;
+            $addButtonOptions = [
+                'icon'               => 'plus-circle',
+                'secondary'          => true,
+                'modal'              => self::windowModeModal === $mode,
+                'blank'              => self::windowModeBlank === $mode,
+                'modalButtons'       => self::modalButtons,
+                'modalAutoclose'     => self::modalAutocloseAdd,
+                'reloadOnModalClose' => true,
+            ];
+            $action = $this->setQueryParameter($action, $this->addUrlParams);
+            if (self::windowModeModal === $mode) {
+                $action = $this->setQueryParameter($action, 'modal', 1);
+            }
+
+            $out .= $this->renderFooterButton($action, $this->_('Add New'), $addButtonOptions);
+        }
+
+        $action = '';
+
+        if ($this->listPage && $this->listPage->id) {
+            if ($this->listPage->template == 'admin') {
+                $action = "{$this->listPage->url}"; // admin process page
+            } else {
+                $action = "{$this->listUrl}?open={$this->listPage->id}"; // open page list at this page
+            }
+        } elseif ($this->parent && $this->parent->id) {
+            $action = "{$this->listUrl}?open={$this->parent->id}"; // open page list at parent page
+        }
+
+        if ($action) {
+            $mode = $this->viewMode;
+            $viewButtonOptions = [
+                'icon'      => 'search-plus',
+                'secondary' => true,
+                'modal'     => self::windowModeModal === $mode,
+                'blank'     => self::windowModeBlank === $mode,
+            ];
+            if (self::windowModeModal === $mode) {
+                $action = $this->setQueryParameter($action, 'modal', 1);
+            }
+            $out .= $this->renderFooterButton($action, $this->_('View All'), $viewButtonOptions);
+        }
+
+        return $out;
+    }
+
+    /**
+     * Get actions for given page.
+     */
+    protected function getPageActions(Page $page)
+    {
+        if ($this->actions === false) {
+            return [];
+        }
+
+        $links = [];
+
+        foreach ($this->actions as $action) {
+            if ($action === 'edit') {
+                $links['edit'] = [
+                    'href'     => $page->editUrl,
+                    'label'    => $this->_('Edit'),
+                    'icon'     => ['pencil', 'pen-to-square'],
+                    'mode'     => $this->editMode,
+                    'reload'   => true,
+                    'disabled' => !$page->editable,
+                ];
+            }
+            if ($action === 'view') {
+                $links['view'] = [
+                    'href'     => $page->url,
+                    'label'    => $this->_('View'),
+                    'icon'     => 'eye',
+                    'mode'     => $this->viewMode,
+                    'disabled' => !$page->viewable,
+                ];
+            }
+            if ($action === 'trash') {
+                $links['trash'] = [
+                    'href' => '#',
+                    'label' => $this->_('Trash'),
+                    'icon' => ['trash', 'trash-can'],
+                    // 'disabled' => $page->isTrash() || !$page->trashable,
+                    'attributes' => [
+                        'data-action'  => "[trash][{$page}]",
+                        'data-action-value'  => "1",
+                    ] + ($this->confirmTrash ? [
+                        'data-action-confirm' => $this->confirmTrashMessage,
+                    ] : []),
+                ];
+            }
+        }
+
+        return $links;
+    }
+
+    /**
+     * Render action links for given page.
+     */
+    protected function renderPageActions(Page $page)
+    {
+        $actions = $this->getPageActions($page);
+        $links = array_map(function ($action) {
+            $icon = $this->renderIcon($action['icon'] ?? '');
+            if ($action['disabled'] ?? false) {
+                return $icon;
+            }
+            $attr = (array) ($action['attributes'] ?? []);
+            $mode = $action['mode'] ?? false;
+            $class = $action['class'] ?? '';
+
+            if (self::windowModeModal === $mode) {
+                $this->includeModalScripts();
+                $class .= 'pw-modal pw-modal-large';
+                $action['href'] = $this->setQueryParameter($action['href'], 'modal', 1);
+                $attr['data-buttons'] = self::modalButtons;
+                $attr['data-autoclose'] = self::modalAutocloseEdit;
+                if ($action['reload'] ?? false) {
+                    $attr['data-reload-on-close'] = true;
+                }
+            }
+
+            if (self::windowModeBlank === $mode) {
+                $attr['target'] = '_blank';
+            }
+
+            return $this->renderTooltipLink(
+                $action['href'],
+                $class,
+                $icon,
+                $action['label'] ?? '',
+                $attr
+            );
+        }, $actions);
+
+        return implode(' ', $links);
+    }
+
+    /**
+     * Render a link with tooltip.
+     */
+    protected function renderTooltipLink($href, $class, $label, $description, $attributes = [])
+    {
+        $attributes = $this->renderAttributes($attributes);
+
+        return "<a href='$href' class='tooltip $class' title='$description' $attributes>$label</a>";
+    }
+
+    /**
+     * Render image thumbnails.
+     */
+    protected function renderImageThumbnails($images)
+    {
+        $imgModule = $this->modules->get('InputfieldImage');
+        $thumbnails = array_map(function ($image) use ($imgModule) {
+            $thumb = $imgModule->getAdminThumb($image);
+
+            return $thumb['markup'] ?? '';
+        }, $images->getArray());
+
+        return implode(' ', $thumbnails);
+    }
+
+    /**
+     * Render status icon.
+     */
+    protected function renderStatusIcon(Page $page)
+    {
+        if ($page->hasStatus(Page::statusTrash)) {
+            $icon = 'trash-can';
+            $tooltip = $this->_('In Trash');
+        } elseif ($page->hasStatus(Page::statusUnpublished)) {
+            $icon = 'pen';
+            $tooltip = $this->_('Draft');
+        } elseif ($page->hasStatus(Page::statusHidden)) {
+            $icon = 'eye-slash';
+            $tooltip = $this->_('Hidden');
+        } else {
+            $icon = 'circle-check';
+            $tooltip = $this->_('Published');
+        }
+        $icon = $this->renderIcon($icon);
+        return "<span class='tooltip' title='{$tooltip}'>{$icon}</span>";
+    }
+
+    /**
+     * Render publish/visibility toggle.
+     */
+    protected function renderStatusToggle(Page $page, $status = 'published')
+    {
+        $status = $this->wire()->sanitizer->option($status, ['published', 'visible']) ?? 'published';
+
+        switch ($status) {
+        case 'visible':
+            $action = 'show';
+            $statusFlag = Page::statusHidden;
+            $labelInactive = $this->_('Hidden');
+            $labelActive = $this->_('Visible');
+            break;
+        case 'published':
+        default:
+            $action = 'publish';
+            $statusFlag = Page::statusUnpublished;
+            $labelInactive = $this->_('Draft');
+            $labelActive = $this->_('Published');
+            break;
+        }
+
+        $active = !$page->hasStatus($statusFlag);
+        $checked = $active ? 'checked' : '';
+        $tooltip = $active ? $labelActive : $labelInactive;
+
+        return "
+            <label class='uk-switch tooltip' for='page-{$status}-{$page}' title='{$tooltip}'>
+                <input type='checkbox' id='page-{$status}-{$page}' name='actions[{$action}][{$page}]' value='1' {$checked}>
+                <div class='uk-switch-slider'></div>
+            </label>
+        ";
+    }
+}

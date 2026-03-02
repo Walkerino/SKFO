@@ -1,0 +1,306 @@
+<?php namespace ProcessWire;
+
+/**
+ * ProcessWire ProMailer
+ * 
+ * Copyright 2023 by Ryan Cramer
+ * This is a commercial module, do not distribute.
+ * 
+ * @property string $defaultFromEmail
+ * @property string $defaultFromName
+ * @property int $expireDays
+ * @property int $maxBounce
+ * @property array $useLogs Logs to use
+ * @property array $useTemplates IDs of templates allowed for messages (empty=allow any)
+ * @property string $useGravatar
+ * @property bool|int $useXMailer Send an X-Mailer header in sent emails?
+ * @property int $useListUnsub
+ * @property string $listUnsubEmail
+ * @property string $listUnsubDomains
+ * @property bool|int $unsubDelete Delete subscribers when they unsubscribe? (default=true) NOT YET IMPLEMENTED
+ * @property string $defaultMailer Default selected mailer
+ * @property string $forceMailer Force only this mailer
+ * @property string $transMailer Mailer to use for transactional email (i.e. opt-in emails)
+ * @property string $processGetVar GET var required presence to process background queue (default='') v12+
+ * 
+ * @property ProMailerForms $forms
+ * @property ProMailerEmail $email
+ * @property ProMailerLists $lists
+ * @property ProMailerSubscribers $subscribers
+ * @property ProMailerMessages $messages
+ * @property ProMailerQueues $queues
+ * 
+ * @todo option to specify GET var that is required to process queue
+ * @todo implementation of the `$unsubDelete == false` option
+ * @todo make it possible to subscribe to multiple lists at once
+ * @todo option to filter ProMailer lists at send time with selector
+ * @todo send first email after subscribe confirmation
+ *
+ */
+class ProMailer extends WireData implements Module, ConfigurableModule {
+	
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'ProMailer',
+			'summary' => 'Bulk email distribution and subscriber management',
+			'version' => 13,
+			'author' => 'Ryan Cramer',
+			'requires' => 'ProcessWire>=3.0',
+			'icon' => 'send-o',
+			'singular' => true, 
+			'autoload' => true, 
+			'installs' => 'ProcessProMailer',
+		);
+	}
+	
+	/*** CONSTANTS ********************************************************************************************/
+
+	// module support
+	const name = 'promailer';
+	const emailTemplateName = 'promailer-email';
+	const subscribeTemplateName = 'promailer-subscribe';
+	const unsubscribeFieldName = 'promailer_unsubscribe';
+
+	// tables	
+	const listsTable = 'promailer_lists';
+	const messagesTable = 'promailer_messages';
+	const subscribersTable = 'promailer_subscribers';
+	const queuesTable = 'promailer_queue';
+
+	// body source
+	const bodySourceInput = 0; // body is text and/or html input here with the message
+	const bodySourcePage = 1; // body is rendered by a Page reference
+	const bodySourceHref = 2; // body is rendered at a URL
+
+	// body type	
+	const bodyTypeHtml = 0; // HTML with auto-generated text
+	const bodyTypeText = 1; // plain text only 
+	const bodyTypeBoth = 2; // Both text and HTML versions maintained separately
+
+	// list type	
+	const listTypeRegular = ''; // Regular list type
+	const listTypePages = 'pages'; // Pages list type
+
+	// logs to use	
+	const useLogSubscribers = 1; // use subscribers log?
+	const useLogSubscribersIPs = 2; // record IP addresses in subscribers log?
+	const useLogEmail = 3; // log every email sent? 
+
+	// gravatar	
+	const useGravatarNone = '';
+	const useGravatarMP = 'mp'; 
+	const useGravatar404 = '404';
+	const useGravatarIdenticon = 'identicon';
+	const useGravatarMonsterid = 'monsterid';
+	const useGravatarWavatar = 'wavatar';
+
+	// email list-unsubscribe header
+	const useListUnsubNone = 0;
+	const useListUnsubUrl = 1; 
+	const useListUnsubEmail = 2;
+	const useListUnsubBoth = 3;
+
+	// other 
+	const messageFlagsQueueSend = 2; // queued sending for message
+	const sendDebug = false; // when enabled, we only pretend to send email
+
+	
+	/*** INIT ************************************************************************************************/
+
+	/**
+	 * Construct
+	 * 
+	 */
+	public function __construct() {
+		$this->set('defaultFromEmail', '');
+		$this->set('defaultFromName', '');
+		$this->set('expireDays', 30);
+		$this->set('licenseKey', '');
+		$this->set('maxBounce', 5);
+		$this->set('useLogs', array(self::useLogSubscribers));
+		$this->set('useTemplates', array()); 
+		$this->set('useGravatar', self::useGravatarWavatar);
+		$this->set('useXMailer', true);
+		$this->set('useListUnsub', self::useListUnsubNone); 
+		$this->set('listUnsubEmail', '');
+		$this->set('listUnsubDomains', '');
+		$this->set('forceMailer', '');
+		$this->set('transMailer', '');
+		$this->set('defaultMailer', '');
+		$this->set('unsubDelete', true); // not yet implemented
+		$this->set('processGetVar', ''); // get var required to process queue
+		include_once(__DIR__ . '/ProMailerType.php');
+		include_once(__DIR__ . '/ProMailerTypeManager.php');
+		parent::__construct();
+	}
+
+	/**
+	 * Init
+	 * 
+	 */
+	public function init() {
+		$this->wire('promailer', $this);
+	}
+
+	/**
+	 * API ready
+	 *
+	 */
+	public function ready() {
+		$varName = $this->processGetVar; 
+		if($varName && $this->wire()->input->get($varName) === null) {
+			// skip processing when required GET var is not present
+		} else if($this->ok()) {
+			$this->addHookBefore('ProcessWire::finished', $this, 'finished');
+		}
+	}
+	
+
+	/*** INSTANCE HELPERS *************************************************************************************/
+
+	/**
+	 * Helpers that extend ProMailerTypeManager
+	 * 
+	 * @var array of name => className
+	 * 
+	 */
+	protected $instances = array(
+		'subscribers' => 'ProMailerSubscribers',
+		'messages' => 'ProMailerMessages',
+		'forms' => 'ProMailerForms',
+		'email' => 'ProMailerEmail',
+		'lists' => 'ProMailerLists',
+		'queues' => 'ProMailerQueues',
+	);
+
+	/**
+	 * Get a helper instance
+	 * 
+	 * @param string $name
+	 * @return ProMailerTypeManager|null|array
+	 * 
+	 */
+	public function instance($name) {
+		if($name === 'all') {
+			$a = array();
+			foreach($this->instances as $name => $class) {
+				$a[$name] = $this->instance($name);
+			}
+			return $a;
+		}
+		if(!isset($this->instances[$name])) return null;
+		if(!is_string($this->instances[$name])) return $this->instances[$name];
+		$class = $this->instances[$name];
+		include_once(dirname(__FILE__) . "/$class.php");
+		$class = "\\ProcessWire\\$class";
+		$this->instances[$name] = new $class($this);
+		return $this->instances[$name];
+	}
+
+	/**
+	 * Get a helper instance or API var
+	 * 
+	 * @param string $key
+	 * @return mixed|null|ProMailerTypeManager
+	 * 
+	 */
+	public function __get($key) {
+		if(array_key_exists($key, $this->instances)) return $this->instance($key);
+		return parent::__get($key);
+	}
+
+	
+	/*** MODULE SUPPORT **************************************************************************************/
+	
+	/**
+	 * Request maintenance
+	 *
+	 * @param HookEvent $event
+	 *
+	 */
+	public function finished(HookEvent $event = null) {
+		try {
+			$this->queues->process();
+		} catch(\Exception $e) {
+		}
+	}
+
+	/**
+	 * Daily maintenance (called by ProcessProMailer)
+	 *
+	 */
+	public function maintenance() {
+		if($this->expireDays > 0) {
+			$this->subscribers->removeUnconfirmed($this->expireDays);
+		}
+	}
+
+	/**
+	 * Module status ok (Pro module verification)
+	 * 
+	 * @return bool
+	 * 
+	 */
+	public function ok() {
+		$k='';$a="$this"?[['ey','eK','ens','lic'],['m','p','w','p']]:md5("$this");
+		return stripos(strtoupper($this->get(implode($k,array_reverse($a[0])))),implode($k,array_reverse($a[1])))===0;
+	}
+
+	/**
+	 * Install module and create DB tables
+	 *
+	 */
+	public function ___install() {
+		foreach($this->instance('all') as $item) {
+			try {
+				$item->install();
+			} catch(\Exception $e) {
+				$this->error($e->getMessage());
+			}
+		}
+	}
+
+	/**
+	 * Uninstall module and drop DB tables
+	 *
+	 */
+	public function ___uninstall() {
+		foreach($this->instance('all') as $item) {
+			try {
+				$item->uninstall();
+			} catch(\Exception $e) {
+				$this->error($e->getMessage());
+			}
+		}
+	}
+	
+	/**
+	 * Upgrade
+	 *
+	 * @param $fromVersion
+	 * @param $toVersion
+	 *
+	 */
+	public function ___upgrade($fromVersion, $toVersion) {
+		foreach($this->instance('all') as $item) {
+			try {
+				$item->upgrade($fromVersion, $toVersion);
+			} catch(\Exception $e) {
+				$this->error($e->getMessage());
+			}
+		}
+	}
+
+	/**
+	 * Module config
+	 * 
+	 * @param InputfieldWrapper $inputfields
+	 *
+	 */
+	public function ___getModuleConfigInputfields(InputfieldWrapper $inputfields) {
+		/** @var ProcessProMailer $ppm */
+		$ppm = $this->wire()->modules->getModule('ProcessProMailer', array('noInit' => true, 'noCache' => true));
+		if($ppm) $ppm->getProMailerConfigInputfields($this, $inputfields);
+	}
+
+}

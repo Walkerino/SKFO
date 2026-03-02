@@ -1,0 +1,1750 @@
+<?php namespace ProcessWire;
+
+require_once(__DIR__ . '/init.php');
+
+/**
+ * ProcessWire ProFields Combo: Fieldtype module
+ *
+ * Part of the ProFields package.
+ * Please do not distribute.
+ *
+ * Copyright (C) 2024 by Ryan Cramer
+ *
+ * https://processwire.com
+ * 
+ * @todo field export/import support
+ * @todo support empty/null for number fields
+ *
+ */
+
+class FieldtypeCombo extends Fieldtype implements FieldtypeHasFiles {
+	
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'ProFields: Combo',
+			'summary' => 'One Fieldtype representing a combination of different inputs/values.',
+			'icon' => 'object-group',
+			'href' => 'https://processwire.com/store/pro-fields/combo/',
+			'author' => 'Ryan Cramer',
+			'version' => 17,
+			'install' => 'InputfieldCombo',
+			'requires' => 'ProcessWire>=3.0.164',
+		);
+	}
+	
+	const lookupTable = 'combo_lookup';
+
+	/**
+	 * @var null|ComboSchema
+	 * 
+	 */
+	protected $comboSchema = null;
+
+	/**
+	 * Name of Combo subfield being saved during a ProcessPageEdit::ajaxSave request
+	 * 
+	 * @var string 
+	 * 
+	 */
+	protected $ajaxSaveSubfield = '';
+
+	/**
+	 * Init
+	 * 
+	 */
+	public function init() {
+		parent::init();
+		// add hook that updates schema to be consistent with field settings
+		$this->wire()->fields->addHookAfter('saved', $this, 'hookFieldSaved');
+		if(isset($_SERVER['HTTP_X_FIELDNAME'])) {
+			$this->addHookBefore('ProcessPageEdit::ajaxSave', $this, 'hookProcessPageEditAjaxSave'); 
+		}
+	}
+
+	/**
+	 * @return ComboSchema
+	 * 
+	 */
+	public function comboSchema() {
+		if($this->comboSchema === null) {
+			$this->comboSchema = new ComboSchema();
+			$this->wire($this->comboSchema);
+		}
+		return $this->comboSchema;
+	}
+	
+	/**
+	 * Get database schema used by the Field
+	 *
+	 * @param Field $field
+	 *
+	 * @return array
+	 *
+	 */
+	public function getDatabaseSchema(Field $field) {
+		$schema = parent::getDatabaseSchema($field);
+		$schema = $this->comboSchema()->getDatabaseSchema($field, $schema);
+		return $schema;
+	}
+	
+	/**
+	 * Get field class
+	 * 
+	 * @param array $a
+	 * @return string
+	 * 
+	 */
+	public function getFieldClass(array $a = array()) {
+		return 'ComboField';
+	}
+	
+	/**
+	 * Sanitize value
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param array|ComboValue $value
+	 * @return ComboValue
+	 * 
+	 */
+	public function sanitizeValue(Page $page, Field $field, $value) {
+		/** @var ComboField $field */
+		if($value instanceof ComboValue) {
+			// ok
+		} else if(is_array($value)) {
+			$value = $this->wakeupValue($page, $field, $value);
+		} else {
+			$value = new ComboValue($field->getComboSettings(), $page, $field);
+		}
+		return $value;
+	}
+
+	/**
+	 * Return the blank value for this fieldtype
+	 * 
+	 * @param Page|NullPage $page
+	 * @param Field $field
+	 * @return ComboValue
+	 *
+	 */
+	public function getBlankValue(Page $page, Field $field) {
+		return $this->wakeupValue($page, $field, array());
+	}
+
+	/**
+	 * Markup value
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param null $value
+	 * @param string $property
+	 * @return null|MarkupFieldtype|string
+	 * 
+	 */
+	public function ___markupValue(Page $page, Field $field, $value = null, $property = '') {
+		/** @var ComboField $field */
+		/** @var ComboValue $value */
+		if(!$value instanceof ComboValue) $value = $page->get($field->name);
+		if($property && $value instanceof ComboValue) {
+			$settings = $value->getSubfieldSettings($property);
+			if($settings && ($settings->type === 'CKEditor' || $settings->type === 'TinyMCE')) {
+				// these already come markup-ready
+				$value = (string) $value->get($property);
+				return $this->wire()->sanitizer->purify($value);
+			}
+		}
+		if(!$value instanceof ComboValue || !empty($property)) {
+			return parent::___markupValue($page, $field, $value, $property);
+		}
+		return $value->render();
+	}
+
+	/**
+	 * Get a formatted page field value
+	 * 
+	 * @param Page $page
+	 * @param Field|ComboField $field
+	 * @param ComboValue|array $value
+	 * @return ComboValueFormatted
+	 * 
+	 */
+	public function ___formatValue(Page $page, Field $field, $value) {
+		
+		if(!$value instanceof ComboValue && !is_array($value)) {
+			$value = new ComboValueFormatted($field->getComboSettings(), $page, $field);
+			return $value;
+		}
+	
+		// if value already formatted return it
+		if($value instanceof ComboValueFormatted) return $value;
+
+		$pages = $this->wire()->pages;
+		$languages = $this->wire()->languages;
+		$modules = $this->wire()->modules;
+		$language = null;
+		
+		$comboSettings = $field->getComboSettings(); 
+		$formattedValue = new ComboValueFormatted($comboSettings, $page, $field);
+		$values = is_array($value) ? $value : $value->getArray();
+		
+		foreach($values as $k => $v) {
+			
+			$subfieldSettings = $value->getSubfieldSettings($k);
+			$textformatters = $subfieldSettings ? $subfieldSettings->textformatters : array();
+			$isSelect = $comboSettings->isSelectType($subfieldSettings->type);
+		
+			// NOTE: (languages) - this line was added and converts language value to string
+			if($languages && $v instanceof LanguagesValueInterface) {
+				/** @var ComboLanguagesValue $v */
+				if($subfieldSettings->xlang) {
+					// xlang: do not inherit from default language
+					if($language === null) $language = $this->wire()->user->language;
+					$v = $language ? (string) $v->getLanguageValue($language->id) : '';
+				} else {
+					$v = "$v";
+				}
+			}
+	
+			if($v instanceof Page) {
+				if($v->id && $v->viewable(false)) {
+					if(!$v->of()) {
+						$v = clone $v;
+						$v->of(true);
+					}
+				} else {
+					$v = $pages->newNullPage();
+				}
+				
+			} else if($v instanceof PageArray) {
+				$a = $pages->newPageArray();
+				foreach($v as $p) {
+					if(!$p->viewable(false)) continue;
+					if(!$p->of()) {
+						$p = clone $p;
+						$p->of(true);
+					}
+					$a->add($p);
+				}
+				$a->resetTrackChanges();
+				$v = $a;
+				
+			} else if($v instanceof Pagefiles) {
+				// let FieldtypeFile handle formatting of Pagefiles
+				$fieldtypeClass = ($v instanceof Pageimages ? 'FieldtypeImage' : 'FieldtypeFile');
+				/** @var FieldtypeFile $fieldtypeFile */
+				$fieldtypeFile = $this->wire()->fieldtypes->$fieldtypeClass;
+				$f = new Field();
+				$this->wire($f);
+				$f->type = $fieldtypeFile;
+				$a = $subfieldSettings->getArray();
+				unset($a['name'], $a['num'], $a['type']);
+				$a['textformatters'] = array('TextformatterEntities');
+				$f->setArray($a);
+				/** @var Pagefiles|Pagefile $v */
+				$v = $fieldtypeFile->___formatValue($page, $f, $v);
+				
+			} else if($isSelect) {
+				if(!empty($v) || $v === "0") {
+					if(!is_array($v)) $v = array($v);
+					$v = $this->formatSelectOptions($field, $k, $v);
+					if($isSelect < 2) $v = count($v) ? reset($v) : '';
+				}
+				
+			} else if(count($textformatters)) {
+				// apply textformatters
+				if($languages && $v instanceof LanguagesValueInterface) {
+					// NOTE: this cannot be reached per "(languages)" above
+					$v = clone $v;
+				}
+			
+				foreach($textformatters as $textformatterName) {
+					/** @var Textformatter $textformatter */
+					$textformatter = $modules->getModule($textformatterName);
+					if(!$textformatter) continue;
+
+					if(is_string($v) || is_int($v) || is_float($v)) {
+						$textformatter->format($v);
+						// $textformatter->formatValue($page, $field, $v); 
+						
+					} else if($languages && $v instanceof LanguagesValueInterface) {
+						// NOTE: this cannot be reached per "(languages)" above
+						/** @var LanguagesPageFieldValue $v */
+						foreach($languages as $language) {
+							$langVal = $v->getLanguageValue($language->id);
+							$textformatter->format($langVal);
+							$v->setLanguageValue($language->id, $langVal);
+						}
+						$v->resetTrackChanges();
+					}
+				}
+			}
+			
+			$formattedValue->set($k, $v);
+			
+		} // foreach($values as $k => $v)
+		
+		return $formattedValue;
+	}
+	
+	/**
+	 * Format option values to include labels
+	 *
+	 * This takes array of [ value1, value2 ] and converts to [ value1 => label1, value2 => label2 ]
+	 *
+	 * @param ComboField $field
+	 * @param string $name
+	 * @param array $values
+	 * @return array
+	 *
+	 */
+	protected function formatSelectOptions(ComboField $field, $name, array $values) {
+
+		$comboSettings = $field->getComboSettings();
+		$sanitizer = $this->wire()->sanitizer;
+
+		/** @var InputfieldSelect $select */
+		$select = $comboSettings->getInputfield($name);
+		if(!$select instanceof InputfieldSelect) return $values;
+
+		$labels = array();
+		$languages = $this->wire()->languages;
+		$language = $languages ? $this->wire()->user->language : null;
+		if($language && $language->isDefault()) $language = null;
+
+		foreach($values as $value) {
+			$label = '';
+			if($language) $label = $select->optionLanguageLabel($language, $value);
+			if(empty($label)) $label = $select->optionLabel($value);
+			if(!empty($label)) $labels[$value] = $label;
+		}
+		
+		$values = array();
+		foreach($labels as $value => $label) {
+			if(!strlen($label)) $label = $value;
+			$selectValue = new ComboSelectedValue(); 
+			$this->wire($selectValue);
+			$selectValue->value = $value;
+			$selectValue->label = $sanitizer->entities($label);
+			$values[$value] = $selectValue;
+		}
+		
+
+	
+		return $values;
+	}
+
+
+	/**
+	 * Sleep a ComboValue
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param ComboValue|array $value
+	 * @return array
+	 * @throws WireException
+	 * 
+	 */
+	public function ___sleepValue(Page $page, Field $field, $value) {
+		
+		/** @var ComboField $field */
+		
+		if($value instanceof ComboValueFormatted) {
+			throw new WireException('sleepValue() requires a ComboValue and you provided a ComboValueFormatted'); 
+		}
+		
+		if(!$field instanceof ComboField) {
+			throw new WireException('sleepValue() requires $field to be a ComboField'); 
+		}
+
+		$sleepValue = array();
+		$indexData = array(); // data column in table
+		$comboSettings = $field->getComboSettings();
+
+		foreach($value->getArray() as $name => $v) {
+			$num = $comboSettings->num($name);
+			if(!$num) continue;
+			$type = $comboSettings->getSubfieldType($num);
+			if(empty($type) || strtolower($type) === 'delete') continue;
+			$col = "i$num";
+			$colName = $comboSettings->colName($num);
+			$v = $this->sleepValueColumn($page, $field, $name, $v, $type, $num);
+			$indexData[$col] = $v;
+			if(is_array($v)) $v = json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+			$sleepValue[$colName] = $v;
+		}
+
+		$sleepValue['data'] = json_encode($indexData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+		
+		return $sleepValue;
+	}
+
+	/**
+	 * Sleep a column value
+	 * 
+	 * @param Page $page
+	 * @param ComboField $field
+	 * @param string $name
+	 * @param mixed $value
+	 * @param string $type
+	 * @param int $num Column number
+	 * @return array|string
+	 * 
+	 */
+	protected function sleepValueColumn(Page $page, ComboField $field, $name, $value, $type, $num) { 
+		
+		if($type === 'Datetime' || $type === 'Date') {
+			if(empty($value)) return null;
+			if(!ctype_digit("$value")) $value = strtotime($value);
+			return $value ? date('Y-m-d H:i:s', $value) : null;
+		}
+
+		$comboSettings = $field->getComboSettings();
+		$valueType = $comboSettings->getSubfieldValueType($name);
+		$isSaving = $page->get('_comboSaving') === $field;
+		
+		if($valueType === 'int') return strlen("$value") ? (int) $value : null;
+		if($valueType === 'float') return strlen("$value") ? (float) $value : null;
+		
+		$selectType = $comboSettings->isSelectType($type);
+		if($selectType) {
+			if(is_array($value)) {
+				$value = $this->sleepOptionValues($field, $name, $value);
+			} else {
+				$value = $this->sleepOptionValues($field, $name, array($value));
+			}
+			if($isSaving) $this->addLookupTableData($page, $field, $num, $value);
+			if($selectType > 1) return $value; // multi-value/array
+			return count($value) ? reset($value) : ''; // single-value/string
+		}
+
+		if(!is_object($value)) {
+			// non-object value, leave as-is
+			return $value;
+		}
+		
+		if($value instanceof Page) {
+			// convert Page to 123 (id)
+			if($isSaving) $this->addLookupTableData($page, $field, $num, $value);
+			return $value->id > 0 ? $value->id : '';
+		}
+		
+		if($value instanceof PageArray) {
+			// convert PageArray to "123,456,789"
+			if($isSaving) $this->addLookupTableData($page, $field, $num, $value);
+			$value = $value->implode(',', 'id'); 
+			return $value;
+		}
+		
+		if($value instanceof Pagefiles || $value instanceof Pagefile) {
+			return $this->sleepPagefiles($value);
+		}
+		
+		if($value instanceof ComboLanguagesValue) {
+			// multi-language value
+			return $value->exportToString();
+		}
+		
+		if($value instanceof WireData) {
+			// some other type of WireData, we do not know exactly what it is
+			$className = wireClassName($value);
+			$value = $value->getArray();
+			$value['__class'] = $className;
+			return $value;
+		}
+		// some other type of object we do not recognize, return string value of it
+		return "$value";
+	}
+
+	/**
+	 * Sleep Pagefiles value to JSON string
+	 * 
+	 * @param Pagefile|Pagefiles|Pageimage|Pageimages $pagefiles
+	 * @return array()
+	 * 
+	 */
+	protected function sleepPagefiles($pagefiles) {
+		
+		if($pagefiles instanceof Pagefile) $pagefiles = array($pagefiles);
+	
+		$user = $this->wire()->user;
+		$items = array();
+		
+		foreach($pagefiles as $pagefile) {
+			/** @var Pagefile|Pageimage $pagefile */
+
+			$isNew = $pagefile->isNew();
+			$isChanged = $pagefile->isChanged();
+
+			if($isNew) {
+				$pagefile->createdUser = $user;
+				if(!$pagefile->isTemp()) $pagefile->created = time();
+			}
+
+			if($isChanged || $isNew) {
+				$changes = array_flip($pagefile->getChanges());
+				unset($changes['hash'], $changes['sort'], $changes['modified'], $changes['modified_users_id']);
+				if($isNew || count($changes)) {
+					$pagefile->modifiedUser = $user;
+					if(!$pagefile->isTemp()) $pagefile->modified = time();
+				}
+			}
+
+			$item = array(
+				'name' => $pagefile->basename,
+				'description' => $pagefile->description(true),
+				'created' => $pagefile->created,
+				'modified' => $pagefile->modified,
+				'modified_users_id' =>  (int) $pagefile->modified_users_id,
+				'created_users_id' =>  (int) $pagefile->created_users_id,
+				'filesize' => $pagefile->filesize(true),
+				'tags' => $pagefile->tags,
+				'filedata' => $pagefile->filedata,
+			);
+			
+			if($pagefile instanceof Pageimage) {
+				$info = $pagefile->getImageInfo(true);
+				foreach(array('width', 'height') as $key) {
+					if(strpos($info[$key], '%')) $info[$key] = (-1 * (int) rtrim($info[$key], '%'));
+					$item[$key] = (int) $info[$key];
+				}
+				$item['ratio'] = number_format($pagefile->ratio, 2, '.', '');
+			}
+			
+			$items[] = $item;
+		}
+
+		return $items;
+	}
+
+	/**
+	 * Sleep option values to be indexable
+	 *
+	 * @param ComboField $field 
+	 * @param string $name
+	 * @param array $values
+	 * @return array
+	 *
+	 */
+	protected function sleepOptionValues(ComboField $field, $name, array $values) {
+		$a = array();
+		foreach($values as $value) {
+			if($value instanceof ComboSelectedValue) {
+				$value = $value->value;
+			}
+			$a[] = $value;
+		}
+		return $a;	
+	}
+
+	/**
+	 * Add values to combo_lookup table
+	 * 
+	 * @param Page $page
+	 * @param Field|ComboField $field
+	 * @param int $num
+	 * @param array|string|int|Page|PageArray $data
+	 * 
+	 */
+	protected function addLookupTableData(Page $page, Field $field, $num, $data) {
+		
+		$database = $this->wire()->database;
+		$table = self::lookupTable;
+		
+		$this->clearLookupTableData($page, $field, $num); 
+		
+		if($data instanceof Page) {
+			$data = $data->id ? array($data->id) : array();
+		} else if($data instanceof PageArray) {
+			$data = $data->count() ? $data->explode('id') : array();
+		} else if(!is_array($data)) {
+			$data = strlen("$data") ? array($data) : array();
+		}
+		
+		if(!count($data)) return;
+		
+		$data = array_unique($data);
+		
+		$sql = 
+			"INSERT INTO $table (pages_id, fields_id, num, sort, data) " . 
+			"VALUES (:pages_id, :fields_id, :num, :sort, :data)";
+		
+		$query = $database->prepare($sql);
+		$query->bindValue(':pages_id', $page->id, \PDO::PARAM_INT);
+		$query->bindValue(':fields_id', $field->id, \PDO::PARAM_INT);
+		$query->bindValue(':num', $num, \PDO::PARAM_INT);
+		$sort = 0;
+		
+		foreach($data as $value) {
+			if(strlen($value) > 60 && mb_strlen($value) > 60) {
+				$value = mb_substr($value, 0, 60);
+			}
+			$query->bindValue(':sort', $sort, \PDO::PARAM_INT);
+			$query->bindValue(':data', $value, \PDO::PARAM_STR);
+			$query->execute();
+			$sort++;
+		}
+		
+		$query->closeCursor();
+	}
+
+	/**
+	 * Clear lookup table values
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param int $num
+	 * 
+	 */
+	protected function clearLookupTableData(Page $page, Field $field, $num = 0) {
+		
+		$database = $this->wire()->database;
+		$table = self::lookupTable;
+
+		$sql = "DELETE FROM $table WHERE fields_id=:fields_id AND pages_id=:pages_id ";
+		if($num) $sql .= "AND num=:num";
+
+		$query = $database->prepare($sql);
+		$query->bindValue(':fields_id', $field->id, \PDO::PARAM_INT);
+		$query->bindValue(':pages_id', $page->id, \PDO::PARAM_INT);
+		if($num) $query->bindValue(':num', $num, \PDO::PARAM_INT);
+		
+		$query->execute();
+		$query->closeCursor();
+	}
+
+	/**
+	 * Wakeup an array to a ComboValue
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param array $value
+	 * @return ComboValue
+	 * 
+	 */
+	public function ___wakeupValue(Page $page, Field $field, $value) {
+		
+		/** @var ComboField $field */
+
+		$comboSettings = $field->getComboSettings();
+		$wakeupValue = array();
+		$indexData = array();
+		$comboValuePrevious = null;
+		
+		if(is_array($value)) {
+			// value is already data array
+			$data = $value;
+		} else if(is_string($value) && strlen($value)) {
+			// JSON string
+			$data = json_decode($value, true);
+			if(!is_array($data)) $data = array();
+		} else {
+			// Other
+			$data = array();
+		}
+		
+		if(isset($data['data'])) {
+			// index data from JSON encoded 'data' column
+			$indexData = $data['data'];
+			if(is_string($indexData)) $indexData = json_decode($indexData, true);
+			if(!is_array($indexData)) $indexData = array();
+			unset($data['data']);
+			if($comboSettings->useDataCol) $data = array_merge($data, $indexData); 
+		} else if(!empty($value)) {
+			$comboValuePrevious = $page->data($field->name);
+		}
+
+		foreach($data as $k => $v) {
+		
+			$num = 0;
+			if($k[0] === 'i') {
+				$kk = ltrim($k, 'i');
+				if(strpos($kk, '_')) list($kk, /*name*/) = explode('_', $kk, 2);
+				if(ctype_digit($kk)) {
+					$num = (int) $kk;
+					$k = "i$kk";
+				}
+			}
+
+			if($num) {
+				// column name in format i1, i2, i3, etc.
+				$name = $comboSettings->get("{$k}_name");
+				$type = $comboSettings->get("{$k}_type");
+
+			} else {
+				// named column, as provided by InputfieldCombo 
+				$name = $k;
+				$type = $comboSettings->getSubfieldType($name);
+				$num = $comboSettings->num($name);
+				$k = "i$num";
+			}
+
+			if(empty($name) || empty($type) || strtoupper($type) === 'DELETE') {
+				continue;
+			}
+		
+			if(is_string($v) && (strpos($v, '{') === 0 || strpos($v, '[') === 0)) {
+				// potential JSON
+				if(isset($indexData[$k]) && is_array($indexData[$k])) {
+					// convert to array, but only if index data indicated it should be an array
+					$v = json_decode($v, true);
+				}
+			}
+		
+			$v = $this->wakeupValueColumn($page, $field, $v, $name, $type);
+			
+			if($v !== null) $wakeupValue[$name] = $v;
+		}
+
+		// populate array for anything that wasn’t present in column data
+		foreach($comboSettings->getAll('name') as $k => $name) {
+			// if we already have woke data for column, then skip
+			if(empty($name) || isset($wakeupValue[$name])) continue; 
+			// at this point we are dealing with a non-present field that needs a default value
+			$val = $comboSettings->getSubfieldBlankValue($k, $page);
+			if($val === null) {
+				$type = $comboSettings->getSubfieldType($name);
+				if(empty($type) || strtoupper($type) === 'DELETE') continue;
+			}
+			$wakeupValue[$name] = $val;
+		}
+	
+		// convert to ComboValue
+		$comboValue = new ComboValue($comboSettings, $page, $field);
+		$comboValue->setArray($wakeupValue);
+		$comboValue->resetTrackChanges(true);
+	
+		// when existing value is present on the page and wakeupValue is 
+		// being used to setup new value that will replace it 
+		if($comboValuePrevious instanceof ComboValue && count($value)) {
+			foreach($comboValue as $key => $new) {
+				$old = $comboValuePrevious->get($key);
+				if($old === $new) continue;
+				list($oldVal, $newVal) = [ $old, $new ];
+				if($new instanceof WireData || $new instanceof WireArray) $newVal = "$new";
+				if($old instanceof WireData || $old instanceof WireArray) $oldVal = "$old";
+				if($oldVal === $newVal) continue;
+				$comboValue->trackChange($key, $old, $new);
+				// bd("new=$newVal, old=$oldVal", $key);
+			}
+		}
+
+		return $comboValue;
+	}
+
+	/**
+	 * Wakeup a column value
+	 * 
+	 * @param Page $page
+	 * @param ComboField $field
+	 * @param mixed $value Column value
+	 * @param string $name Column name
+	 * @param string $type Column type
+	 * @return array|float|int|ComboLanguagesValue|Page|Pagefiles|Pageimages|WireData|string
+	 * 
+	 */
+	protected function wakeupValueColumn(Page $page, $field, $value, $name, $type) {
+		
+		$comboSettings = $field->getComboSettings();
+	
+		if($comboSettings->isLanguageType($type)) {
+			// multi-language value
+			/** @var ComboLanguagesValue $langValue */
+			$langValue = $this->wire(new ComboLanguagesValue()); 
+			$langValue->importFromString($value);
+			return $langValue;
+		}
+		
+		if($type === 'Datetime' || $type === 'Date') {
+			// already ISO-8601
+			/** @var string $value */
+			return $value;
+		}
+		
+		if($type === 'File' || $type === 'Image') {
+			if($value instanceof Pagefiles) return $value;
+			if(!is_array($value)) $value = array();
+			$value = $this->wakeupPagefiles($page, $field, $name, $value); 
+			/** @var Pagefiles|Pageimages */
+			return $value;
+		}
+
+		if(strpos($type, 'Page') === 0) {
+			// Page or PageArray: converts "123,455,789" to PageArray
+			$pages = $this->wire()->pages;
+			$value = str_replace('pid', '', "$value"); // no longer applicable
+			$value = strlen($value) ? $pages->getByIDs($value) : $pages->newPageArray();
+			foreach($value as $p) {
+				if($p->isTrash()) $value->remove($p);
+			}
+			$one = $comboSettings->getSubfieldProperty($name, 'one');
+			if($one) $value = $value->count() ? $value->first() : $pages->newNullPage();
+			$value->resetTrackChanges();
+			/** @var Page $value */
+			return $value;
+		}
+		
+		$selectType = $comboSettings->isSelectType($type);
+		if($selectType) {
+			if($selectType > 1) {
+				// multi selection
+				if(!is_array($value)) $value = strlen("$value") ? array($value) : array();
+			} else {
+				// single selection
+				if(is_array($value)) {
+					$value = count($value) ? reset($value) : '';
+				}
+			}
+			/** @var array|string $value */
+			return $value;
+		}
+
+		if(is_array($value) && !empty($value['__class'])) {
+			// other type of object (most likely WireData derived)
+			// currently this is not used
+			$class = $value['__class'];
+			unset($value['__class']);
+			if(strpos($class, "\\") === false) $class = wireClassName($class, true);
+			$obj = class_exists($class) ? new $class() : new WireData();
+			if($obj instanceof Wire) $this->wire($obj);
+			foreach($value as $k => $v) {
+				$obj->$k = $v;
+			}
+			/** @var WireData $obj */
+			return $obj;
+		}
+
+		$phpType = $comboSettings->getSubfieldValueType($name);
+		
+		if(is_array($value) && $phpType[0] == strtoupper($phpType[0])) {
+			// object class name
+			$o = $comboSettings->getSubfieldBlankValue($name, $page);
+			if(is_object($o)) {
+				foreach($value as $k => $v) $o->$k = $v;
+				/** @var WireData $o */
+				return $o;
+			}
+		}
+	
+		// other
+		switch($phpType) {
+			// case 'int': $value = (int) $value; break;
+			case 'int': $value = ($value === null || $value === '' ? '' : (int) $value); break;
+			case 'float': $value = ($value === null || $value === '' ? '' : (float) $value); break;
+			case 'string': $value = "$value"; break;
+			case 'array': if(!is_array($value)) $value = strlen("$value") ? array($value) : array(); break;
+			default:
+		}
+		
+		/** @var int|float|string|array $value */
+
+		return $value;
+	}
+
+	/**
+	 * Wakeup file or image column value
+	 * 
+	 * @param Page $page
+	 * @param ComboField $field
+	 * @param string $name
+	 * @param array $value
+	 * @return Pagefiles|Pageimages
+	 * 
+	 */
+	protected function wakeupPagefiles(Page $page, ComboField $field, $name, array $value) {
+		
+		$comboSettings = $field->getComboSettings();
+		$pagefiles = $comboSettings->getSubfieldBlankValue($name, $page); /** @var Pagefiles $pagefiles */
+		$itemClass = $pagefiles instanceof Pageimages ? '\ProcessWire\Pageimage' : '\ProcessWire\Pagefile';
+		
+		foreach($value as $v) {
+			/** @var Pagefile|Pageimage $pagefile */
+			$pagefile = $this->wire(new $itemClass($pagefiles, $v['name']));
+			unset($v['name']); 
+			$pagefile->setArray($v);
+			$pagefile->resetTrackChanges();
+			$pagefiles->add($pagefile);
+		}	
+		
+		$pagefiles->resetTrackChanges();
+		
+		return $pagefiles;
+	}
+
+	/**
+	 * Get the Inputfield module that provides input for Field
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @return Inputfield
+	 *
+	 */
+	public function getInputfield(Page $page, Field $field) {
+		/** @var ComboField $field */
+		/** @var InputfieldCombo $inputfield */
+		$inputfield = $this->modules->get('InputfieldCombo');
+		if($field instanceof ComboField) {
+			$comboSettings = $field->getComboSettings();
+			$inputfield->setComboSettings($comboSettings);
+		}
+		// line below was not compatible with PageEditChildren
+		// $inputfield->attr('name', $field->name); 
+		$inputfield->setQuietly('hasFieldtype', $this);
+		$inputfield->setQuietly('hasField', $field);
+		$inputfield->setQuietly('hasPage', $page);
+		// the following not compatible with Combo in repeater:
+		// $value = $page->getUnformatted($field->name);
+		// $inputfield->val($value);
+		return $inputfield;
+	}
+
+	/**
+	 * Export value
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @param array|int|object|string $value
+	 * @param array $options
+	 * @return array|string
+	 *
+	 */
+	public function ___exportValue(Page $page, Field $field, $value, array $options = array()) {
+		// @todo convert "i1", "i2", etc. to actual names in exportValue array
+		$value = parent::___exportValue($page, $field, $value, $options);
+		return $value;
+	}
+
+	/**
+	 * Import value
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @param array|int|object|string $value
+	 * @param array $options
+	 * @return array|string
+	 *
+	 */
+	public function ___importValue(Page $page, Field $field, $value, array $options = array()) {
+		// @todo names in import value array to "i1", "i2", etc.
+		$value = parent::___importValue($page, $field, $value, $options);
+		return $value;
+	}
+	
+	/**
+	 * Update a DatabaseQuerySelect object to match a Page
+	 *
+	 * @param DatabaseQuerySelect|PageFinderDatabaseQuerySelect $query
+	 * @param string $table
+	 * @param string $subfield
+	 * @param string $operator
+	 * @param string $value
+	 * @return DatabaseQuery
+	 * @throws WireException
+	 *
+	 */
+	public function getMatchQuery($query, $table, $subfield, $operator, $value) {
+
+		$database = $this->wire()->database;
+		$sanitizer = $this->wire()->sanitizer;
+		$field = $query->field;
+		if(!$subfield) $subfield = 'data';
+		
+		if($field instanceof ComboField && $subfield !== 'data') {
+			// match in specific subfield
+			$comboSettings = $field->getComboSettings();
+			$comboSubfield = $comboSettings->getSubfield($subfield);
+			if(!$comboSubfield->num) throw new WireException("Unknown subfield: $field->name.$subfield");
+			$subfield = $comboSettings->colName($comboSubfield->num);
+			$type = $comboSubfield->type; 
+			$valueType = $comboSettings->getSubfieldValueType($comboSubfield);
+			$selectType = $comboSettings->isSelectType($type);
+			
+			if($selectType && $database->isOperator($operator)) {
+				// option value match
+				if($selectType > 1 && ($operator === '=' || $operator === '!=')) {
+					// multi-selection, use lookup table
+					return $this->getMatchQueryLookup($query, $table, $comboSubfield, $operator, $value);
+				} else {
+					// single-selection, use field table
+					return parent::getMatchQuery($query, $table, $subfield, $operator, $value);
+				}
+			} else if($type === 'Datetime') {
+				$value = ctype_digit("$value") ? (int) $value : strtotime($value);
+				if($comboSubfield->schemaType === 'd-date') {
+					$value = date('Y-m-d', $value);
+				} else {
+					$value = date('Y-m-d H:i:s', $value);
+				}
+				return parent::getMatchQuery($query, $table, $subfield, $operator, $value);
+				
+			} else if($valueType === 'Page' || $valueType === 'PageArray') {
+				// Page reference match
+				return $this->getMatchQueryPage($query, $table, $subfield, $comboSubfield, $operator, $value, $valueType);
+
+			} else if(empty($value) && ($operator === '=' || $operator === '!=')) {
+				// match an empty or non-present value
+				return $this->getMatchQueryEmpty($query, $table, $subfield, $comboSubfield, $operator, $value, $valueType); 
+				
+			} else {
+				// uses DatabaseQuerySelectFulltext (further down)
+			}
+			
+		} else if($subfield === 'data' && ($operator === '=' || $operator === '!=')) {
+			// match in any subfield using fulltext index in 'data' column
+			$words = $sanitizer->wordsArray($value);
+			if(count($words) > 1) {
+				// match phrase
+				$operator = $operator === '=' ? '*=' : '!*=';
+			} else {
+				// match word
+				$operator = $operator === '=' ? '~=' : '!~=';
+			}
+			
+		} else if(in_array($operator, array('<', '>', '<=', '>='))) {
+			throw new WireException("Please specify $field->name.subfield to use $operator operator"); 
+		}
+
+		$ft = new DatabaseQuerySelectFulltext($query);
+		$ft->match($table, $subfield, $operator, $value);
+		
+		return $query;
+	}
+
+	/**
+	 * Update a DatabaseQuerySelect object to match an empty or non-present value
+	 *
+	 * @param DatabaseQuerySelect|PageFinderDatabaseQuerySelect $query
+	 * @param string $table
+	 * @param string $subfield
+	 * @param ComboSubfield $comboSubfield
+	 * @param string $operator
+	 * @param string $value Blank value of 0 or blank string
+	 * @param string $valueType
+	 * @return DatabaseQuerySelect|PageFinderDatabaseQuerySelect
+	 *
+	 */
+	protected function getMatchQueryEmpty($query, $table, $subfield, $comboSubfield, $operator, $value, $valueType) {
+		static $n = 0;
+		if($operator !== '=' && $operator !== '!=') $operator = '=';
+		$field = $query->field; /** @var ComboField $field */
+		$comboSettings = $field->getComboSettings();
+		$valueType = $comboSettings->getSubfieldValueType($comboSubfield);
+		$joinTable = $table . '_me' . (++$n);
+		$bindKey = $query->parentQuery->bindValueGetKey($value);
+		$query->parentQuery->leftjoin("$field->table AS $joinTable ON $joinTable.pages_id=pages.id");
+		$matchArray = !in_array($valueType, [ 'string', 'int', 'float', null ], true); 
+		if($operator === '!=') {
+			$where = "$joinTable.$subfield IS NOT NULL AND $joinTable.$subfield!=$bindKey ";
+			if($matchArray && !strlen("$value")) {
+				$where .= "AND $joinTable.$subfield!='[]' AND $joinTable.$subfield!='{}' ";
+			}
+		} else {
+			$where = "$joinTable.$subfield=$bindKey OR $joinTable.pages_id IS NULL ";
+			if($matchArray && !strlen("$value")) {
+				$where .= "OR $joinTable.$subfield='[]' OR $joinTable.$subfield='{}' ";
+			}
+		}
+		$query->parentQuery->where('(' . trim($where) . ')');
+		return $query;
+	}
+
+	/**
+	 * Update a DatabaseQuerySelect object to match a Page or PageArray value
+	 *
+	 * @param DatabaseQuerySelect|PageFinderDatabaseQuerySelect $query
+	 * @param string $table
+	 * @param string $subfield
+	 * @param ComboSubfield $comboSubfield
+	 * @param string $operator
+	 * @param string $value
+	 * @param string $valueType
+	 * @return DatabaseQuerySelect|PageFinderDatabaseQuerySelect
+	 *
+	 */
+	protected function getMatchQueryPage($query, $table, $subfield, $comboSubfield, $operator, $value, $valueType) {
+		$database = $this->wire()->database;
+		
+		if(ctype_digit("$value") || empty($value)) {
+			$value = (int) "$value";
+
+		} else if(strpos($value, '/') !== false) {
+			$p = $this->wire()->pages->get('path=' . $this->wire()->sanitizer->selectorValue($value));
+			$value = $p->id;
+
+		} else {
+			$operator = '=';
+			$value = 0; // non-match
+		}
+		
+		if($valueType === 'Page' && !empty($value)) {
+			// matching when there can be only one page reference in value
+			return parent::getMatchQuery($query, $table, $subfield, $operator, $value);
+			
+		} else if(empty($value) && ($operator === '=' || $operator === '!=')) {
+			// matching for presence or non-presence of empty 
+			static $n = 0;
+			$tableAlias = "{$table}_" . (++$n);
+			$col = $tableAlias . '.' . $database->escapeCol($subfield);
+			$join = "$table AS $tableAlias ON $tableAlias.pages_id=pages.id";
+			if($operator === '=') {
+				$query->join("$join AND ($col=0 OR $col='' OR $col IS NULL)");
+			} else { // $operator === '!='
+				$query->join("$join AND ($col!=0 AND $col!='' AND $col IS NOT NULL)");
+			}
+			return $query;
+		}
+		
+		// matching PageArray 
+		return $this->getMatchQueryLookup($query, $table, $comboSubfield, $operator, $value);
+	}
+
+	/**
+	 * Update a DatabaseQuerySelect object to match using lookup table
+	 *
+	 * @param DatabaseQuerySelect|PageFinderDatabaseQuerySelect $query
+	 * @param string $table
+	 * @param ComboSubfield $comboSubfield
+	 * @param string $operator
+	 * @param string $value
+	 * @return DatabaseQuerySelect|PageFinderDatabaseQuerySelect
+	 * @throws WireException on unsupported operator
+	 *
+	 */
+	protected function getMatchQueryLookup($query, $table, $comboSubfield, $operator, $value) {
+		
+		static $cnt = 0;
+
+		if($operator !== '=' && $operator !== '!=') {
+			throw new WireException("Unsupported operator '$operator' for $table.$comboSubfield->name");
+		}
+		
+		// @todo handle OR conditions in one join rather than multiple
+
+		$values = $query->selector->values(true);
+		if(count($values) > 1) {
+			// there are multiple OR values
+			$parentQuery = $query->parentQuery;
+			$thisLookup = "$table.$comboSubfield.$operator";
+			if($parentQuery === $this->lastParentQuery && $thisLookup === $this->lastLookup) {
+				// we have already processed this query on a previous call, so do nothing 
+				return $query;
+			}
+			$this->lastParentQuery = $parentQuery;
+			$this->lastLookup = $thisLookup;
+		} else {
+			$values = null;
+		}
+		
+		$cnt++;
+		$lookupTable = self::lookupTable;
+		$lookupAlias = $lookupTable . $cnt;
+		$joinType = $operator === '=' ? 'join' : 'leftjoin';
+		$binds = array();
+		
+		if($values) {
+			// there are multiple values to match in OR condition
+			$ORs = array();
+			foreach(array_values($values) as $n => $v) {
+				$bindName = "{$lookupAlias}_value" . (int) $n;
+				$ORs[] = "$lookupAlias.data=:$bindName";
+				$binds[$bindName] = $v;
+			}
+			$join = "$lookupTable AS $lookupAlias ON ((" . implode(' OR ', $ORs) . ") ";
+			
+		} else {
+			// matching a single value
+			$join = "$lookupTable AS $lookupAlias ON ($lookupAlias.data=:{$lookupAlias}_value ";
+			$binds["{$lookupAlias}_value"] = $value;
+		}
+		
+		$join .=
+			"AND $lookupAlias.fields_id=:{$lookupAlias}_fields_id " .
+			"AND $lookupAlias.num=:{$lookupAlias}_num) ";
+		
+		$binds["{$lookupAlias}_fields_id"] = $query->field->id;
+		$binds["{$lookupAlias}_num"] = $comboSubfield->num;
+
+		$query->$joinType($join);
+		
+		foreach($binds as $bindName => $bindValue) {
+			$query->bindValue(":$bindName", $bindValue);
+		}
+		
+		if($operator === '!=') {
+			$field = $query->field;
+			$templateIds = array();
+			foreach($field->getTemplates() as $t) {
+				/** @var Template $t */
+				$templateIds[] = (int) $t->id;
+			}
+			if(count($templateIds)) {
+				$query->where("($table.pages_id!=$lookupAlias.pages_id OR $lookupAlias.pages_id IS NULL)");
+				$query->where("pages.templates_id IN(" . implode(',', $templateIds) . ")"); 
+			} else {
+				$query->where("1>2");
+			}
+			
+		} else {
+			$query->where("($table.pages_id=$lookupAlias.pages_id)");
+		}
+		
+		return $query;
+	}
+	
+	protected $lastParentQuery = null;
+	protected $lastLookup = null;
+
+	/**
+	 * Get or update query to sort by given $field or $subfield
+	 *
+	 * Return false if this Fieldtype does not have built-in sort logic and PageFinder should handle it.
+	 * Return string of query to add to ORDER BY statement, or boolean true if method added it already.
+	 *
+	 * #pw-internal
+	 *
+	 * @param Field|ComboField $field
+	 * @param DatabaseQuerySelect $query
+	 * @param string $table
+	 * @param string $subfield
+	 * @param bool $desc
+	 * @return bool|string
+	 *
+	 */
+	public function getMatchQuerySort(Field $field, $query, $table, $subfield, $desc) {
+		if(empty($subfield) || !$field instanceof ComboField) return false;
+		$comboSettings = $field->getComboSettings();
+		$colName = $comboSettings->colName($subfield);
+		return "$table.$colName " . ($desc ? 'DESC' : '');
+	}
+
+	/**
+	 * Return array with information about what properties and operators can be used with this field.
+	 *
+	 * @param Field $field
+	 * @param array $data Array of extra data, when/if needed
+	 * @return array See `FieldSelectorInfo` class for details.
+	 *
+	 */
+	public function ___getSelectorInfo(Field $field, array $data = array()) {
+		if($data) {}
+
+		/** @var ComboField $field */
+		/** @var FieldSelectorInfo $selectorInfo */
+
+		$selectorInfo = $this->wire(new FieldSelectorInfo());
+		$info = $selectorInfo->getSelectorInfo($field);
+
+		if(!$field instanceof ComboField) return $info;
+
+		$comboSettings = $field->getComboSettings();
+
+		foreach($info['subfields'] as $colName => $colInfo) {
+			unset($info['subfields']['data']);
+
+			$subfield = $comboSettings->getSubfield($colName);
+			if(!$subfield) continue;
+
+			$type = strtolower($subfield->type);
+			$selectOptions = $subfield->options;
+
+			$colInfo['name'] = $subfield->name;
+			$colInfo['label'] = $subfield->getLabel();
+			$colInfo['col'] = $comboSettings->colName($subfield->name);
+
+			if($type === 'page') {
+				$colInfo = $this->getSelectorInfoTypePage($subfield, $comboSettings, $colInfo);
+				if(empty($colInfo)) continue;
+
+			} else if($type === 'text' || $type === 'textarea') {
+				$colInfo['operators'] = $selectorInfo->getOperators('fulltext');
+
+			} else if(!empty($selectOptions)) {
+				$inputfield = $comboSettings->getInputfield($subfield);
+				if($inputfield instanceof InputfieldSelect) {
+					$options = $inputfield->getOptions();
+					unset($options['']); 
+					$colInfo['options'] = $options;
+					$colInfo['input'] = 'select';
+					$colInfo['operators'] = $selectorInfo->getOperators('select');
+				}
+			}
+
+			unset($info['subfields'][$colName]); 
+			$info['subfields'][$subfield->name] = $colInfo;
+		}
+
+		return $info;
+	}
+
+	/**
+	 * Get selector info for Page selection types
+	 * 
+	 * @param ComboSubfield $subfield
+	 * @param ComboSettings $comboSettings
+	 * @param array $colInfo
+	 * @return array
+	 * 
+	 */
+	protected function getSelectorInfoTypePage(ComboSubfield $subfield, ComboSettings $comboSettings, $colInfo) {
+		
+		$inputfield = $comboSettings->getInputfield($subfield);
+		if(!$inputfield instanceof InputfieldPage) return array();
+		
+		$colInfo['operators'] = array('@=', '@!=');
+		$inputfieldClass = trim($inputfield->getSetting('inputfield'), '_'); // leading underscore when InputfieldPageAutocomplete single
+		
+		if($inputfieldClass && wireInstanceOf($inputfieldClass, 'InputfieldSelect')) {
+			$colInfo['input'] = 'select';
+			$options = array();
+			foreach($inputfield->getSelectablePages(new NullPage()) as $p) {
+				$options[$p->id] = $inputfield->getPageLabel($p);
+			}
+			$colInfo['options'] = $options;
+			
+		} else {
+			$colInfo['input'] = 'autocomplete';
+			$selector = array();
+			$parent_id = $inputfield->get('parent_id');
+			$template_ids = $inputfield->getTemplateIDs(true);
+			$findPagesCode = $inputfield->getSetting('findPagesCode');
+			$findPagesSelector = $inputfield->getSetting('findPagesSelector');
+			if(empty($findPagesSelector)) $findPagesSelector = $inputfield->getSetting('findPagesSelect');
+			if(!$parent_id && $findPagesCode) {
+				$child = $inputfield->findPagesCode(new NullPage());
+				if($child instanceof Page && $child->id) $parent_id = $child->id;
+			}
+			if($parent_id) $selector[] = "parent_id=$parent_id";
+			if($template_ids) $selector[] = "template_id=$template_ids";
+			if($findPagesSelector) $selector[] = $findPagesSelector;
+			$colInfo['selector'] = implode(', ', $selector);
+			$colInfo['searchFields'] = 'title|name';
+			$colInfo['labelFieldName'] = $colInfo['searchFields'];
+		}
+		
+		return $colInfo;
+	}
+	
+	/**
+	 * Delete the given field, which implies: drop the table used by the field.
+	 *
+	 * @param Field $field Field object
+	 * @return bool True on success, false on DB delete failure.
+	 *
+	 */
+	public function ___deleteField(Field $field) {
+		$table = self::lookupTable;
+		$sql = "DELETE FROM $table WHERE fields_id=:fields_id";
+		$query = $this->wire()->database->prepare($sql);
+		$query->bindValue(':fields_id', $field->id, \PDO::PARAM_INT); 
+		$query->execute();
+		$query->closeCursor();
+		try {
+			$result = parent::___deleteField($field);
+		} catch(\Exception $e) {
+			$result = false;
+		}
+		return $result;
+	}
+
+	/**
+	 * Delete the given Field from the given Page.
+	 *
+	 * Must delete entries from field's database table that belong to the Page.
+	 *
+	 * @param Page $page
+	 * @param Field $field Field object
+	 * @return bool True on success, false on DB delete failure.
+	 * @throws WireException
+	 *
+	 */
+	public function ___deletePageField(Page $page, Field $field) {
+		$comboValue = $page->get($field->name);
+		$result = parent::___deletePageField($page, $field);
+		if($result) {
+			$this->clearLookupTableData($page, $field);
+			if($comboValue instanceof ComboValue) $this->deletePagefiles($comboValue);
+		}
+		return $result;
+	}
+	
+	/**
+	 * Empty out the DB table data for page field, but leave everything else in tact.
+	 *
+	 * @param Page $page
+	 * @param Field $field Field object
+	 * @return bool True on success, false on DB delete failure.
+	 * @throws WireException
+	 *
+	 */
+	public function ___emptyPageField(Page $page, Field $field) {
+		$this->clearLookupTableData($page, $field);
+		return parent::___emptyPageField($page, $field); 
+	}
+	
+	/**
+	 * Save the given field from given page to the database.
+	 *
+	 * @param Page $page Page object to save.
+	 * @param Field $field Field to retrieve from the page.
+	 * @return bool True on success, false on DB save failure.
+	 * @throws WireException|\PDOException|WireDatabaseException
+	 *
+	 */
+	public function ___savePageField(Page $page, Field $field) {
+		$page->setQuietly('_comboSaving', $field); 
+		$field->setQuietly('_comboSaving', true);
+		$result = parent::___savePageField($page, $field); 
+		$page->setQuietly('_comboSaving', false);
+		$field->setQuietly('_comboSaving', false);
+		return $result;
+	}
+	
+	/**
+	 * Move this field’s data from one page to another.
+	 *
+	 * @param Page $src Source Page
+	 * @param Page $dst Destination Page
+	 * @param Field $field
+	 * @return bool
+	 *
+	 */
+	public function ___replacePageField(Page $src, Page $dst, Field $field) {
+		if(!parent::___replacePageField($src, $dst, $field)) return false;
+		$database = $this->wire()->database;
+		$table = self::lookupTable;
+		$sql = "UPDATE `$table` SET pages_id=:dstID WHERE pages_id=:srcID";
+		$query = $database->prepare($sql);
+		$query->bindValue(':dstID', (int) $dst->id, \PDO::PARAM_INT);
+		$query->bindValue(':srcID', (int) $src->id, \PDO::PARAM_INT);
+		$result = $query->execute();
+		return $result;
+	}
+
+	/**
+	 * Delete Pagefiles files on file system for given page and field
+	 * 
+	 * @param ComboValue $comboValue
+	 * @param string $subfieldName Optionally limit to this subfield (name)
+	 * @return int Number of files deleted
+	 * 
+	 */
+	protected function deletePagefiles(ComboValue $comboValue, $subfieldName = '') {
+		
+		$field = $comboValue->getField();
+		$debug = $this->wire()->config->debug;
+		$numDeleted = 0;
+		
+		foreach($this->getComboPagefiles($comboValue, true, $subfieldName) as $sfName => $pagefiles) {
+			foreach($pagefiles as $pagefile) {
+				/** @var Pagefile $pagefile */
+				$pagefile->unlink();
+				if($debug) $this->message("Deleted $field->name.$sfName file $pagefile");
+			}
+			$numDeleted++;
+		}
+		
+		return $numDeleted;
+	}
+
+	/**
+	 * Get all Pagefile objects in an array from given ComboValue
+	 * 
+	 * @param ComboValue $comboValue
+	 * @param bool $indexBySubfield Return arrays of Pagefiles instead, each indexed by subfield name? (default=false)
+	 * @param string $subfieldName Optionally limit to this subfield (name)
+	 * @return array|Pagefile[]|Pagefiles[] Note return value is a plain PHP array, not a Pagefiles object
+	 * 
+	 */
+	protected function getComboPagefiles(ComboValue $comboValue, $indexBySubfield = false, $subfieldName = '') {
+		
+		$subfields = $comboValue->comboSettings->getSubfields();
+		$value = array();
+
+		foreach($subfields as $subfield) {
+			$type = $subfield->type;
+			if($type != 'File' && $type != 'Image') continue;
+			if($subfieldName && $subfield->name != $subfieldName) continue;
+			$pagefiles = $comboValue->get($subfield->name);
+			if($pagefiles instanceof Pagefiles) {
+				if($indexBySubfield) {
+					$value[$subfield->name] = $pagefiles;
+				} else {
+					foreach($pagefiles as $pagefile) {
+						$value[] = $pagefile;
+					}
+				}
+			} else if($pagefiles instanceof Pagefile) {
+				// single file (not likely here, but just in case)
+				if($indexBySubfield) {
+					if(!isset($value[$subfield->name])) $value[$subfield->name] = array();
+					$value[$subfield->name][] = $pagefiles;
+				} else {
+					$value[] = $pagefiles;
+				}
+			}
+		}
+
+		return $value;
+	}
+
+	/**
+	 * Get Pagefiles (for FieldtypeHasPagefiles interface)
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @return array|Pagefile[]
+	 *
+	 */
+	public function getPagefiles(Page $page, Field $field) {
+		/** @var ComboValue $comboValue */
+		$comboValue = $page->get($field->name);
+		if(!$comboValue) return array();
+		$comboSettings = $comboValue->comboSettings;
+		if(!$comboSettings) return array();
+		$subfields = $comboSettings->getSubfields();
+		$a = array();
+		
+		foreach($subfields as $subfield) {
+			$type = $subfield->type;
+			if($type != 'File' && $type != 'Image') continue;
+			$value = $comboValue->get($subfield->name);
+			if($value instanceof Pagefiles) {
+				foreach($value as $pagefile) $a[] = $pagefile;
+			} else if($value instanceof Pagefile) {
+				$a[] = $value;
+			}
+		}
+		
+		return $a;
+	}
+
+	/**
+	 * Get Pageimages (for FieldtypeHasPageimages interface)
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @return array|Pageimage[]
+	 *
+	 */
+	public function getPageimages(Page $page, Field $field) {
+		/** @var ComboValue $comboValue */
+		$comboValue = $page->get($field->name);
+		if(!$comboValue) return array();
+		$comboSettings = $comboValue->comboSettings;
+		if(!$comboSettings) return array();
+		$subfields = $comboSettings->getSubfields();
+		$a = array();
+
+		foreach($subfields as $subfield) {
+			$type = $subfield->type;
+			if($type != 'Image') continue;
+			$value = $comboValue->get($subfield->name);
+			if($value instanceof Pageimages) {
+				foreach($value as $pageimage) $a[] = $pageimage;
+			} else if($value instanceof Pageimage) {
+				$a[] = $value;
+			}
+		}
+
+		return $a;
+	}
+
+	/**
+	 * Get Inputfields to configure ComboField
+	 * 
+	 * @param Field $field
+	 * @return InputfieldWrapper
+	 * 
+	 */
+	public function ___getConfigInputfields(Field $field) {
+		/** @var ComboField $field */
+		$inputfields = parent::___getConfigInputfields($field);
+		if($field instanceof ComboField) {
+			$comboConfig = $this->comboConfig($field);
+			$comboConfig->getConfigInputfields($inputfields);
+		} else if($this->wire()->process == 'ProcessField') {
+			$this->warning("Combo cannot be used in a field of type: $field->type"); 
+		}
+		return $inputfields;
+	}
+
+	/**
+	 * @param Field $field
+	 * @return InputfieldWrapper
+	 * 
+	 */
+	public function ___getConfigAdvancedInputfields(Field $field) {
+		$inputfields = parent::___getConfigAdvancedInputfields($field);
+		foreach(array('autojoin', 'global') as $name) {
+			$f = $inputfields->getChildByName($name);
+			if($f) $f->getParent()->remove($f);
+		}
+		if($field instanceof ComboField) {
+			$comboConfig = $this->comboConfig($field);
+			$comboConfig->getConfigAdvancedInputfields($inputfields);
+		}
+		return $inputfields;
+	}
+
+	/**
+	 * @param Field $field
+	 * @return ComboConfig
+	 * 
+	 */
+	protected function comboConfig(Field $field) {
+		/** @var ComboConfig|null $comboConfig */
+		/** @var ComboField $field */
+		static $comboConfig = null;
+		if($comboConfig === null || $comboConfig->getField() !== $field) {
+			require_once(__DIR__ . '/ComboConfig.php');
+			$comboConfig = new ComboConfig($field->getComboSettings(), $field);
+		}
+		return $comboConfig;
+	}
+
+	/**
+	 * Hook to Fields::saved()
+	 * 
+	 * @param HookEvent $event
+	 * 
+	 */
+	public function hookFieldSaved(HookEvent $event) {
+		/** @var Field|ComboField $field */
+		$field = $event->arguments(0);
+		if(!$field instanceof ComboField) return;
+		try {
+			$messages = $this->comboSchema()->updateDatabaseSchema($field);
+		} catch(\Exception $e) {
+			$messages = array();
+		}
+		if($this->wire()->config->debug) {
+			foreach($messages as $message) {
+				$this->message($message);
+			}
+		}
+	}
+	
+	/**
+	 * Hook before ProcessPageEdit::ajaxSave to make ajax save possible for Combo subfields
+	 *
+	 * @param HookEvent $e
+	 *
+	 */
+	public function hookProcessPageEditAjaxSave(HookEvent $e) {
+		$key = 'HTTP_X_FIELDNAME';
+		if(empty($_SERVER[$key]) || strpos($_SERVER[$key], '.') === false) return;
+		$sanitizer = $this->wire()->sanitizer;
+		list($fieldName, $subfieldName) = explode('.', $_SERVER[$key], 2);
+		$fieldName = $sanitizer->fieldName($fieldName);
+		$field = $this->wire()->fields->get($fieldName);
+		if($field instanceof ComboField) {
+			$subfieldName = $sanitizer->fieldName($subfieldName);
+			// remember which subfield being saved so InputfieldCombo can know it
+			$this->ajaxSaveSubfield = $subfieldName;
+			// make ProcessPageEdit able to find and process Combo field
+			// by reducing 'combo_field_name.combo_subfield_name' to 'combo_field_name'
+			$_SERVER[$key] = $fieldName;
+		}
+	}
+
+	/**
+	 * Get name of Combo subfield being saved during a ProcessPageEdit::ajaxSave request
+	 *
+	 * @return string
+	 *
+	 */
+	public function getAjaxSaveSubfield() {
+		return $this->ajaxSaveSubfield;
+	}
+
+	/********************************************************************************
+	 * FieldtypeHasFiles interface methods
+	 * 
+	 */
+	
+	/**
+	 * Whether or not given Page/Field has any files connected with it
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @return bool
+	 *
+	 */
+	public function hasFiles(Page $page, Field $field) {
+		$value = $page->get($field->name);
+		return $value instanceof ComboValue ? $value->getFiles(true) : false;
+	}
+
+	/**
+	 * Get array of full path/file for all files managed by given page and field
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @return array
+	 *
+	 */
+	public function getFiles(Page $page, Field $field) {
+		$value = $page->get($field->name);
+		return $value instanceof ComboValue ? $value->getFiles() : array();
+	}
+
+	/**
+	 * Get path where files are (or would be) stored
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @return string
+	 *
+	 */
+	public function getFilesPath(Page $page, Field $field) {
+		return $page->filesPath();
+	}
+
+	/********************************************************************************
+	 * Module support
+	 *
+	 */
+	
+	/**
+	 * Install 
+	 * 
+	 * @return bool
+	 * 
+	 */
+	public function ___install() {
+		
+		if(!parent::___install()) return false;
+		
+		$table = self::lookupTable;
+		$engine = $this->wire()->config->dbEngine;
+		$charset = $this->wire()->config->dbCharset;
+		
+		$this->wire()->database->exec("
+			CREATE TABLE $table (
+				`pages_id` INT UNSIGNED NOT NULL, 
+				`fields_id` INT UNSIGNED NOT NULL, 
+				`num` INT UNSIGNED NOT NULL, 
+				`sort` INT UNSIGNED NOT NULL,
+				`data` VARCHAR(60), 
+				PRIMARY KEY (`data`, `fields_id`, `num`, `pages_id`, `sort`), 
+				KEY `pages_id` (`pages_id`), 
+				KEY `fields_id` (`fields_id`)
+			) ENGINE=$engine DEFAULT CHARSET=$charset 
+		");	
+		
+		return true;
+	}
+
+	/**
+	 * Uninstall
+	 * 
+	 * @return bool
+	 * 
+	 */
+	public function ___uninstall() {
+		if(!parent::___uninstall()) return false;
+		$table = self::lookupTable;
+		$this->wire()->database->exec("DROP TABLE $table"); 
+		return true;
+	}
+
+}

@@ -1,0 +1,799 @@
+<?php namespace ProcessWire;
+
+/**
+ * ProMailer Admin (ProcessProMailer)
+ * 
+ * Copyright 2023 by Ryan Cramer
+ * This is a commercial module, do not distribute.
+ * 
+ * @property ProMailerForms $forms
+ * @property ProMailerEmail $email
+ * @property ProMailerLists $lists
+ * @property ProMailerSubscribers $subscribers
+ * @property ProMailerMessages $messages
+ * 
+ */
+class ProcessProMailer extends Process implements Module {
+	
+	const debug = false;
+	const demo = false; 
+
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'ProMailer (admin)',
+			'summary' => 'Management and sending tool for mailing lists, subscribers and messages.',
+			'version' => 13,
+			'author' => 'Ryan Cramer',
+			'permission' => 'promailer',
+			'permissions' => array('promailer' => 'Use ProMailer (superuser-only recommended)'),
+			'requires' => 'ProMailer, ProcessWire>=3.0',
+			'searchable' => 'promailer',
+			'icon' => 'send',
+			'page' => array(
+				'name' => 'promailer',
+				'parent' => 'setup',
+				'title' => 'ProMailer'
+			),
+			'useNavJSON' => true,
+			'nav' => array(
+				array(
+					'url' => 'lists/',
+					'label' => 'Subscriber lists',
+					'icon' => 'users',
+					'navJSON' => 'navJSON/?get=lists'
+				),
+				array(
+					'url' => 'messages/',
+					'label' => 'Messages',
+					'icon' => 'envelope-o',
+					'navJSON' => 'navJSON/?get=messages'
+				),
+				array(
+					'url' => 'logs/',
+					'label' => 'Logs',
+					'icon' => 'tree',
+					'navJSON' => 'navJSON/?get=logs',
+					'permission' => 'logs-view',
+				),
+			)
+		);
+	}
+
+	/**
+	 * Pre-translated labels
+	 * 
+	 * @var array
+	 * 
+	 */
+	protected $labels = array();
+
+	/**
+	 * @var ProMailer
+	 * 
+	 */
+	protected $promailer = null;
+
+	/**
+	 * Init
+	 * 
+	 */
+	public function init() {
+		
+		require_once(__DIR__ . '/ProcessProMailerTypeManager.php');
+		
+		$this->labels = array(
+			'promailer' => $this->_('ProMailer'),
+			'lists' => $this->_('Subscriber lists'),
+			'subscribers' => $this->_('Subscribers'),
+			'messages' => $this->_('Messages'),
+			'actions' => $this->_('Actions'),
+			'status' => $this->_('Status:'), 
+			'yes' => $this->_('Yes'),
+			'no' => $this->_('No'),
+			'continue' => $this->_('Continue'), 
+			'add' => $this->_('Add New'), 
+		);
+		
+		$this->promailer = $this->wire()->modules->get('ProMailer');
+		
+		$session = $this->wire()->session;
+		$config = $this->wire()->config;
+		
+		if(!$session->getFor($this, 'dailyMaint')) {
+			$this->promailer->maintenance();
+			$session->setFor($this, 'dailyMaint', 1);
+		}
+		
+		$config->js('pageNumUrlPrefix', $config->pageNumUrlPrefix); 
+		
+		parent::init();
+	}
+	
+	public function check() {
+		if(!$this->promailer->ok()) {
+			throw new WireException("Please enter a valid ProMailer product key in the ProMailer module settings");
+		}
+	}
+	
+	public function label($key) {
+		return isset($this->labels[$key]) ? $this->labels[$key] : '***UNKNOWN LABEL***';
+	}
+	
+	public function __get($key) {
+		if($this->promailer) {
+			$instance = $this->promailer->instance($key);
+			if($instance) return $instance;
+		}
+		return parent::__get($key);
+	}
+	
+	/**
+	 * For Process module nav JSON support
+	 *
+	 * @param array $options
+	 * @return string|array
+	 *
+	 */
+	public function ___executeNavJSON(array $options = array()) {
+
+		$this->init();
+		$getType = $this->wire()->input->get('get');
+
+		//$options['sort'] = true;
+		$options['itemLabel'] = 'label';
+		$options['itemLabel2'] = 'label2';
+		$items = array();
+
+		if($getType == 'lists') {
+			$options['add'] = 'lists/?add=1';
+			$options['edit'] = 'subscribers/?list_id={id}';
+			foreach($this->lists->getAll() as $list) {
+				$items[] = array(
+					'id' => $list['id'],
+					'label' => $list['title'],
+					'label2' => $this->subscribersLabel($list),
+				);
+			}
+		} else if($getType == 'messages') {
+			$options['add'] = 'messages/?add=1';
+			$options['edit'] = 'message/?message_id={id}';
+			foreach($this->messages->getAll() as $message) {
+				$lastSent = '';
+				if($message['last_sent']) {
+					$lastSent = $this->wire()->datetime->relativeTimeStr($message['last_sent']);
+				}
+				$items[] = array(
+					'id' => $message['id'],
+					'label' => $message['title'],
+					'label2' => $lastSent,
+				);
+			}
+		} else if($getType == 'logs') {
+			$logs = $this->wire()->log;
+			$options['add'] = '';
+			$options['edit'] = $this->wire()->config->urls->admin . 'setup/logs/view/{id}/';
+			foreach($logs->getLogs() as $logInfo) {
+				if(strpos($logInfo['name'], 'promailer') !== 0) continue;
+				$items[] = array(
+					'id' => $logInfo['name'], 
+					'label' => $logInfo['name'], 
+					'label2' => wireRelativeTimeStr($logInfo['modified']), 
+				);
+			}
+		}
+		
+		if(empty($items)) {
+			$items[] = array(
+				'id' => 0,
+				'label' => 'None yet',
+				'label2' => ''
+			);
+		}
+
+		$options['items'] = $items;
+
+		return parent::___executeNavJSON($options);
+	}
+	
+	/**
+	 * Primary execution method
+	 * 
+	 * @return string
+	 * 
+	 */
+	public function execute() {
+		$this->check();
+		$addNew = $this->label('add');
+		$sanitizer = $this->wire()->sanitizer;
+		$datetime = $this->wire()->datetime;
+		$out = "<ul><li><a href='./lists/'><strong>" . $this->label('lists') . "</strong></a><ul>";
+		foreach($this->lists->getAll() as $list) {
+			$numSubscribers = $this->subscribersLabel($list);
+			$out .= 
+				"<li><a href='./subscribers/?list_id=$list[id]'>" . $sanitizer->entities($list['title']) . "</a> " . 
+				"<span class='detail'>$numSubscribers</span></li>";
+		}
+		$out .= "<li><a href='./lists/?add=1'>$addNew</a></li>";
+		$out .= "</ul></li>";
+		$out .= "<li><a href='./messages/'><strong>" . $this->labels['messages'] . "</strong></a><ul>";
+		foreach($this->messages->getAll() as $message) {
+			$when = $datetime->relativeTimeStr($message['last_sent']);
+			$lastSent = $message['last_sent'] ? sprintf($this->_('(sent %s)'), $when) : '';
+			$out .= 
+				"<li><a href='./message/?message_id=$message[id]'>" . $sanitizer->entities($message['title']) . "</a> " . 
+				"<span class='detail'>$lastSent</span></li>";
+		}
+		$out .= "<li><a href='./messages/?add=1'>$addNew</a></li>";
+		$out .= "</ul></li></ul>";
+		$info = $this->wire()->modules->getModuleInfoVerbose('ProMailer');
+		$out .= "<p class='detail'>v$info[versionStr]</p>";
+		return $out;
+	}
+	
+	protected function _executeType($typeName, $method = 'execute') {
+		$this->check();
+		$className = "ProcessProMailer$typeName";
+		require_once(__DIR__ . "/$className.php");
+		$className = __NAMESPACE__ . "\\$className";
+		$type = new $className($this->promailer, $this);
+		return $type->$method();
+	}
+
+	/**
+	 * Render available subscriber lists and allow for adding/removing lists
+	 * 
+	 * @return string
+	 * 
+	 */	
+	public function executeLists() {
+		return $this->_executeType('Lists');
+	}
+	
+	/**
+	 * Render/process subscribers 
+	 *
+	 * @return string
+	 *
+	 */
+	public function executeSubscribers() {
+		return $this->_executeType('Subscribers');
+	}
+
+	/**
+	 * Render messages index
+	 * 
+	 * @return string
+	 * 
+	 */
+	public function executeMessages() {
+		return $this->_executeType('Messages');
+	}
+	
+	/**
+	 * Execute editing of message
+	 * 
+	 * @return string
+	 * 
+	 */
+	public function executeMessage() {
+		return $this->_executeType('Message');
+	}
+
+	/**
+	 * Execute sending of message
+	 * 
+	 * @return string
+	 * 
+	 */
+	public function executeSend() {
+		return $this->_executeType('Send');
+	}
+	
+	/**
+	 * Execute message preview
+	 *
+	 * Requires subscriber_id and message_id in query string.
+	 *
+	 */
+	public function executePreview() {
+		echo $this->_executeType('Send', 'preview');
+		exit;
+	}
+
+	/**
+	 * Execute sending test for debugging purposes
+	 * 
+	 * @return mixed
+	 * 
+	 */
+	public function executeTest() {
+		return $this->_executeType('Send', 'executeTest');
+	}
+
+	/**
+	 * Get status string for current sending queue
+	 * 
+	 * Note: returns redirect URL rather than status string when ajax mode and sending is finished
+	 * 
+	 * @return string
+	 * 
+	 */
+	public function executeQstat() {
+		return $this->_executeType('Queue', 'statusStr');
+	}
+
+	/**
+	 * Execute the sending queue
+	 * 
+	 * Since queue is already executing in background (if active) this method primarily 
+	 * just reports on the status of the queue. 
+	 * 
+	 * @return string Returns HTML with output of current status in the queue
+	 * 
+	 */
+	public function executeQueue() {
+		return $this->_executeType('Queue');
+	}
+	
+	/**
+	 * Render a number of subscribers label for given list
+	 * 
+	 * @param ProMailerList $list
+	 * @param ProMailer $promailer Optionally provide ProMailer instance
+	 * @return string
+	 * 
+	 */
+	public function subscribersLabel(ProMailerList $list, ProMailer $promailer = null) {
+		if(!$promailer) $promailer = $this->promailer;
+		if($list['type'] === 'pages') {
+			$cnt = $promailer->subscribers->count([ 'list' => $list ]);
+			return sprintf($this->_n('(%d page)', '(%d pages)', $cnt), $cnt);
+		} else {
+			$cnt = $promailer->subscribers->count(array('list' => $list, 'confirmed' => true));
+			return sprintf($this->_n('(%d subscriber)', '(%d subscribers)', $cnt), $cnt);
+		}
+	}
+	
+	/**
+	 * Get Inputfield for key
+	 * 
+	 * @param ProMailer $module
+	 * @param InputfieldWrapper $inputfields
+	 * @return Inputfield|null
+	 *
+	 */
+	public function getKeyInputfield(ProMailer $module, InputfieldWrapper $inputfields) {
+		
+		$input = $this->wire()->input;
+		$session = $this->wire()->session;
+		$config = $this->wire()->config;
+		$modules = $this->wire()->modules;
+		$sanitizer = $this->wire()->sanitizer;
+		
+		/** @var Inputfield $f */
+		$f = $modules->get('InputfieldText');
+		$name = 'cen' . 'seK' . 'ey';
+		$name = "li$name";
+		$moduleName = $module->className();
+		$f->attr('id+name', $name);
+		$key = $module->get($name) ? $module->get($name) : '';
+		$result = false;
+		$notes = "If you did not purchase $moduleName for this site, please [purchase here](https://processwire.com/$moduleName/).";
+		$suppressNote = "If you want to prevent your key from appearing here in the module config, append a dash/hyphen to it and save again.";
+
+		if(strpos($key, '-')) {
+			// showing of key is suppressed
+			/** @var InputfieldMarkup $f2 */
+			$f2 = $modules->get('InputfieldMarkup');
+			$f2->description = "$moduleName is a commercially licensed and supported module. $notes";
+			$inputfields->add($f2);
+			return null;
+		}
+		
+		if($input->post($name) && rtrim($input->post($name),'-') !== $key) {
+			// validate 
+			$http = new WireHttp();
+			$val = trim($sanitizer->text($input->post($name)));
+			if(strlen($val)) {
+				$data = array(
+					'action' => 'validate',
+					'li' . 'cense' => rtrim($val, '-'),
+					'host' => $config->httpHost,
+					'ip' => ip2long($session->getIP())
+				);
+				try {
+					$result = $http->post('https://processwire.com/validate-product/', $data);
+				} catch(\Exception $e) { }
+				if(!$result) try {
+					$result = $http->post('http://processwire.com/validate-product/', $data);
+				} catch(\Exception $e) { }
+				if($result === 'valid') {
+					$key = $val;
+					$f->notes = "Validated!";
+					$this->message("$moduleName key has been validated!");
+				} else if(empty($result)) {
+					$key = '';
+					$this->error("Error making http connection for validation. Please email ryan@processwire.com for manual validation.");
+				} else {
+					$key = '';
+					$this->error("Unable to validate key: $result");
+				}
+			}
+		}
+		
+		if(empty($key)) $input->post->__unset($name);
+		$f->attr('value', $key);
+		$f->required = true;
+		$f->label = $this->_('Product key');
+		if($key) $f->label .= " - VALIDATED!";
+		$f->attr('value', $config->demo ? 'disabled for demo mode' : $key);
+		$f->icon = $key ? 'check-square-o' : 'question-circle';
+		$f->description = "Paste in your $moduleName product key.";
+		$f->notes = $notes;
+		if($key) $f->notes = "$suppressNote\n$f->notes";
+		if($key) $f->collapsed = Inputfield::collapsedYes;
+		$inputfields->add($f);
+		
+		return $f;
+	}
+
+	/**
+	 * ProMailer module config
+	 * 
+	 * @param ProMailer $promailer
+	 * @param InputfieldWrapper $inputfields
+	 * 
+	 */
+	public function getProMailerConfigInputfields(ProMailer $promailer, InputfieldWrapper $inputfields) {
+
+		$modules = $this->wire()->modules;
+		$this->getKeyInputfield($promailer, $inputfields);
+		$collapse = !$promailer->ok();
+
+		/** @var InputfieldFieldset $fieldset */
+		$fieldset = $modules->get('InputfieldFieldset');
+		$fieldset->label = $this->_('Default email “from” settings');
+		$fieldset->icon = 'envelope-o';
+		$fieldset->set('themeOffset', 1);
+		if($collapse) $fieldset->collapsed = Inputfield::collapsedYes;
+		$fieldset->description =
+			$this->_('These settings are used when sending confirmation emails to new subscribers.') . ' ' .
+			$this->_('They are also used as the defaults when creating new messages, though can be overridden per message.');
+		$inputfields->add($fieldset);
+
+		/** @var InputfieldEmail $f */
+		$f = $modules->get('InputfieldEmail');
+		$f->attr('name', 'defaultFromEmail');
+		$f->label = $this->_('Email address');
+		$f->attr('value', $promailer->defaultFromEmail);
+		$f->columnWidth = 50;
+		$fieldset->add($f);
+
+		/** @var InputfieldText $f */
+		$f = $modules->get('InputfieldText');
+		$f->attr('name', 'defaultFromName');
+		$f->label = $this->_('Company or person’s name');
+		$f->attr('value', $promailer->defaultFromName);
+		$f->columnWidth = 50;
+		$fieldset->add($f);
+
+		/** @var InputfieldFieldset $fieldset */
+		$fieldset = $modules->get('InputfieldFieldset');
+		$fieldset->label = $this->_('Subscriber maintenance settings');
+		$fieldset->icon = 'user-circle-o';
+		$fieldset->set('themeOffset', 1);
+		if($collapse) $fieldset->collapsed = Inputfield::collapsedYes;
+		$inputfields->add($fieldset);
+
+		/** @var InputfieldInteger $f */
+		$f = $modules->get('InputfieldInteger');
+		$f->attr('name', 'expireDays');
+		$f->label = $this->_('Remove unconfirmed subscribers after this many days');
+		$f->description = $this->_('If subscribers do not confirm their email address after this many days they will be removed.');
+		$f->attr('value', $promailer->expireDays);
+		$f->required = true;
+		$f->min = 1;
+		$f->columnWidth = 50;
+		$fieldset->add($f);
+
+		/** @var InputfieldInteger $f */
+		$f = $modules->get('InputfieldInteger');
+		$f->attr('name', 'maxBounce');
+		$f->label = $this->_('Remove subscribers after this many bounces');
+		$f->description = 'This setting applies only if you implement bounce webhooks with your email provider.';
+		$f->attr('value', $promailer->maxBounce);
+		$f->columnWidth = 50;
+		$fieldset->add($f);
+
+		/** @var InputfieldCheckboxes $f */
+		$f = $modules->get('InputfieldCheckboxes');
+		$f->attr('name', 'useLogs');
+		$f->label = $this->_('Logs');
+		$f->addOption(ProMailer::useLogSubscribers, 'Subscribers log (promailer-subscribers.txt): subs, unsubs, bounces, etc.');
+		$f->addOption(ProMailer::useLogSubscribersIPs, 'Log IP addresses in subscribers log? (requires subscribers log)');
+		$f->addOption(ProMailer::useLogEmail, 'Email log (promailer-email.txt): logs all emails sent');
+		$f->attr('value', $promailer->useLogs);
+		$fieldset->add($f);
+
+		/** @var InputfieldRadios $f */
+		$f = $modules->get('InputfieldRadios');
+		$f->attr('name', 'useGravatar');
+		$f->label = $this->_('Show gravatar images for subscribers in the admin?');
+		$f->addOption(ProMailer::useGravatarNone, 'None');
+		$f->addOption(ProMailer::useGravatarMP, 'Normal');
+		$f->addOption(ProMailer::useGravatarIdenticon, 'Identicon');
+		$f->addOption(ProMailer::useGravatarMonsterid, 'Monster');
+		$f->addOption(ProMailer::useGravatarWavatar, 'Wavatar');
+		$f->attr('value', $promailer->useGravatar);
+		$f->optionColumns = 1;
+		$fieldset->add($f);
+
+		/** @var InputfieldFieldset $fieldset */
+		$fieldset = $modules->get('InputfieldFieldset');
+		$fieldset->label = $this->_('Mailers');
+		$fieldset->icon = 'envelope-o';
+		$fieldset->set('themeOffset', 1);
+		$fieldset->description = sprintf(
+			$this->_('For more sending options, you can install [WireMail modules](%s).'),
+			'https://modules.processwire.com/categories/email/'
+		);
+		$inputfields->add($fieldset);
+
+		$defaultLabel = $this->_('Default');
+
+		$mailers = array(
+			'' => $defaultLabel . ' [span.detail] ' . $this->_('(let ProcessWire decide)') . ' [/span]',
+			'WireMail' => $this->_('Regular PHP mail()'),
+		);
+		foreach($modules->findByPrefix('WireMail') as $moduleName) {
+			$moduleInfo = $modules->getModuleInfo($moduleName);
+			$mailers[$moduleName] = $moduleInfo['title'];
+		}
+
+		/** @var InputfieldRadios $f */
+		$f = $modules->get('InputfieldRadios');
+		$f->attr('name', 'transMailer');
+		$f->label = $this->_('Mailer to use for transactional emails');
+		$f->description = $this->_('This will be used for any automated emails sent by ProMailer, such as opt-in confirmation emails.');
+		$f->addOption('',
+			$this->_('Default') . ' ' .
+			'[span.detail] ' . $this->_('(let ProcessWire decide)') . ' [/span]'
+		);
+		foreach($mailers as $moduleName => $moduleTitle) {
+			$f->addOption($moduleName, $moduleTitle);
+		}
+		$f->attr('value', $promailer->transMailer);
+		$fieldset->add($f);
+
+		/** @var InputfieldRadios $f */
+		$f = $modules->get('InputfieldRadios');
+		$f->attr('name', 'defaultMailer');
+		$f->label = $this->_('Mailer to suggest for bulk emails');
+		$f->description =
+			$this->_('This is the default selected mailer to use for sending messages to lists.') . ' ' .
+			$this->_('The sender can optionally select another, but this will be the selected default.');
+		$f->notes = $this->_('This setting does not apply to existing messages that already have a mailer selected.');
+		foreach($mailers as $moduleName => $moduleTitle) {
+			$f->addOption($moduleName, $moduleTitle);
+		}
+		$f->attr('value', $promailer->defaultMailer);
+		if($promailer->forceMailer) $f->collapsed = Inputfield::collapsedYes;
+		$fieldset->add($f);
+
+		/** @var InputfieldRadios $f */
+		$f = $modules->get('InputfieldRadios');
+		$f->attr('name', 'forceMailer');
+		$f->label = $this->_('Mailer to force for bulk emails');
+		$f->description =
+			$this->_('If you do not want the sending user to have a choice of mailers, force use of a specific mailer here.') . ' ' .
+			$this->_('We recommend leaving this disabled unless you have a need to only allow a single mailer for bulk emails.');
+		$f->addOption('', $this->_('Disabled [span.detail] (select per-message instead) [/span]'));
+		foreach($mailers as $moduleName => $moduleTitle) {
+			if(empty($moduleName)) continue;
+			$f->addOption($moduleName, $moduleTitle);
+		}
+		$f->addOption('pretend', 'Pretender [span.detail] (for testing, only pretends to send)[/span]');
+		$f->attr('value', $promailer->forceMailer);
+		if(!$promailer->forceMailer) $f->collapsed = Inputfield::collapsedYes;
+		$fieldset->add($f);
+
+		/** @var InputfieldCheckbox $f */
+		$f = $modules->get('InputfieldCheckbox');
+		$f->attr('name', 'useXMailer');
+		$f->label = $this->_('Include an X-Mailer header in sent emails?');
+		if($promailer->useXMailer) $f->attr('checked', 'checked');
+		$fieldset->add($f);
+
+		/** @var InputfieldFieldset $fieldset */
+		$fieldset = $modules->get('InputfieldFieldset');
+		$fieldset->label = $this->_('One-click unsubscribe option');
+		$fieldset->description = 'This option is currently experimental, please use only in testing environments for now.';
+		$fieldset->icon = 'magic';
+		$fieldset->set('themeOffset', 1);
+		$fieldset->collapsed = Inputfield::collapsedYes;
+		$fieldset->description = sprintf(
+			$this->_('This adds support for “List-Unsubscribe” email headers as described in [RFC 2369](%1$s) and [RFC 8058](%2$s).'),
+			'https://www.ietf.org/rfc/rfc2369.txt',
+			'https://tools.ietf.org/html/rfc8058'
+		);
+		$inputfields->add($fieldset);
+
+		/** @var InputfieldRadios $f */
+		$f = $modules->get('InputfieldRadios');
+		$f->attr('name', 'useListUnsub');
+		$f->label = $this->_('How do you want to support one-click unsubscribe?');
+		$f->notes = $this->_('Note that different email providers support different options here, so if using 1-click unsubscribe, it is recommended that you choose the last option (both) when possible.');
+		$f->addOption(ProMailer::useListUnsubNone, $this->_('Disabled [span.detail] (user must confirm unsubscribe at landing page) [/span]'));
+		$f->addOption(ProMailer::useListUnsubUrl, $this->_('Enabled by URL to promailer-subscribe page (HTTPS required)'));
+		$f->addOption(ProMailer::useListUnsubEmail, $this->_('Enabled by email address you monitor and manage'));
+		$f->addOption(ProMailer::useListUnsubBoth, $this->_('Enabled by **both** options above: page and email'));
+		$f->attr('value', (int) $promailer->useListUnsub);
+		$fieldset->add($f);
+
+		/** @var InputfieldEmail $f */
+		$f = $modules->get('InputfieldEmail');
+		$f->attr('name', 'listUnsubEmail');
+		$f->label = $this->_('Email address that will monitor unsubscribe requests');
+		$f->description = $this->_('You must monitor and manually unsubscribe (in ProMailer) emails that arrive to this address.');
+		$f->notes = $this->_('This is the only one-click unsubscribe option supported by Microsoft email clients like Hotmail.');
+		$f->showIf = 'useListUnsub=' . ProMailer::useListUnsubEmail . '|' . ProMailer::useListUnsubBoth;
+		$f->attr('value', $promailer->listUnsubEmail);
+		$fieldset->add($f);
+
+		/** @var InputfieldTextarea $f */
+		$f = $modules->get('InputfieldTextarea');
+		$f->attr('name', 'listUnsubDomains');
+		$f->label = $this->_('Limit one-click unsubscribe to these domains');
+		$f->description =
+			$this->_('Enter one domain per line to limit the one-click unsubscribe option to email addresses hosted by them.') . ' ' .
+			$this->_('Useful if you want to limit the feature just to providers known to fully/properly support it, such as gmail.com.');
+		$f->notes = $this->_('If no domains are entered then all domains are allowed.');
+		$f->showIf = 'useListUnsub>0';
+		$f->attr('value', $promailer->listUnsubDomains);
+		$fieldset->add($f);
+
+		/** @var InputfieldAsmSelect $f */
+		$f = $modules->get('InputfieldAsmSelect');
+		$f->attr('name', 'useTemplates');
+		$f->label = $this->_('Page templates allowed for emails');
+		$f->description =
+			$this->_('When using a rendered page as the email content, only pages using these templates will be allowed.') . ' ' .
+			$this->_('If no templates are selected, then no template limits will be imposed.');
+		foreach($this->wire()->templates as $template) {
+			$f->addOption($template->id, $template->name);
+		}
+		$f->attr('value', $promailer->useTemplates);
+		$f->collapsed = Inputfield::collapsedBlank;
+		$f->set('themeOffset', 1);
+		$f->icon = 'cubes';
+		$inputfields->add($f); 
+	
+		/** @var InputfieldText $f */
+		$f = $modules->get('InputfieldText'); 
+		$f->attr('name', 'processGetVar');
+		$f->label = $this->_('Required GET variable name to process background sending queue');
+		$f->description = 
+			$this->_('By default, ProMailer will send 1+ queued messages in the background at regular intervals during regular website page views.') . ' ' . 
+			$this->_('To instead limit to specific web requests, specify a GET variable name that must be present in the URL to process the queue.') . ' ' . 
+			$this->_('This can be useful if you want to trigger from a CRON job that pings a URL, or similar.');
+		$f->notes = 
+			$this->_('If you want to process the background queue from the API only, specify a random/long GET var name that would never be present.') . ' ' . 
+			$this->_('This will effectively disable automatic processing of the background email queue.');
+		$f->attr('value', $promailer->processGetVar);
+		$inputfields->add($f);
+	}
+	
+	/**
+	 * Search for items containing $text and return an array representation of them
+	 *
+	 * Implementation for SearchableModule interface
+	 *
+	 * @param string $text Text to search for
+	 * @param array $options Options to modify behavior:
+	 *  - `edit` (bool): True if any 'url' returned should be to edit items rather than view them
+	 *  - `multilang` (bool): If true, search all languages rather than just current (default=true).
+	 *  - `start` (int): Start index (0-based), if pagination active (default=0).
+	 *  - `limit` (int): Limit to this many items, if pagination active (default=0, disabled).
+	 * @return array
+	 *
+	 */
+	public function search($text, array $options = array()) {
+
+		$page = $this->getProcessPage();
+		
+		/** @var ProMailer $promailer */
+		$promailer = $this->wire()->modules->get('ProMailer');
+
+		$result = array(
+			'title' => $page->id ? (string) $page->title : $this->className(),
+			'total' => 0,
+			'url' => '', // Let ProcessPageSearch auto-generate results
+			'items' => array(),
+			'properties' => array(
+				'lists',
+				'messages',
+				'subscribers',
+			)
+		);
+
+		if($options['help'] || !$promailer) return $result;
+		$lists = array();
+		
+		$operator = empty($options['operator']) ? '%=' : $options['operator'];
+		if($operator != '=' && $operator != '%=') {
+			throw new WireException("Operator $operator not supported here");
+		}
+
+		if(empty($options['property']) || $options['property'] === 'lists') {
+			$lists = $promailer->lists->getAll();
+			foreach($lists as $list) {
+				$keywords = print_r($list->getArray(), true);
+				if(stripos($keywords, $text) === false) continue;
+				$item = array(
+					'id' => $list->id,
+					'name' => $list->title,
+					'title' => $list->title,
+					'subtitle' => 'Subscriber list',
+					'summary' => $this->subscribersLabel($list, $promailer),
+					'url' => $page->url . "subscribers/?list_id=$list->id"
+				);
+				$result['items'][] = $item;
+			}
+		}
+
+		if(empty($options['property']) || $options['property'] === 'messages') {
+			foreach($promailer->messages->getAll() as $message) {
+				/** @var ProMailerMessage $message */
+				$keywords = print_r($message->getArray(), true);
+				if(stripos($keywords, $text) === false) continue;
+				$item = array(
+					'id' => $message->id,
+					'name' => $message->title,
+					'title' => $message->title,
+					'subtitle' => 'Message',
+					'summary' => $message->subject,
+					'url' => $page->url . "message/?message_id=$message->id"
+				);
+				$result['items'][] = $item;
+			}
+		}
+		
+		if(empty($options['property']) || $options['property'] === 'subscribers') {
+			if(empty($lists)) $lists = $promailer->lists->getAll();
+			$total = count($result['items']);
+			$limit = $options['limit'] ? $options['limit'] : 5;
+			$findOptions = array(
+				'email' => $text,
+				'partial' => $operator === '%=' ? true : false,
+				'limit' => $limit,
+				'start' => $options['start'] ? $options['start'] : 0
+			);
+			$subscribers = $promailer->subscribers->find($findOptions);
+			foreach($subscribers as $subscriber) {
+				/** @var ProMailerSubscriber $subscriber */
+				$list = $lists[$subscriber->list_id];
+				$summary = 
+					"Added " . wireRelativeTimeStr($subscriber->created) . ' '  . 
+					($subscriber->confirmed ? '(confirmed)' : '(pending)');
+				$item = array(
+					'id' => $subscriber->id,
+					'name' => $subscriber->email,
+					'title' => $subscriber->email,
+					'subtitle' => 'Subscriber: ' . $list->title,
+					'summary' => $summary,
+					'url' => $page->url . "subscribers/?list_id=$list->id&find_email=" . urlencode($subscriber->email)
+				);
+				$result['items'][] = $item;
+			}
+			if(count($subscribers) >= $limit || $this->wire()->input->pageNum() > 1) {
+				$total += $promailer->subscribers->count($findOptions);
+				$result['total'] = $total;
+			}
+		}
+
+		return $result;
+	}
+
+
+	
+}

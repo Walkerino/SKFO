@@ -1,0 +1,59 @@
+.InputfieldDateRangeDayLabelMode {
+	// day-label mode 
+	.datepicker__info-text--selected-days {
+		display: none;
+	}
+}
+
+
+.InputfieldDateRangeInline {
+	// inline mode where datepicker always visible
+	.InputfieldContent {
+		min-height: 274px;
+	}
+	input {
+		display: none;
+	}
+}
+
+.InputfieldDateRangeStyleAdmin {
+	// admin output style
+	.datepicker__close-button,
+	.datepicker__clear-button {
+		background-color: #3eb998;
+	}
+	.datepicker__month-day--selected {
+		background-color: rgba(108, 141, 174, 0.5);
+	}
+	.datepicker__month-day--hovering {
+		background-color: rgba(108, 141, 174, 0.5);
+	}
+	.datepicker__month-day--first-day-selected,
+	.datepicker__month-day--last-day-selected {
+		background-color: rgb(108, 141, 174);
+	}
+	.datepicker__month-day--today {
+		color: inherit;
+		background-color: inherit;
+	}
+	.datepicker {
+		box-shadow: 10px 10px 20px 5px rgba(0, 0, 0, 0.04)
+	}
+	.datepicker__info--feedback {
+		font-size: 14px;
+	}
+}
+
+.InputfieldDateRange1Day {
+	// single day selection mode
+	.datepicker__info--separator,
+	.datepicker__info-text--end-day {
+		display: none;
+	}
+}
+
+.InputfieldDateRange {
+	.datepicker:not(.datepicker--inline) {
+		z-index: 10;
+	}
+}

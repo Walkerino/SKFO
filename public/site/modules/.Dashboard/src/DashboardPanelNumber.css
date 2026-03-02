@@ -1,0 +1,61 @@
+/* Variables */
+
+:root {
+  --dashboard-panel-number-fontsize-number: 2.5em;
+  --dashboard-panel-number-fontweight-number: bold;
+  --dashboard-panel-number-color-trend-up: rgb(66, 175, 123);
+  --dashboard-panel-number-color-trend-down: rgb(227, 78, 66);
+}
+
+.DashboardPanelNumber {
+  .uk-card-body {
+    display: flex;
+    justify-content: stretch;
+  }
+}
+
+.DashboardPanelNumber__content {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  text-align: center;
+
+  /* Number */
+
+  dl {
+    margin: 10px 0 15px 0;
+  }
+  dt,
+  p {
+    font-size: var(--dashboard-panel-number-fontsize-number);
+    font-weight: var(--dashboard-panel-number-fontweight-number);
+    line-height: 1;
+    padding: 0 !important;
+  }
+  dd {
+    font-weight: normal;
+    color: var(--dashboard-color-text-light);
+    border: none !important;
+    padding: .25em 0 0 0 !important;
+  }
+
+  /* Trend indicator */
+
+  .fa {
+    display: none;
+    margin-right: -1.3rem;
+    font-size: 1.3rem !important;
+    font-weight: normal;
+  }
+  &[data-trend='up'] .fa {
+    display: inline-block;
+    transform: rotate(-45deg);
+    color: var(--dashboard-panel-number-color-trend-up);
+  }
+  &[data-trend='down'] .fa {
+    display: inline-block;
+    transform: rotate(45deg);
+    color: var(--dashboard-panel-number-color-trend-down);
+  }
+}

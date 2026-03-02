@@ -1,0 +1,46 @@
+.InputfieldDateRangeDayLabelMode .datepicker__info-text--selected-days {
+  display: none;
+}
+
+.InputfieldDateRangeInline .InputfieldContent {
+  min-height: 274px;
+}
+.InputfieldDateRangeInline input {
+  display: none;
+}
+
+.InputfieldDateRangeStyleAdmin .datepicker__close-button,
+.InputfieldDateRangeStyleAdmin .datepicker__clear-button {
+  background-color: #3eb998;
+}
+.InputfieldDateRangeStyleAdmin .datepicker__month-day--selected {
+  background-color: rgba(108, 141, 174, 0.5);
+}
+.InputfieldDateRangeStyleAdmin .datepicker__month-day--hovering {
+  background-color: rgba(108, 141, 174, 0.5);
+}
+.InputfieldDateRangeStyleAdmin .datepicker__month-day--first-day-selected,
+.InputfieldDateRangeStyleAdmin .datepicker__month-day--last-day-selected {
+  background-color: #6c8dae;
+}
+.InputfieldDateRangeStyleAdmin .datepicker__month-day--today {
+  color: inherit;
+  background-color: inherit;
+}
+.InputfieldDateRangeStyleAdmin .datepicker {
+  box-shadow: 10px 10px 20px 5px rgba(0, 0, 0, 0.04);
+}
+.InputfieldDateRangeStyleAdmin .datepicker__info--feedback {
+  font-size: 14px;
+}
+
+.InputfieldDateRange1Day .datepicker__info--separator,
+.InputfieldDateRange1Day .datepicker__info-text--end-day {
+  display: none;
+}
+
+.InputfieldDateRange .datepicker:not(.datepicker--inline) {
+  z-index: 10;
+}
+
+/*# sourceMappingURL=InputfieldDateRange.css.map */

@@ -1,0 +1,813 @@
+<?php namespace ProcessWire;
+
+/**
+ * ProcessWire ProFields: Functional Fields (Fields defined by Function calls)
+ * 
+ * This is a commercial module, part of the ProcessWire ProFields package.
+ * DO NOT DISTRIBUTE
+ *
+ * ProcessWire 3.x, Copyright 2022 by Ryan Cramer
+ * https://processwire.com
+ * 
+ */
+
+require_once(__DIR__ . '/FunctionalWireData.php');
+require_once(__DIR__ . '/functions.php');
+
+class FieldtypeFunctional extends Fieldtype {
+
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'ProFields: Functional Fields',
+			'version' => 3,
+			'summary' => 'Define fields with functions in template files.',
+			'requires' => 'ProcessWire>=3.0.184',
+			'installs' => 'InputfieldFunctional',
+		);
+	}
+
+	/**
+	 * Cache of fields using this Fieldtype
+	 * 
+	 * @var array of [ 'fieldName' => [ 'field' => Field, 'templateIDs' => [ 123, 456, 789 ] ] ]
+	 * 
+	 */
+	protected $myFields = array();
+
+	/**
+	 * Cache of field definitions
+	 * 
+	 * @var array of arrays, i.e. [ 'FieldtypeFunctional.site/templates/filename.php' => [ ... ] ]
+	 * 
+	 */
+	protected $defsCache = array();
+
+	/**
+	 * Unix timestamp of when this module was installed
+	 * 
+	 * @var int|null
+	 * 
+	 */
+	protected $installTS = null;
+
+	/**
+	 * Initialize module, attach hooks
+	 * 
+	 */
+	public function init() {
+		parent::init();
+		// $this->addHookAfter('TemplateFile::translate', $this, 'hookTemplateFileTranslate');
+	}
+
+	/**
+	 * Hook after TemplateFile::translate()
+	 * 
+	 * @param HookEvent $event
+	 * 
+	public function hookTemplateFileTranslate(HookEvent $event) {
+		$text = $event->arguments(0);
+		$options = $event->arguments(1);
+		$translated = $this->translate($text, $options);
+		$event->return = $translated;
+	}
+	 */
+
+	/**
+	 * Find all fields using this type and return array of info about each
+	 * 
+	 * @return array Array indexed by field name, containing array of Field and template IDs using the field.
+	 * 
+	 */
+	protected function getMyFields() {
+		if(!empty($this->myFields)) return $this->myFields;
+		
+		foreach($this->wire()->fields as $field) {
+			if($field->type !== $this) continue;
+			if($field->get('fileMode') > 0) {
+				// templateIDs are only needed if fileMode is “specific files”
+				$templateIDs = array();
+				foreach($this->wire()->templates as $template) {
+					if($template->fieldgroup->getField($field->id)) $templateIDs[] = $template->id;
+				}
+			} else {
+				$templateIDs = null;
+			}
+			$this->myFields[$field->name] = array(
+				'field' => $field,
+				'templateIDs' => $templateIDs,
+				'page' => null, // page responsible for translations, populated when needed by translate() method
+			);
+		}
+		
+		return $this->myFields;
+	}
+
+	/**
+	 * Main text translation method, which is called by the __text(), __textarea(), __richtext() functions
+	 * 
+	 * Note: you may provide a selector string for `$text` (argument), or `name` or `label` options to 
+	 * specify options as a selector string. 
+	 * 
+	 * @param string|array $text Text to translate, or options array if text provided in options.
+	 * @param array $options Options:
+	 *  - `name` (string): What to name this translation.
+	 *  - `label` (string): Readable label to use to identify text.
+	 *  - `file` (string): Filename where text appears (full path+file).
+	 *  - `text` (string): Text to translate, when using $text argument as options array or selector string. 
+	 *  - `context` (string): Alias of `name` property, as used by $this->_x() method calls.
+	 * @return string Translated text (when available) or original
+	 * 
+	 */
+	public function translate($text, array $options = array()) {
+	
+		// options provided as first argument
+		if(is_array($text) && isset($options['text'])) {
+			$options = $text;
+		} else {
+			$options['text'] = $text;
+		}
+	
+		// account for $this->_x() calls, which use 'context' for 'name'
+		if(!empty($options['context'])) {
+			$options['name'] = $options['context'];
+			unset($options['context']);
+		}
+		
+		// allow for any parts to be specified in a selector string on text, name or label arguments
+		foreach(array('text', 'name', 'label') as $prop) {
+			if(!isset($options[$prop]) || !strpos($options[$prop], '=')) continue; 
+			if(!Selectors::stringHasSelector($options[$prop])) continue;
+			$selectors = new Selectors($options[$prop]);
+			$this->wire($selectors);
+			unset($options[$prop]);
+			foreach($selectors as $s) {
+				$options[$s->field()] = $s->value();
+			}
+		}
+	
+		// setup variables for translation
+		$text = isset($options['text']) ? $options['text'] : '';
+		$file = isset($options['file']) ? $options['file'] : '';
+		$textdomain = $this->getTextdomain($text, $options);
+		$translated = '';
+	
+		// API vars
+		$page = $this->wire()->page;
+		$sanitizer = $this->wire()->sanitizer;
+		$languages = $this->wire()->languages;
+		$language = $languages ? $this->wire()->user->language : null;
+		$pages = $this->wire()->pages;
+		$config = $this->wire()->config;
+		
+		// make file relative to site/templates
+		if($file) {
+			if(strpos($file, 'FileCompiler') !== false) {
+				$file = str_replace($config->paths->cache . 'FileCompiler/', $config->paths->root, $file);
+			}
+			$file = str_replace($config->paths->templates, '', $file);
+		}
+		
+		// do not work with languages if current user has default language
+		if($language && $language->isDefault()) $language = null;
+
+		// iterate fields of this type to find translation
+		foreach($this->getMyFields() as $name => $info) {
+			
+			if(!empty($info['page'])) {
+				$p = $info['page'];
+			} else {
+				/** @var Field $field */
+				$field = $info['field'];
+				$p = $page;
+				if($field->get('fileMode') > 0) {
+					// narrow in on specific files
+					$files = $field->get('translateFiles');
+					$templateIDs = implode('|', $info['templateIDs']);
+					if(is_array($files) && in_array($file, $files) && strlen($templateIDs)) {
+						// find which page has this field, first with a populated value
+						$p = $pages->findOne("templates_id=$templateIDs, $name!='', include=unpublished");
+						// if we didn't find a populated value, try any page that's using this field
+						if(!$p->id) $p = $pages->findOne("templates_id=$templateIDs, include=unpublished");
+					}
+				} else {
+					// use current page template file
+				}
+				if($p->id != $page->id) {
+					// cache value back in $this->myFields so we don't have to retrieve again
+					$this->myFields[$name]['page'] = $p;
+				}
+			}
+		
+			// if no page can be used then abort testing this field
+			if(!$p->id) continue;
+			
+			// see if page has this field and abort testing this field if it does not
+			$value = $p->get($name);
+			if(!is_object($value)) continue;
+			$value = $value->getArray();
+			
+			if($language && !empty($value["$textdomain.$language"])) {
+				// multi-language translated value available
+				$translated = $value["$textdomain.$language"];
+				break;
+			} else if(!empty($value[$textdomain])) {
+				// regular translation available
+				if($language) {
+					// if in a non-default language, fall back to original static value
+					$translated = $text;
+				} else {
+					// use translated value
+					$translated = $value[$textdomain];
+				}
+				break;
+			} else if(empty($options['name']) && $sanitizer->fieldName($text) === $text) {
+				// allow for calls like __text('more'); to reference previously defined textdomain
+				if(!empty($value[$text])) {
+					$translated = $value[$text];
+					break;
+				}
+			}
+		}
+		
+		if($translated === '=') $translated = $text;
+		$value = $translated ? $translated : $text;
+		if($value === '.') $value = '';
+		
+		return $value;
+	}
+
+	/**
+	 * Get textdomain (symbolic storage name) for given $text
+	 * 
+	 * @param string $text
+	 * @param array $options
+	 * @return string
+	 * 
+	 */
+	protected function getTextdomain($text, array $options) {
+		$text = (string) $text;
+		if($this->installTS === null) {
+			$info = $this->wire()->modules->getModuleInfo($this);
+			$this->installTS = $info['created'];
+		}
+		if(!empty($options['name'])) {
+			$textdomain = $this->wire()->sanitizer->fieldName($options['name']);
+		} else if(!empty($options['textPlural'])) {
+			$textdomain = md5("$text|$options[textPlural]");
+		} else if(strlen($text) <= 32 && $this->installTS < 1560078655) {
+			$textdomain = $this->wire()->sanitizer->fieldName($text);
+		} else {
+			$textdomain = md5($text);
+		}
+		return $textdomain;
+	}
+
+	/**
+	 * Sanitize value for this type
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param array $value
+	 * @return FunctionalWireData
+	 * 
+	 */
+	public function sanitizeValue(Page $page, Field $field, $value) {
+		if(is_array($value)) {
+			// when value set from Inputfield, it is set as an associative array
+			$value = $this->newValue($value); 
+		} else if(!is_object($value) || !$value instanceof FunctionalWireData) {
+			$value = $this->newValue();
+		}
+		return $value;
+	}
+
+	/**
+	 * Provide a markup value for this type
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param array|null $value
+	 * @param string $property
+	 * @return string
+	 * 
+	 */
+	public function ___markupValue(Page $page, Field $field, $value = null, $property = '') {
+		$value = parent::___markupValue($page, $field, $value, $property);
+		return $value;
+	}
+
+	/**
+	 * Format this value for output
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param FunctionalWireData $value
+	 * @return FunctionalWireData
+	 * 
+	 */
+	public function ___formatValue(Page $page, Field $field, $value) {
+		
+		if($value->get('.of') !== null) return $value; 
+
+		$languages = $this->wire()->languages;
+		$defs = $this->getTextDefinitions($page, $field);
+		$changes = 0;
+		
+		foreach($value as $k => $v) {
+			
+			$textdomain = ltrim($k, '.');
+			if($v === '.') $v = '';
+			
+			// updates textdomain to remove language code if needed
+			if($languages) $this->getLanguageFromTextdomain($textdomain, true); 
+			
+			$type = isset($defs[$textdomain]['type']) ? $defs[$textdomain]['type'] : '';
+			
+			if($type == 'richtext') {
+				$f = $field->get($type . 'SettingsField');
+				if($f) $f = $this->wire()->fields->get($f);	
+				if($f) {
+					// delegate formatting to other field
+					$v = $f->type->formatValue($page, $f, $v);
+					if($value[$k] !== $v) {
+						$value[$k] = $v;
+						$changes++;
+					}
+					// no more formatting necessary
+					continue;
+				}
+			}
+
+			$formatters = $field->get($type . 'Formatters');
+			if(is_array($formatters)) {
+				foreach($formatters as $formatterName) {
+					$formatter = $this->wire()->modules->get($formatterName); 
+					if(!$formatter) continue;
+					/** @var Textformatter $formatter */
+					$_v = $v;
+					$formatter->formatValue($page, $field, $v);
+					$value[$k] = $v;
+					if($v !== $_v) $changes++;
+				}
+			}
+		}
+
+		// indicate output formatted value with an '_of' property
+		// containing number of changes relative to non-formatted value
+		$value->set('.of', $changes); 
+		$value->resetTrackChanges();
+		
+		return $value;
+	}
+
+	/**
+	 * Prepare value in a format that can be saved to database
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param FunctionalWireData $value
+	 * @return string
+	 * @throws WireException
+	 * 
+	 */
+	public function ___sleepValue(Page $page, Field $field, $value) {
+
+		if($value instanceof FunctionalWireData) {
+			$value = $value->getArray();
+		} else if(!is_array($value)) {
+			$value = array();
+		}
+		
+		if(isset($value['.of'])) {
+			throw new WireException("Value for $field->name contains output formatting");
+		}
+	
+		$defs = $this->getTextDefinitions($page, $field); 
+		
+		foreach($value as $key => $text) {
+			
+			$textdomain = (string) $key;
+			$dotpos = strpos($textdomain, '.'); 
+			if($dotpos === 0) continue; // original static value, does not need to be saved
+			$text = $this->normalizeText($text);
+			
+			if(strlen($text) && $dotpos) $this->getLanguageFromTextdomain($textdomain, true);
+			
+			$orig = isset($defs[$textdomain]) ? trim($defs[$textdomain]['text']) : null;
+			if($orig) $orig = $this->normalizeText($orig); 
+			if($orig === null || !strlen($text) || $orig === $text) {
+				// remove values that are identical to those in the template file
+				unset($value[$key]); 
+			} else {
+				// value differs, and should be stored
+			}
+		}
+		
+		return json_encode($value); 
+	}
+
+	/**
+	 * Convert JSON string value from database to runtime array value
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @param string $value JSON string
+	 * @return FunctionalWireData
+	 * @throws WireException
+	 * 
+	 */
+	public function ___wakeupValue(Page $page, Field $field, $value) {
+		
+		if(!is_string($value)) throw new WireException('wakeupValue requires string');
+		
+		if(empty($value)) {
+			$value = array();
+		} else {
+			$value = json_decode($value, true); 
+			if(!is_array($value)) $value = array();
+		}
+
+		// make sure that all translatable values are present
+		// those not already present in $value are those that are identical to template file definitions
+		$defs = $this->getTextDefinitions($page, $field);
+
+		foreach($defs as $textdomain => $def) {
+			if(isset($value[$textdomain])) {
+				// add a copy of the original
+				$value[".$textdomain"] = $def['text']; 
+			} else {
+				// no edited version present, so add original
+				$value[$textdomain] = $def['text'];
+			}
+		}
+		
+		return $this->newValue($value); 
+	}
+
+	/**
+	 * Get the Inputfield module that provides input for Field
+	 *
+	 * @param Page $page
+	 * @param Field $field
+	 * @return Inputfield
+	 *
+	 */
+	public function getInputfield(Page $page, Field $field) {
+	
+		/** @var InputfieldFunctional $inputfield */
+		$inputfield = $this->wire()->modules->get('InputfieldFunctional');
+		$inputfield->set('hasPage', $page);
+		$inputfield->set('hasField', $field);
+		
+		$definitions = $this->getTextDefinitions($page, $field); 
+		$inputfield->setTextDefinitions($definitions);
+		
+		return $inputfield;
+	}
+
+	/**
+	 * Get definitions of Inputfields for this Fieldtype
+	 * 
+	 * @param Page $page
+	 * @param Field $field
+	 * @return array
+	 * 
+	 */
+	public function getTextDefinitions(Page $page, Field $field) {
+
+		if($field->hasContext($page)) $field = $field->getContext($page);
+		
+		if($field->get('fileMode')) {
+			// specific files
+			$definitions = array();
+			$files = $field->get('translateFiles');
+			if(!is_array($files)) $files = array();
+			$startPath = $this->wire()->config->paths->templates;
+			foreach($files as $file) {
+				$filename = $startPath . $file;
+				$defs = $this->getTextDefinitionsByFileCache($filename);
+				$definitions = array_merge($defs, $definitions);
+			}
+		} else {
+			// page template file
+			$definitions = $page->id ? $this->getTextDefinitionsByFileCache($page->template->filename) : array();
+		}
+		
+		return $definitions;
+	}
+
+	/**
+	 * Get Inputfield definitions from a specific file and use cache when available
+	 * 
+	 * @param string $filename
+	 * @return array
+	 * 
+	 */
+	protected function getTextDefinitionsByFileCache($filename) {
+		
+		// see if definitions are available in local or database cache
+		$cacheKey = $this->className() . '.' . str_replace($this->wire()->config->paths->root, '', $filename);
+		
+		if(isset($this->defsCache[$cacheKey])) {
+			// available in memory cache
+			return $this->defsCache[$cacheKey];
+		}
+
+		$cache = $this->wire()->cache;
+		$defs = $cache->get($cacheKey); 
+		
+		if(!empty($defs) && filemtime($filename) <= $defs['__time']) {
+			// successful load from database cache
+			
+		} else {
+			// need to load definitions and generate new cache
+			$defs = $this->getTextDefinitionsByFile($filename);
+			$defs['__time'] = time();
+			$cache->save($cacheKey, $defs, WireCache::expireDaily);
+		}
+	
+		unset($defs['__time']); 
+		$this->defsCache[$cacheKey] = $defs;
+
+		return $defs;
+	}
+	
+	/**
+	 * Get Inputfield definitions from translation text in given file
+	 * 
+	 * Note: this method has to do a lot, so it is preferable to use the cache version above this one. 
+	 * 
+	 * Returns array of definitions indexed by “textdomain” where “text” property is alway present,
+	 * and the rest are present only when applicable: 
+	 * ~~~~~
+	 *   [
+	 *     'text' => 'translated version of text',
+	 *     'textPlural' => 'translated plural version of text, ony present if type is “n” 
+	 *     'type' => 'text|textarea|richtext|n', // typically omitted when “text” 
+	 *     'name' => 'name of translation', // use PW field name format
+	 *     'meta' => [  // settings for Inputfield, following are examples:
+	 *       'label' => 'Label for field',  
+	 *       'notes' => 'Notes for field', 
+	 *       'columnWidth' => 50, // width of field in page editor
+	 *       'rows' => 5, // number of rows for textarea
+	 *     ]
+	 *   ]
+	 * ~~~~~
+	 * 
+	 * @param string $filename
+	 * @return array
+	 * 
+	 */
+	protected function getTextDefinitionsByFile($filename) {
+
+		$defs = array();
+		if(empty($filename) || !is_file($filename)) return $defs;
+		
+		$content = file_get_contents($filename);
+		
+		if(!empty($content) && strpos($content, '__text') === false && strpos($content, '__richtext') === false) return $defs;
+		// if(strpos($content, '$this->_') === false && strpos($content, '__' === false)) return $defs;
+		
+		$funcs = array(
+			'\b__text',
+			'\b__textarea',
+			'\b__richtext',
+			'\b__fieldset',
+			//'\$this->_x',
+			//'\b__plural',
+			//'\$this->_',
+			//'\$this->_n',
+		);
+		
+		$regex = '/' .
+			// '(\$this->_[nx]?|\b__textarea|\b__text|\b__richtext|\b__plural)' .  // 1: method name/type
+			'(' . implode('|', $funcs) . ')' . // 1: method name/type
+			'\(\s*' . // opening parenthesis
+			'(' . // 2: text 
+				'\'.*?\'' . // text in single quotes
+			'|' . 
+				'".*?"' . // text in double quotes
+			')' . 
+			'(?:' . // optional 2nd argument
+				'\s*,\s*(' . // 3: 2nd argument in quotes 
+					'".+?"' .  // double quotes
+				'|' . 
+					'\'.+?\'' . // single quotes
+				')' .
+				'(?:' . // optional 3nd argument
+					// '\s*,\s*([^\)]+)' . // 4: 3rd argument 
+					'\s*,\s*("[^"]*"|\'[^\']*\'|\d+)' . // 4: 3rd argument 
+				')?' . 
+			')?' . 
+			'\s*\)' . // closing parenthesis
+			'(\s*\/\*.+?\*\/)?' . // 3|4|5: optional meta data in PHP /*comment*/
+		'/';
+		
+		preg_match_all($regex, $content, $matches);
+		
+		foreach($matches[1] as $key => $type) {
+
+			$text = substr(trim($matches[2][$key]), 1, -1);
+			if(empty($text)) continue;
+			
+			$type = ltrim($type, '_');
+			$arg2 = empty($matches[3][$key]) ? '' : trim($matches[3][$key], '"\' ');
+			$arg3 = empty($matches[4][$key]) ? '' : trim($matches[4][$key], '"\' ');
+			$name = '';
+			$textPlural = '';
+			$metaStr = '';
+			$commentStr = '';
+			$metaHasSelector = false;
+			$meta = array();
+			
+			// determine type
+			if(strpos($type, '$this->') === 0) {
+				$type = substr($type, -1); 
+				if($type === '_') $type = '';
+			} else {
+				if($type === 'plural') $type = 'n';
+			}
+			
+			if(strlen($type) > 1) {
+				// text, textarea, richtext support args: (text, name, label) 
+				// where name or label can also be a selector string that specifies any properties
+				if($arg2) {
+					if(strpos($arg2, '=') && Selectors::stringHasSelector($arg2)) {
+						// selector string option
+						$metaStr = $arg2;
+						$metaHasSelector = true; 
+					} else {
+						// default for arg2 is name
+						$name = $arg2;
+					}
+					$arg2 = '';
+				}
+				if($arg3) {
+					if(strpos($arg3, '=') && Selectors::stringHasSelector($arg3)) {
+						$metaStr = $arg3;
+						$metaHasSelector = true;
+					} else {
+						$meta['label'] = $arg3;
+					}
+					$arg3 = '';
+				}
+				if(!$metaStr && strpos($text, '=') && Selectors::stringHasSelector($text)) {
+					$metaStr = $text;
+					$metaHasSelector = true;
+					$text = '';
+				}
+			}
+		
+			// determine meta from appended comment if present
+			if(!$metaStr) {
+				if(strpos($arg2, '/*') === 0) {
+					$metaStr = trim($arg2, '*/ ');
+					$commentStr = $metaStr;
+					$arg2 = '';
+				} else if(strpos($arg3, '/*') === 0) {
+					$metaStr = trim($arg3, '*/ ');
+					$commentStr = $metaStr;
+					// $arg3 = ''; // arg3 is not used
+				} else if(isset($matches[5][$key])) {
+					$metaStr = trim($matches[5][$key], '*/ ');
+					$commentStr = $metaStr;
+				}
+				if($metaStr && strpos($metaStr, '=')) {
+					$metaHasSelector = Selectors::stringHasSelector($metaStr);
+				}
+			}
+		
+			// convert meta selector to meta array
+			if($metaHasSelector) {
+				$selectors = new Selectors($metaStr); 
+				foreach($selectors as $s) {
+					$meta[$s->field()] = $s->value();
+				}
+				if(!empty($meta['name'])) {
+					$name = $meta['name'];
+					unset($meta['name']);
+				}
+			}
+		
+			$text = $this->normalizeText($text); 
+
+			// account for plural and context calls
+			if($type == 'n') {
+				$textPlural = $arg2;
+			} else if($arg2) {
+				$name = $arg2;
+			}
+		
+			// determine textdomain
+			$textdomain = $this->getTextdomain($text, array(
+				'name' => $name, 
+				'textPlural' => $textPlural, 
+			));
+		
+			// if definition already present, keep the original/first one
+			if(isset($defs[$textdomain])) continue;
+		
+			if($commentStr) {
+				// @todo
+				$commentStr = rtrim($commentStr, '%');
+				if(ctype_digit($commentStr)) {
+					$meta['columnWidth'] = (int) $commentStr;
+				}
+			}
+		
+			// build definition
+			$def = array('text' => $text);
+		
+			if(!empty($type)) $def['type'] = $type;
+			if(!empty($name)) $def['name'] = $name; 
+			if(!empty($textPlural)) $def['textPlural'] = $textPlural;
+			if(!empty($meta)) $def['meta'] = $meta;
+		
+			
+			$defs[$textdomain] = $def;
+		}
+		
+		return $defs;
+	}
+
+	/**
+	 * Return a new value for this Fieldtype
+	 * 
+	 * @param array|WireData $data Optional data to populate to the value
+	 * @return FunctionalWireData
+	 * 
+	 */
+	public function newValue($data = array()) {
+		$value = new FunctionalWireData();
+		$this->wire($value); 
+		if(!empty($data)) {
+			$value->setArray($data);
+			$value->resetTrackChanges();
+		}
+		return $value; 
+	}
+
+	/**
+	 * Normalize text so that it only uses unix newlines
+	 * 
+	 * @param string $text
+	 * @return string
+	 * 
+	 */
+	protected function normalizeText($text) {
+		$text = trim("$text");
+		$text = str_replace(array("\r\n", "\r", "\\r", "\\n"), "\n", $text);
+		$text = str_replace("\\t", "\t", $text);
+		return $text;
+	}
+
+	/**
+	 * Get the language defined in the given text domain string or null if none
+	 * 
+	 * @param string $textdomain
+	 * @param bool $removeFromTextdomain Specify true to update given $textdomain to remove language
+	 * @return Language|null
+	 * 
+	 */
+	public function getLanguageFromTextdomain(&$textdomain, $removeFromTextdomain = false) {
+		$languages = $this->wire()->languages;
+		if(!$languages) return null;
+		$pos = strrpos($textdomain, '.');
+		if(!$pos) return null;
+		$lid = substr($textdomain, $pos+1);
+		if(!ctype_digit("$lid")) return null;
+		$language = $languages->get((int) $lid);
+		if(!$language || !$language->id) return null;
+		if($removeFromTextdomain) $textdomain = substr($textdomain, 0, $pos); 
+		return $language;
+	}
+
+	/**
+	 * Get database schema used by the Field
+	 *
+	 * @param Field $field
+	 * @return array
+	 *
+	 */
+	public function getDatabaseSchema(Field $field) {
+		$schema = parent::getDatabaseSchema($field);
+		$schema['data'] = 'mediumtext NOT NULL';
+		$schema['keys']['data'] = 'FULLTEXT KEY data (data)';
+		return $schema;
+	}
+
+	/**
+	 * Get Inputfields to configure the Field
+	 *
+	 * @param Field $field
+	 * @return InputfieldWrapper
+	 *
+	 */
+	public function ___getConfigInputfields(Field $field) {
+		$inputfields = parent::___getConfigInputfields($field);
+		require_once(__DIR__ . '/config-field.php');
+		return FieldtypeFunctionalConfigField($field, $inputfields);
+	}
+}
+
+

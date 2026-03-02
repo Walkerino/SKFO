@@ -1,0 +1,55 @@
+#ComboConfigFields {
+	
+	.ComboConfigField {
+		&, 
+		& > .InputfieldHeader, 
+		& > .InputfieldContent {
+			background: rgba(255, 255, 255, 0.4);
+		}
+		> .InputfieldHeader > .fa:first-child {
+			cursor: move;
+		}
+		+ .ComboConfigField {
+			margin-top: 14px;
+		}
+	}
+	
+	.ComboConfigFieldDeletePending {
+		> .InputfieldHeader {
+			background: red;
+			color: white;
+			text-decoration: line-through;
+			i.fa {
+				color: white !important;
+			}
+		}
+		> .InputfieldContent {
+			background: red;
+		}
+	}
+	
+	.ComboDetachIcon {
+		display: none !important;
+	}
+	.ComboStateDetached .ComboDetachIcon {
+		display: inline-block !important;
+		position: relative;
+		top: 3px;
+	}
+	
+	.ComboAdvancedNote {
+		clear: left;
+	}
+}
+
+#_i0_fieldset {
+	// AdminThemeDefault and AdminThemeReno where "hidden" attribute doesn’t work
+	display: none;
+}
+
+#Inputfield__comboPhpDoc pre {
+	margin-bottom: 2em;
+}
+
+
+

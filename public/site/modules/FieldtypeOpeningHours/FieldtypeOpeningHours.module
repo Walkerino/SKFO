@@ -1,0 +1,198 @@
+<?php
+declare(strict_types=1);
+
+namespace ProcessWire;
+
+use Exception;
+
+class FieldtypeOpeningHours extends Fieldtype
+{
+
+    protected string|null $timeformat = '%R'; // the php time format
+    protected string|null|int $numberOftimes = 2; // the number of different opening times per day
+    protected string|int|bool $hideholiday = 0; // hide the Holiday input field
+
+    public function __construct()
+    {
+        include_once(__DIR__ . '/OpeningHours.php');
+        //set default configuration values if they are not present in the database
+        $this->timeformat = '%R';
+        $this->numberOftimes = 2;
+        $this->hideholiday = 0;
+
+        parent::__construct();
+    }
+
+    /**
+     * @return array
+     */
+    public static function getModuleInfo():array
+    {
+        return array(
+            'title' => 'Openinghours',
+            'summary' => 'Fieldtype that stores opening hours for each day of the week (including additional input for holidays)',
+            'version' => '1.2.0',
+            'href' => 'https://github.com/juergenweb/FieldtypeOpeningHours',
+            'icon' => 'clock-o',
+            'installs' => 'InputfieldOpeningHours',
+            'requires' => [
+                'PHP>=8.0.0',
+                'ProcessWire>=3.0.181'
+            ],
+            'author' => 'Jürgen Kern'
+        );
+    }
+
+    /**
+     * @param Page $page
+     * @param Field $field
+     * @return string|_Module|Module
+     * @throws WirePermissionException link the core inputfieldmarkup to this fieldtype and return the associated Inputfield
+     */
+    public function getInputfield(Page $page, Field $field):_Module|Module|string
+    {
+        return $this->modules->get('InputfieldOpeningHours');
+    }
+
+    /**
+     * @param Field $field
+     * @return null
+     * User is not allowed to change this fieldtype to another
+     */
+    public function ___getCompatibleFieldtypes(Field $field)
+    {
+        return null;
+    }
+
+    /**
+     * @param Page $page
+     * @param Field $field
+     * @param int|object|WireArray|string $value
+     * @return int|null|object|OpeningHours|WireArray|string
+     * will be called on before sleepValue and after wakeupValue
+     */
+    public function sanitizeValue(Page $page, Field $field, $value)
+    {
+        if (!$value instanceof OpeningHours) {
+            $value = $this->getBlankValue($page, $field);
+        }
+        // Value is instance of OpeningHours -> track changes
+        if ($value->isChanged('times')) {
+            $page->trackChange($field->name);
+        }
+        return $value;
+    }
+
+    /**
+     * Convert from DB storage to API value
+     * Given a raw value (value as stored in DB), return the value as it would appear in a Page object
+     * get value directly from the db and sends it to sanatize method
+     * @param Page $page
+     * @param Field $field
+     * @param $value
+     * @return OpeningHours
+     */
+    public function ___wakeupValue(Page $page, Field $field, $value): OpeningHours
+    {
+        $value = parent::___wakeupValue($page, $field, $value);
+        // instantiate a new object
+        $times = $this->getBlankValue($page, $field);
+        // populate the times object -> convert it from json to array
+        $daytimes = $value['times'] ? json_decode($value['times'],
+            true) : json_decode(file_get_contents(__DIR__ . '/defaultData.json'), true);
+        $times->times = $daytimes;
+        // make configurationfields callable via API
+        $times->numberOftimes = (string)$field->numberOftimes;
+        $times->timeformat = (string)$field->timeformat;
+        $times->hideholiday = (int)$field->hideholiday;
+        return $times;
+    }
+
+    /**
+     * Method to format the time for each language according to the settings in the configuation of the inputfield
+     * @param Page $page
+     * @param Field $field
+     * @param $value
+     * @return mixed|string
+     */
+    public function formatValue(Page $page, Field $field, $value)
+    {
+        $times = $value;
+        if ($times) {
+            if (isset(wire('user')->language)) //check for multilanguage
+            {
+                $userLang = wire('user')->language->id;
+                foreach (wire('languages') as $language) {
+                    if ($language->isDefault()) {
+                        $this->timeformat = $field->timeformat;
+                    } elseif ($language->id == $userLang) {
+                        $this->timeformat = $field->get("timeformat$userLang");
+                    }
+                }
+            }
+            array_walk_recursive($times, function (&$value, $key) {
+                if (($key === 'start') || ($key === 'finish')) {
+                    if ($value) {
+                        $value = OpeningHours::formatTimestring($value, $this->timeformat);
+                    }
+                }
+            });
+            return $times;
+        }
+        return null;
+    }
+
+    /**
+     * Create a new instance of OpeningHours
+     *
+     * @param Page $page
+     * @param Field $field
+     * @return OpeningHours
+     *
+     */
+    public function getBlankValue(Page $page, Field $field): OpeningHours
+    {
+        $times = new OpeningHours();
+        $times->setTrackChanges();
+        return $times;
+    }
+
+    /**
+     * Given an 'awake' value, as set by wakeupValue, convert the value back to a basic type for storage in DB
+     * gets the value from the sanatize method
+     * @param Page $page
+     * @param Field $field
+     * @param array $value
+     * @return array
+     * @throws Exception
+     */
+    public function ___sleepValue(Page $page, Field $field, $value):array
+    {
+        $value = parent::___sleepValue($page, $field, $value);
+        // throw error if value is not of the right type
+        if (!$value instanceof OpeningHours) {
+            throw new Exception($this->_('Expecting an instance of OpeningHours'));
+        }
+
+        $timesValues = $value->data['times'];
+        $timesValues = OpeningHours::createMultidimArray($timesValues);
+        //create json string for storage in the DB
+        $value = json_encode($timesValues);
+
+        return array(
+            'times' => $value,
+        );
+
+    }
+
+    /**
+     * @param Field $field
+     * @return array
+     */
+    public function getDatabaseSchema(Field $field):array
+    {
+        $schema = parent::getDatabaseSchema($field);
+        $schema['times'] = 'TEXT DEFAULT NULL';
+        return $schema;
+    }
+}

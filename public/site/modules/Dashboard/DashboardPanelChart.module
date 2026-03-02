@@ -1,0 +1,82 @@
+<?php namespace Daun\Dashboard;
+
+use function ProcessWire\__;
+
+// Include abstract panel base class
+require_once dirname(__DIR__).'/Dashboard/DashboardPanel.class.php';
+
+class DashboardPanelChart extends DashboardPanel
+{
+    public static function getModuleInfo()
+    {
+        return array_merge(
+            parent::getModuleInfo(),
+            [
+                'title'    => __('Dashboard Panel: Chart', __FILE__),
+                'summary'  => __('Display a customizable chart from any data source', __FILE__),
+                'author'   => 'Philipp Daun',
+                'version'  => '1.5.9',
+            ]
+        );
+    }
+
+    public function getIcon()
+    {
+        return 'pie-chart';
+    }
+
+    public function getContent()
+    {
+        return $this->view('panels/chart', [
+            'theme'   => $this->theme,
+            'default' => $this->defaultTheme,
+            'chart'   => $this->chart,
+            'padding' => $this->padding,
+        ]);
+    }
+
+    public function setup()
+    {
+        parent::setup();
+        $this->theme = $this->data['theme'] ?? false;
+        $this->defaultTheme = $this->getDefaultTheme();
+        $this->chart = $this->parseChartData($this->data['chart'] ?? []);
+        $this->aspectRatio = $this->chart['options']['aspectRatio'] ?? 0;
+        $this->padding = $this->aspectRatioPadding($this->aspectRatio);
+    }
+
+    public function getScripts()
+    {
+        return ['https://cdn.jsdelivr.net/npm/chart.js@2'];
+    }
+
+    /**
+     * Manipulate the chart data if necessary.
+     */
+    public function ___parseChartData($data)
+    {
+        return $data;
+    }
+
+    /**
+     * Get the name of the default color theme.
+     */
+    public function ___getDefaultTheme()
+    {
+        return 'processwire';
+    }
+
+    /**
+     * Calculate bottom padding for aspect ratio placeholder.
+     */
+    protected function aspectRatioPadding($ratio)
+    {
+        if ($ratio <= 0) {
+            return '';
+        }
+        $padding = 100 / $ratio;
+        $padding = number_format($padding, 2, '.', '');
+
+        return "padding-bottom: {$padding}%;";
+    }
+}

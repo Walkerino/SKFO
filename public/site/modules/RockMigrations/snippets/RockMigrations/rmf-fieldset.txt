@@ -1,0 +1,6 @@
+// Add a fieldset (open+close)
+return [
+  'type' => 'FieldsetOpen',
+  'label' => '$1',
+  'icon' => '$2',
+];

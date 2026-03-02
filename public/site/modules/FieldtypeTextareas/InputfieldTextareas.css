@@ -1,0 +1,9 @@
+.InputfieldTextareas.InputfieldTextareasNaked > .InputfieldHeader {
+  display: none !important;
+}
+.InputfieldTextareas.InputfieldTextareasNaked > .InputfieldContent {
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+/*# sourceMappingURL=InputfieldTextareas.css.map */

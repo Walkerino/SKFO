@@ -1,0 +1,7 @@
+{
+  "error_info": {
+    "type": "markup",
+    "label": "Error",
+    "value": "<p class='ui-state-error-text'>{message}</p>"
+  }
+}

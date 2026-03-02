@@ -1,0 +1,2112 @@
+<?php namespace ProcessWire;
+
+/**
+ * ProcessWire Table Inputfield
+ *
+ * Field that lets you define a database table of custom inputs. 
+ *
+ * Part of the ProFields package
+ * Please do not distribute. 
+ * 
+ * Copyright 2024 by Ryan Cramer
+ *
+ * https://processwire.com/store/pro-fields/
+ * 
+ * @method string renderCol(array $col, $rowNum, Field $field, $value)
+ * @method array getColAttrs(array $col, $row, $rowNum)
+ * @method PageArray getSelectablePages(Field $field, array $col, array $value)
+ * 
+ * @property string $actionsIcon 
+ * 
+ * @todo Page fields, select a page or click "Create new" and a box opens where you can enter the title of the new page.
+ *
+ */
+
+class InputfieldTable extends Inputfield {
+
+	public static function getModuleInfo() {
+		return array(
+			'title' => __('ProFields: Table', __FILE__), // Module Title
+			'summary' => __('Field that lets you define a database table of custom inputs.', __FILE__), // Module Summary
+			'version' => 30,
+			'requires' => 'ProcessWire>=3.0.227',
+		);
+	}
+
+	/**
+	 * Debug mode for development only
+	 *
+	 */
+	const debug = false; 
+
+	/**
+	 * Associated Field object currently in use by this Inputfield
+	 * 
+	 * @var Field
+	 *
+	 */
+	protected $field;
+
+	/**
+	 * @var Page|null
+	 * 
+	 */
+	protected $page;
+
+	/**
+	 * Columns loaded from renderReady
+	 * 
+	 * @var null|array
+	 * 
+	 */
+	protected $cols = null;
+	
+	/**
+	 * Tables loaded from renderReady
+	 * 
+	 * @var null|array
+	 * 
+	 */
+	protected $tables = null;
+
+	/**
+	 * Pre-rendered template row, from renderReady
+	 * 
+	 * @var null
+	 * 
+	 */
+	protected $rowTemplate = null;
+
+	/**
+	 * Query string to use for ajax requests (set by render method)
+	 * 
+	 * @var string
+	 * 
+	 */
+	protected $ajaxQueryString = '';
+
+	/**
+	 * Current session data
+	 * 
+	 * @var array
+	 * 
+	 */
+	protected $sessionData = array();
+
+	/**
+	 * Whether or not we are in render value mode (as opposed to input mode)
+	 * 
+	 * @var bool
+	 * 
+	 */
+	protected $renderValueMode = false;
+
+	/**
+	 * Settings for LanguageTabs module
+	 * 
+	 * @var array
+	 * 
+	 */
+	protected $langTabSettings = array();
+
+	/**
+	 * Settings for MarkupAdminDataTable
+	 * 
+	 * @var array
+	 * 
+	 */
+	protected $tableSettings = array();
+
+	/**
+	 * Construct
+	 * 
+	 */
+	public function __construct() {
+		$this->actionsIcon = 'fa-scissors';
+		parent::__construct();
+	}
+
+	/**
+	 * Set the current Field
+	 *
+	 * @param Field $field
+	 *
+	 */
+	public function setField(Field $field) {
+		$this->field = $field; 
+	}
+	
+	/**
+	 * Set the current Page being edited
+	 *
+	 * @param Page $page
+	 *
+	 */
+	public function setPage(Page $page) {
+		$this->page = $page;
+	}
+
+	/**
+	 * Output a message only when debug mode is on (for this field)
+	 *
+	 * @param string $msg
+	 *
+	 */
+	protected function debugMessage($msg) {
+		if(!self::debug) return;
+		$this->message($msg, Notice::debug); 
+	}
+
+	/**
+	 * Is the value of this field empty?
+	 *
+	 * @return bool
+	 *
+	 */
+	public function isEmpty() {
+		return (!$this->value || !count($this->value)); 
+	}
+
+	/**
+	 * Render markup for a table column
+	 *
+	 * @param array $col Column definition array
+	 * @param int $rowNum Row Number
+	 * @param Field $field
+	 * @param mixed $value Column value
+	 * @return string
+	 *
+	 */
+	protected function ___renderCol(array $col, $rowNum, Field $field, $value) {
+		
+		$sanitizer = $this->wire()->sanitizer;
+		$languages = $this->wire()->languages; 
+		$modules = $this->wire()->modules;
+		$coreVersion = $this->wire()->config->version;
+
+		static $callNum = 0;
+		$callNum++;
+
+		$out = '';
+		$name = $col['name'];
+		$type = $col['type']; 
+		$nameAttr = $rowNum > -1 ? $this->name . "_{$rowNum}_$name" : "__find-$name";
+		$options = array();
+		$labels = array();
+		$settings = $col['settings'];
+		$placeholder = '';
+
+		if(empty($value) && isset($settings['default'])) {
+			if(!strlen("$value")) $value = $settings['default'];
+		}
+		
+		if(!empty($settings['placeholder'])) {
+			$placeholder = " placeholder='" . $sanitizer->entities($settings['placeholder']) . "'";
+		}
+
+		if(in_array($type, array('checkboxes', 'select', 'selectMultiple', 'asmSelect', 'radios'))) {
+			// generate value for single and multi-select
+			if(!is_array($value)) $value = explode(',', "$value"); 
+			foreach($value as $k => $v) $value[$k] = trim($v); 
+			if($rowNum == -1) $type = 'select';
+			
+		} else if($col['valid'] === 'Page' || $col['valid'] == 'PageArray') {
+			// generate value, options, labels and defaults for Page and PageArray
+			if($rowNum == -1) {
+				// force use of 'select' for Pagefields, except for autocomplete
+				if($type == 'pageAutocompleteMultiple') {
+					$type = 'pageAutocomplete';
+					$col['type'] = 'pageAutocomplete';
+				} else if($type != 'pageAutocomplete') {
+					$type = 'select';
+				}
+			}
+			if($value instanceof Page) $value = array($value->id); 
+				else if($value instanceof PageArray) $value = $value->explode('id');
+				else if(is_string($value) && ctype_digit(str_replace('|', '', $value))) $value = explode('|', $value);
+				else if(is_array($value)) {} // okay	 
+				else $value = array();
+				
+			$col['options'] = array(); // just in case it is populated for one reason or another
+			if(!empty($col['selector'])) {
+				$items = $this->getSelectablePages($field, $col, $value);
+				$labelField = empty($col['settings']['labelField']) ? 'title|name' : $col['settings']['labelField'];
+				$default = empty($col['settings']['default']) ? array() : explode('|', $col['settings']['default']);
+				foreach($default as $k => $v) {
+					$v = trim($v);
+					if(ctype_digit($v)) {
+						$v = (int) $v;
+					}
+					$default[$k] = $v; 
+				}
+				$valueEmpty = empty($value);
+				foreach($items as $item) {
+					$options[] = $item->id;
+					$labelFieldValue = strip_tags((string) $item->getUnformatted($labelField)); 
+					$labels[] = $labelFieldValue;
+					if($valueEmpty && (in_array($item->id, $default) || in_array($labelFieldValue, $default))) {
+						// default value can be specified as page ID, or label
+						$value[] = $item->id;
+					}
+				}
+			}
+		/*
+		} else if($col['input'] == 'textarea' || $col['input'] == 'textareaLanguage') {
+			if($rowNum == -1) {
+				$col['input'] = 'text';
+				$type = 'text';
+			}
+		*/
+		} else if($rowNum == -1) {
+			$col['input'] = 'text';
+			$type = 'text';
+		}
+
+		// single and/or multi select options
+		if(!empty($col['options'])) foreach($col['options'] as $k => $option) { 
+			$label = $option; 
+			if(strpos($option, '=') !== false) list($option, $label) = explode('=', $option, 2); 
+			if(strpos($option, '+') === 0 && !count($value)) $value = array($option); 
+			$option = ltrim($option, '+'); 
+			$options[$k] = $option; 
+			if(empty($label)) $label = $option; 
+			$labels[$k] = $sanitizer->entities($label);
+		}
+
+		$_value = $value; // unencoded value	
+		if(!is_array($value)) $value = $sanitizer->entities($value); 
+
+		switch($type) {
+
+			case 'checkbox':
+				$checked = $value ? " checked='checked'" : '';
+				$typeAttrs = $this->renderTypeAttrs('checkbox', $col); 
+				$out .= "<input $typeAttrs name='$nameAttr' value='1' $checked />";
+				break;
+			
+			case 'toggle':
+				$inputfield = $this->getToggleInputfield($nameAttr, $value, $col);
+				if(method_exists($inputfield, 'renderReady')) $inputfield->renderReady($this);
+				$cls = 'InputfieldToggle';
+				if($inputfield->useDeselect) $cls .= ' InputfieldToggleUseDeselect';
+				if(version_compare($coreVersion, '3.0.189', '<=')) $cls .= ' Inputfield';
+				$out .= "<div class='$cls' style='outline:none'>" . $inputfield->render() . "</div>";
+				break;
+			
+			case 'textTags':
+				$inputfield = $this->getTextTagsInputfield($nameAttr, $value, $col);
+				$inputfield->renderReady($this);
+				$o = $inputfield->render();
+				if(!$rowNum) $o = str_replace('InputfieldTextTags', '_InputfieldTextTags', $o);
+				$cls = 'InputfieldTextTags' . ($this->field->get('useSmall') ? ' InputfieldTextTagsSmall' : '');
+				$out .= "<div class='$cls'>$o</div>";
+				unset($o);
+				break;
+
+			case 'checkboxes':
+			case 'pageCheckboxes':
+				$typeAttrs = $this->renderTypeAttrs('checkbox', $col); 
+				$labelClass = empty($col['settings']['inline']) ? 'checkbox' : 'inline-checkbox';
+				if($labelClass === 'inline-checkbox') $out .= "<div class='inline-checkboxes'>";
+				foreach($options as $k => $option) {
+					$checked = in_array($option, $_value) ? " checked='checked'" : '';
+					$option = $sanitizer->entities($option);
+					// $out .= "<label class='checkbox'><input type='checkbox' name='{$nameAttr}[]' value='$option'$checked /> $labels[$k]</label>";
+					$out .=
+						"<label class='$labelClass'>" .
+							"<span class='checkbox'><input $typeAttrs name='{$nameAttr}[]' value='$option' $checked /></span>" .
+							"<span class='pw-no-select'>$labels[$k]</span>" .
+						"</label>";
+				}
+				if($labelClass === 'inline-checkbox') $out .= "</div>"; // .inline-checkboxes
+				break;
+			
+			case 'pageAutocomplete':
+			case 'pageAutocompleteMultiple':
+				$inputfield = $this->getPageAutocompleteInputfield($nameAttr, $value, $col);
+				if(method_exists($inputfield, 'renderReady')) $inputfield->renderReady($this);
+				$inputfieldClass = $rowNum ? 'InputfieldPageAutocomplete' : 'InputfieldPageAutocompleteTemplate';
+				$out .= "<div class='$inputfieldClass'>" . $inputfield->render() . "</div>";
+				break;
+
+			case 'radios': 
+			case 'pageRadios':
+				$typeAttrs = $this->renderTypeAttrs('radio', $col);
+				$labelClass = empty($col['settings']['inline']) ? 'checkbox' : 'inline-checkbox';
+				if($labelClass === 'inline-checkbox') $out .= "<div class='inline-checkboxes'>";
+				foreach($options as $k => $option) {
+					$checked = in_array($option, $_value) ? " checked='checked'" : '';
+					$option = $sanitizer->entities($option);
+					// $out .= "<label class='checkbox'><input type='radio' name='$nameAttr' value='$option'$checked /> $labels[$k]</label>";
+					$out .= 
+						"<label class='$labelClass'>" . 
+							"<span class='checkbox'><input $typeAttrs name='$nameAttr' value='$option' $checked /></span>" . 
+							"<span class='pw-no-select'>$labels[$k]</span>" . 
+						"</label>";
+				}
+				if($labelClass === 'inline-checkbox') $out .= "</div>"; // .inline-checkboxes
+				break;
+
+			case 'asmSelect':
+			case 'pageAsmSelect': 
+				/** @var InputfieldAsmSelect $asmSelect */
+				$asmSelect = $modules->get('InputfieldAsmSelect');
+				$asmSelect->attr('id+name', 'InputfieldTable_asmSelect');
+				$asmSelect->renderReady();
+				$asmSelect->render();
+				// no break intentional, as asmSelect input types are handled below: 
+			case 'select':
+			case 'pageSelect':
+			case 'selectMultiple':
+			case 'pageSelectMultiple':
+				$isAsmSelect = strpos($type, 'smSelect'); 
+				if($isAsmSelect || strpos($type, 'Multiple')) {
+					$rows = empty($col['settings']['rows']) ? 5 : (int) $col['settings']['rows'];
+					$typeAttrs = $this->renderTypeAttrs(($isAsmSelect ? 'select-asm' : 'select'), $col, array(
+						'class' => "InputfieldTable_$type", 
+						'name' => "{$nameAttr}[]", 
+						'multiple' => 'multiple', 
+						'size' => "$rows", 
+					)); 
+					// $out = "<select class='InputfieldTable_$type' name='{$nameAttr}[]' multiple='multiple' size='$rows'>";
+					$out = "<select $typeAttrs>";
+					if($isAsmSelect) {
+						// ensure options are sorted according to $_value
+						foreach($_value as $v) {
+							$key = array_search($v, $options);
+							if($key === false) continue;
+							unset($options[$key]);
+							$options[$key] = $v; // append to end, in sorted order
+						}
+					}
+				} else {
+					$typeAttrs = $this->renderTypeAttrs('select', $col); 
+					$out = "<select $typeAttrs name='$nameAttr'>";
+					if(empty($col['settings']['noblank'])) $out .= "<option></option>";
+				}
+				foreach($options as $k => $option) {
+					$selected = in_array($option, $_value) ? " selected='selected'" : '';
+					$option = $sanitizer->entities(trim($option));
+					$out .= "<option value='$option' $selected>$labels[$k]</option>";
+				}
+				$out .= "</select>";
+				break;
+		
+			case 'date':
+			case 'datetime':
+				if($rowNum == -1) {
+					$typeAttrs = $this->renderTypeAttrs('input', $col);
+					$out = "<input $typeAttrs type='text' data-dateformat='' name='$nameAttr' value='$value' $placeholder />";
+				} else {
+					/** @var InputfieldDatetime $inputfield */
+					$inputfield = $modules->get('InputfieldDatetime');
+					$inputfield->attr('name', $nameAttr);
+					$inputfield->attr('value', $value);
+					$inputfield->addClass($this->field->name . '-' . $col['name']); 
+					$this->setupInputfield($inputfield);
+					foreach($settings as $key => $setting) $inputfield->$key = $setting;
+					if(method_exists($inputfield, 'renderReady')) $inputfield->renderReady($this);
+					$out .= $inputfield->render();
+				}
+				break;
+				
+			case 'time':
+				list($min, $max) = array(null, null);
+				if(isset($col['settings']['min']) && strlen($col['settings']['min'])) $min = (int) $col['settings']['min'];
+				if(isset($col['settings']['max']) && strlen($col['settings']['max'])) $max = (int) $col['settings']['max'];
+				$min = $min === null ? '' : " min='" . htmlspecialchars($min) . "'";
+				$max = $max === null ? '' : " max='" . htmlspecialchars($max) . "'";
+				$typeAttrs = $this->renderTypeAttrs('input', $col);
+				$out .= "<input $typeAttrs type='time' $min$max name='$nameAttr' value='$value' $placeholder />";
+				break;
+
+			case 'textarea':
+				$rows = isset($settings['rows']) ? (int) $settings['rows'] : 4; 
+				$typeAttrs = $this->renderTypeAttrs('textarea', $col);
+				$out .= "<textarea $typeAttrs rows='$rows' name='$nameAttr' $placeholder>$value</textarea>";
+				break;
+			
+			case 'tinyint1':
+			case 'tinyint2':
+			case 'int1':
+			case 'int2':
+				$min = null;
+				$max = null;
+				if($type == 'tinyint1') {
+					$min = -128;
+					$max = 128;
+				} else if($type == 'tinyint2') {
+					$min = 0;
+					$max = 255; 
+				} else if($type == 'int2') {
+					$min = 0;
+				}
+				if(isset($col['settings']['min']) && strlen($col['settings']['min'])) {
+					$minValue = (int) $col['settings']['min'];
+				} else {
+					$minValue = $min;
+				}
+				if(isset($col['settings']['max']) && strlen($col['settings']['max'])) {
+					$maxValue = (int) $col['settings']['max'];
+					if($max === null || $maxValue < $max) $max = $maxValue;
+				} else {
+					$maxValue = $max;
+				}
+				if($minValue > $maxValue) list($minValue, $maxValue) = array($maxValue, $minValue);
+				if($min === null || $minValue > $min) $min = $minValue;
+				if($max === null || $maxValue < $max) $max = $maxValue;
+				$min = is_null($min) ? "" : " min='$min'";
+				$max = is_null($max) ? "" : " max='$max'";
+				$typeAttrs = $this->renderTypeAttrs('input', $col);
+				$out .= "<input $typeAttrs type='number' $min$max name='$nameAttr' value='$value' $placeholder />";
+				break;
+			
+			case 'textLanguage':
+				if($languages) {
+					$typeAttrs = $this->renderTypeAttrs('input', $col);
+					$tpl = "<input $typeAttrs type='text' name='__name__' value='__value__' />";
+					$out = $this->renderLanguageTabs($nameAttr, $_value, $tpl);
+				}
+				break;
+				
+			case 'textareaLanguage':
+				if($languages) {
+					$typeAttrs = $this->renderTypeAttrs('textarea', $col);
+					$rows = isset($settings['rows']) ? (int) $settings['rows'] : 4;
+					$tpl = "<textarea $typeAttrs rows='$rows' name='__name__' $placeholder>__value__</textarea>";
+					$out = $this->renderLanguageTabs($nameAttr, $_value, $tpl);
+				}
+				break;
+
+			case 'textareaCKE':
+			case 'textareaCKELanguage':
+				if($type == 'textareaCKELanguage' && $languages) {
+					$cke = $this->getCKEditorInputfield('__name__', '__value__', $col);
+				} else {
+					$cke = $this->getCKEditorInputfield($nameAttr, $_value, $col);
+				}
+				if($cke) {
+					$cke->renderReady();
+					$out = $cke->render();
+					if($type == 'textareaCKELanguage' && $languages) {
+						$out = $this->renderLanguageTabs($nameAttr, $_value, $out, false);
+					}
+				} else {
+					$out = "<span class='ui-state-error'>This CKEditor field needs to be configured (see Settings)</span>";
+				}
+				break;
+			case 'textareaMCE':
+			case 'textareaMCELanguage':
+				if($type == 'textareaMCELanguage' && $languages) {
+					$mce = $this->getTinyMCEInputfield('__name__', '__value__', $col);
+				} else {
+					$mce = $this->getTinyMCEInputfield($nameAttr, $_value, $col);
+				}
+				if($mce) {
+					$mce->renderReady();
+					$out = $mce->render();
+					$wrapAttr = '';
+					foreach($mce->wrapAttr() as $attrName => $attrVal) {
+						if(!in_array($attrName, array('data-settings', 'data-features', 'data-configName'))) {
+							if(strpos($attrName, 'data-upload') !== 0) continue;
+						}
+						$wrapAttr .= " $attrName='" . htmlspecialchars($attrVal) . "'";
+					}
+					if($type == 'textareaMCELanguage' && $languages) {
+						$out = $this->renderLanguageTabs($nameAttr, $_value, $out, false);
+					}
+					$mce->id = $nameAttr;
+					$out = "<div id='wrap_$mce->id' class='InputfieldTinyMCE'$wrapAttr>$out</div>";
+				} else {
+					$out = "<span class='ui-state-error'>This TinyMCE field needs to be configured (see Settings)</span>";
+				}
+				break;
+			case 'file':
+			case 'image':	
+				$out .= $this->renderColFile($col, $nameAttr, $_value); 
+				break;
+		}
+
+		if(empty($out)) {
+			$out = $this->renderColFallback($field, $type, $nameAttr, $value, $placeholder, $out, $col);
+		}
+
+		return $out; 
+	}
+
+	/**
+	 * Render a file or image column
+	 * 
+	 * @param array $col
+	 * @param string $nameAttr
+	 * @param Pagefile|Pageimage|null $value
+	 * @return string
+	 * 
+	 */
+	protected function renderColFile( array $col, $nameAttr, $value) {
+		
+		static $magnific = null;
+
+		$sanitizer = $this->wire()->sanitizer;
+		$adminTheme = $this->wire()->adminTheme;
+	
+		$out = '';
+		$preview = '';
+		$uikit = wireInstanceOf($adminTheme, 'AdminThemeUikit');
+		$settings = $col['settings'];
+		$ukAttrs = '';
+		$actions = array(
+			'view' => $this->_('View'), 
+			'replace' => $this->_('Replace'), 
+			'delete' => $this->_('Delete'), 
+		);
+
+		$extensions = explode(' ', $col['settings']['extensions']);
+
+		foreach($extensions as $k => $extension) {
+			if(empty($extension)) unset($extensions[$k]);
+		}
+		
+		$accept = $sanitizer->entities('.' . implode(', .', $extensions));
+		$maxBytes = isset($settings['maxBytes']) ? (int) $settings['maxBytes'] : 0;
+		$attrs = 
+			"type='file' class='InputfieldTableFile' " . 
+			"name='$nameAttr' title='$accept' accept='$accept' " . 
+			"data-maxBytes='$maxBytes'";
+		
+		if($col['type'] === 'image') {
+			unset($actions['view']); 
+			if(!isset($settings['thumbSize']) || strpos($settings['thumbSize'], 'x') === false) {
+				$settings['thumbSize'] = '0x130';
+			}
+			list($w, $h) = explode('x', $settings['thumbSize'], 2);
+			list($w, $h) = array((int) $w, (int) $h); 
+			$thumb = $value && $w >= 0 && $h >= 0 && $w + $h > 0 ? $value->size($w, $h) : null; 
+			if($thumb) {
+				$img = "<img src='$thumb->URL' alt='$value->basename' ";
+				if($w) $img .= "width='$w' ";
+				if($h) $img .= "height='$h' style='max-height:{$h}px' ";
+					else if($w) $img .= "style='max-width:{$w}px' ";
+				if(!empty($settings['thumbSize2x']) && strpos($settings['thumbSize2x'], 'x') !== false) {
+					list($w2, $h2) = explode('x', $settings['thumbSize2x']); 
+					list($w2, $h2) = array((int) $w2, (int) $h2);
+					$thumb2 = $w2 >= 0 && $h2 >= 0 && $w2 + $h2 > 0 ? $value->size($w2, $h2) : null;
+					if($thumb2) $img .= "srcset='$thumb2->url 2x' ";
+				}
+				$img .= "/>";
+				$preview .= "<a class='InputfieldTableImage' href='$value->URL'>$img</a>";
+				if($magnific === null) $this->wire()->modules->get('JqueryMagnific'); 
+			} else {
+				$img = "<img src='' alt='' ";
+				if($h) $img .= "style='max-height:{$h}px' ";
+					else if($w) $img .= "style='max-width:{$w}px' ";
+				$img .= "hidden />";
+				$preview .= "<div class='InputfieldTableImage'>$img</div>";
+			}
+		}
+		
+		if($value instanceof Pagefile) {
+			/** @var InputfieldSelect $select */
+			$select = $this->wire()->modules->get('InputfieldSelect');
+			$select->attr('name', "{$nameAttr}__action");
+			$select->attr('data-url', $value->url());
+			$select->addClass('InputfieldTableFileAction');
+			$select->addOption('', $value->basename . ' (' . wireBytesStr($value->filesize()) . ')');
+			foreach($actions as $name => $label) {
+				$select->addOption($name, $label);
+			}
+			$out .= $select->render();
+			if($uikit) {
+				$ukAttrs .= " hidden";
+			} else {
+				$attrs .= " hidden";
+			}
+		}
+		
+		$fileInput = "<input $attrs />";
+		
+		if($uikit) {
+			if($col['type'] === 'image') {
+				$label = $this->_('Select image…');
+			} else {
+				$label = $this->_('Select file…');
+			}
+			$out .=
+				"<div class='InputfieldTableFile uk-width-1-1' $ukAttrs data-uk-form-custom='target: true'>" .
+					$fileInput .
+					"<input class='uk-input uk-width-1-1' type='text' placeholder='$label' disabled>" .
+				"</div>";
+		} else {
+			$out .= $fileInput;
+		}
+		
+		return $out . $preview;
+	}
+
+	/**
+	 * Generic fallback for when renderCol() failed to produce output
+	 * 
+	 * @param Field $field
+	 * @param string $type
+	 * @param string $nameAttr
+	 * @param string|array|int|null value
+	 * @param string $placeholder
+	 * @param string|null $out
+	 * @param array $col
+	 * @return string
+	 * 
+	 */
+	protected function renderColFallback(Field $field, $type, $nameAttr, $value, $placeholder, $out, $col) {
+		$sanitizer = $this->wire()->sanitizer;
+		/** @var array $colTypes */
+		$colTypes = $field->type->get('colTypes');
+		if(is_null($out)) {
+			// force regular text input when $out is null
+			$inputType = 'text';
+		} else if(isset($colTypes[$type])) {
+			$colType = $colTypes[$type];
+			$inputType = isset($colType['input']) ? $colType['input'] : 'text';
+		} else {
+			$inputType = 'text';
+		}
+		$typeAttrs = $this->renderTypeAttrs('input', $col);
+		if(is_array($value)) {
+			if(empty($value)) {
+				$out = '';
+			} else {
+				$nameAttr .= '[]';
+				foreach($value as $v) {
+					$v = $sanitizer->entities($v);
+					$out .= "<input $typeAttrs type='$inputType' name='$nameAttr' value='$v' $placeholder />";
+				}
+			}
+		} else {
+			$value = $sanitizer->entities1($value);
+			$out = "<input $typeAttrs type='$inputType' name='$nameAttr' value='$value' $placeholder />";
+		}
+		return $out;
+	}
+
+	/**
+	 * Render attributes for given input type
+	 * 
+	 * @param string $type
+	 * @param array $col
+	 * @param array $attrs
+	 * @return string
+	 * 
+	 */
+	protected function renderTypeAttrs($type, array $col = array(), array $attrs = array()) {
+		
+		$adminTheme = $this->wire()->adminTheme;
+		$sanitizer = $this->wire()->sanitizer;
+		$attrStr = '';
+		$class = isset($attrs['class']) ? explode(' ', $attrs['class']) : []; 
+	
+		if(isset($col['name'])) $class[] = $this->field->name . '-' . $col['name'];
+		
+		if(!empty($col['settings']['required'])) {
+			$class[] = 'pwpf-required';
+		}
+		
+		switch($type) {
+			case 'checkbox':
+				$class[] = $adminTheme ? $adminTheme->getClass('input-checkbox') : '';
+				$attrs['type'] = 'checkbox';
+				break;
+			case 'radio':
+				$class[] = $adminTheme ? $adminTheme->getClass('input-radio') : '';
+				$attrs['type'] = 'radio';
+				break;
+			case 'textarea':
+				$class[] = $adminTheme ? $adminTheme->getClass('textarea') : '';
+				break;
+			case 'text':
+				$class[] = $adminTheme ? $adminTheme->getClass('input') : '';
+				$attrs['type'] = 'text';
+				break;
+			case 'select':
+			case 'select-asm':	
+			case 'select-small':	
+				$class[] = $adminTheme ? $adminTheme->getClass('select') : '';
+				break;
+			case 'input':
+				$class[] = $adminTheme ? $adminTheme->getClass('input') : '';
+				break;
+		}	
+		
+		if($this->field->get('useSmall')) {
+			$class[] = 'uk-form-small';
+		}
+		
+		if(count($class)) {
+			$attrs['class'] = implode(' ', $class);
+		}
+		
+		foreach($attrs as $name => $value) {
+			$value = $sanitizer->entities($value);
+			$attrStr .= " $name='$value'";
+		}
+		
+		return trim($attrStr); 
+	}
+
+	/**
+	 * Render column <td> attributes
+	 * 
+	 * @param array $col
+	 * @param TableRow|null $row
+	 * @param int $rowNum
+	 * @return string
+	 * 
+	 */
+	protected function renderColAttrs(array $col, $row, $rowNum) {
+		$sanitizer = $this->wire()->sanitizer;
+		$attrs = array();
+		foreach($this->getColAttrs($col, $row, $rowNum) as $name => $value) {
+			$value = $sanitizer->entities($value);
+			$attrs[] = "$name='$value'";
+		}
+		return count($attrs) ? ' ' . implode(' ', $attrs) : '';
+	}
+
+	/**
+	 * Get column <td> attributes in associative array
+	 *
+	 * @param array $col
+	 * @param TableRow|null $row
+	 * @param int $rowNum
+	 * @return array
+	 *
+	 */
+	protected function ___getColAttrs(array $col, $row, $rowNum) {
+		if($row) {} // for hooks
+		$attrs = [];
+		$class = [];
+		$style = [];
+		$width = (int) $col['width'];
+		if($width) {
+			$style[] = "width:$width%";
+		}
+		if($col['type'] === 'checkbox') {
+			$class[] = 'pwpf-table-checkbox';
+		}
+		if(!empty($class)) {
+			$attrs['class'] = implode(' ', $class);
+		}
+		if(!empty($style)) {
+			$attrs['style'] = implode(';', $style);
+		}
+		return $attrs;
+	}
+
+	/**
+	 * Render output for multi-language tabs
+	 * 
+	 * @param string $nameAttr Name attribute to serve as the base
+	 * @param LanguagesPageFieldValue $value 
+	 * @param string $markup Markup template containing __name__ and __value__ tokens
+	 * @param bool $entityEncodeValue
+	 * @return string
+	 * @todo convert to use API provided by LanguageTabs
+	 * 
+	 */
+	protected function renderLanguageTabs($nameAttr, $value, $markup, $entityEncodeValue = true) {
+		
+		$sanitizer = $this->wire()->sanitizer;
+		$languages = $this->wire()->languages;
+		
+		/*
+		$defaults = array(
+			'jQueryUI' => true,  // use jQuery UI tabs?
+			'activeTab' => $activeTab,
+			'ulClass' => '',
+			'ulAttrs' => '',
+			'liActiveClass' => '',
+			'liDisabledClass' => '',
+			'liEmptyClass' => '',
+			'aClass' => '',
+			'tabField' => $this->get('tabField'),
+		);
+		*/
+		
+		$settings = array(
+			'jQueryUI' => true, 
+			'ulClass' => '',
+			'ulAttrs' => '',
+			'liActiveClass' => '',
+			'liDisabledClass' => '',
+			'liEmptyClass' => '', 
+			'aClass' => '',
+			'tabField' => 'title',
+		);
+	
+		$settings = array_merge($settings, $this->langTabSettings);
+		$tab = '';
+		$out = '';
+		
+		foreach($languages as $language) {
+			/** @var Language $language */
+			
+			$name = $language->isDefault() ? $nameAttr : $nameAttr . '__' . $language->id;
+			$_value = '';
+			
+			if($value instanceof LanguagesValueInterface) {
+				$_value = $value->getLanguageValue($language);
+				if($entityEncodeValue) $_value = $sanitizer->entities($_value);
+			}
+			
+			$aClasses = array("langTab$language->id");
+			$liClasses = array();
+			$divClasses = array('LanguageSupport');
+			
+			if(!empty($settings['aClass'])) {
+				$aClasses[] = $settings['aClass'];
+			}
+			
+			if(!strlen($_value)) {
+				$aClasses[] = "langTabEmpty " . $settings['liEmptyClass'];
+				$liClasses[] = "langTabEmpty " . $settings['liEmptyClass'];
+			}
+			
+			$title = $language->get($settings['tabField']);
+			if(empty($title)) $title = $language->get('name');
+			$title = $sanitizer->entities1($title);
+			
+			if(!$languages->editable($language)) {
+				$title = "<s>$title</s>";
+				$liClasses[] = 'LanguageNotEditable';
+				if(!empty($settings['liDisabledClass'])) $liClasses[] = $settings['liDisabledClass'];
+			}
+			
+			$aClasses = implode(' ', $aClasses);
+			$liClasses = implode(' ', $liClasses);
+			$divClasses = implode(' ', $divClasses);
+
+			$tab .= 
+				"<li class='$liClasses'>" . 
+					"<a class='$aClasses' data-lang='$language->id' href='#tt-$name'>$title</a>" . 
+				"</li>";
+			
+			$out .= 
+				"<div class='$divClasses' data-language='$language->id' id='tt-$name'>" . str_replace(
+					array('__name__', '__value__'), 
+					array($name, $_value), 
+					$markup) . 
+				"</div>";
+		}
+		
+		// note we populate a fake ui-tabs class in order to make PW's LanguageTabs skip it
+		
+		$divClass = empty($this->langTabSettings) || !empty($settings['jQueryUI']) ? 'ui-tabs' : '';
+		if(!empty($settings['ulClass'])) $settings['ulAttrs'] .= " class='$settings[ulClass]'";
+		$settings['ulAttrs'] = empty($settings['ulAttrs']) ? '' : ' ' . trim($settings['ulAttrs']); 
+	
+		return
+			"<div class='InputfieldTable_langTabs langTabs $divClass' id='{$nameAttr}_tabs'>" .
+			"<ul" . $settings['ulAttrs'] . ">$tab</ul>$out" .
+			"</div>";
+	}
+
+	/**
+	 * Given a group of columns, return an array of tables for those columns
+	 * 
+	 * This method determines if $cols needs to be split in multiple tables
+	 * 
+	 * @param array $cols
+	 * @return array
+	 * 
+	 */
+	protected function getTables(array $cols) {
+		
+		$tables = array();
+		$tableNum = 0;
+		$width = 0;
+
+		// separate into multiple tables when total width exceeds 100%
+		foreach($cols as $name => $col) {
+			$tables[$tableNum][$name] = $col;
+			$width += $col['width'];
+			if($width >= 100) {
+				$width = 0;
+				$tableNum++;
+			}
+		}
+
+		// normalize tables so each has a width equal to 100%
+		foreach($tables as $tableNum => $table) {
+			$width = 0;
+			$numCols = count($table);
+			$colNum = 0;
+			foreach($table as $name => $col) {
+				$width += $col['width'];
+				if(++$colNum == $numCols) {
+					// last column
+					if($width > 100) {
+						$tables[$tableNum][$name]['width'] -= ($width - 100);
+					} else if($width < 100) {
+						$tables[$tableNum][$name]['width'] += (100 - $width); 
+					}
+				}
+			}
+		}
+		
+		return $tables;
+	}
+
+	/**
+	 * Render markup for a table row
+	 * 
+	 * - Use $rowNum "0" to render the template row. 
+	 * - Use $rowNum "-1" to render the filters row. 
+	 *
+	 * @param int $rowNum Row Number
+	 * @param array $tables
+	 * @param Field $field
+	 * @param TableRow|null $row
+	 * @param string $class
+	 * @return string
+	 *
+	 */
+	protected function renderRow($rowNum, array $tables, Field $field, TableRow $row = null, $class = '') {
+	
+		$useRowActions = $this->useActions() && wireInstanceOf($this->wire()->adminTheme, 'AdminThemeUikit'); 
+		$useClone = $this->field->get('useClone');
+		$labels = $this->getActionLabels();
+
+		if($class) $class = " class='$class'";
+		$out = "<tr$class>";
+
+		$sort = $field->orderByCols;
+		if(empty($sort) || (is_array($sort) && implode('', $sort) === 'sort')) {
+			$sortHandle = "<i class='fa fa-fw fa-arrows InputfieldTableRowSortHandle'></i>";
+			if(count($tables) > 1) $sortHandle .= "<br /><span class='detail rowNum'>$rowNum</span>";
+			$label = $labels['select_or_move'];
+			$out .= "<td class='InputfieldTableActionSort' title='$label'>$sortHandle</td>";
+		}
+		
+		if(count($tables) > 1) {
+			$out .= "<td>";
+		}
+		
+		$filters = $rowNum == -1 && $this->value ? $this->value->data('filters') : null;
+
+		foreach($tables as /*$tableNum => */ $cols) {
+			
+			if(count($tables) > 1) {
+				$currentSort = $this->sessionData['sort'];
+				if($rowNum == -1) $currentSort = false;
+				$out .=
+					"<table class='InputfieldTableNested'>" .
+					$this->renderHeaderRow($cols, $field, $tables, $currentSort) .
+					"<tbody><tr>";
+			}
+			
+			foreach($cols as $name => $col) {
+				if($rowNum == -1) {
+					$value = '';
+					if($filters) {
+						foreach($filters as $selector) {
+							if($selector->field == $name) {
+								$value = $selector->value;
+								if($selector->operator != '=') $value = $selector->operator . $value;
+								break;
+							}
+						}
+					}
+				} else if($row) {
+					$value = $row->$name;
+				} else {
+					$value = '';
+				}
+				$attrs = $this->renderColAttrs($col, $row, $rowNum);
+				$out .= "<td$attrs>" . $this->renderCol($col, $rowNum, $field, $value) . "</td>";
+			}
+			
+			if(count($tables) > 1) $out .= "</tr></tbody></table>";
+		}
+		
+		if(count($tables) > 1) {
+			$out .= "</td>";
+		}
+		
+		if($useRowActions) {
+			$out .= "<td class='InputfieldTableActionRow'>";
+			if($rowNum > -1) {
+				$out .= 
+					"<span data-uk-form-custom='target: true' title='$labels[row_actions]'>" . 
+						"<select class='InputfieldTableActionRowSelect'>" . 
+							"<option value='' hidden></option>" . 
+							"<option value='select'>$labels[select]</option>" .
+							"<option value='add2'>$labels[add]</option>" .
+							($useClone ? "<option value='clone2'>$labels[clone]</option>" : "") .
+							"<option value='copy'>$labels[copy]</option>" .
+							"<option value='paste2'>$labels[paste]</option>" .
+							"<option value='delete'>$labels[delete]</option>" .
+						"</select>" . 
+						"<i class='fa fa-fw $this->actionsIcon'></i>" . 
+					"</span>";
+			}
+			$out .= "</td>";
+			
+		} else if($useClone) {
+			$out .= "<td class='InputfieldTableActionClone'>";
+			if($rowNum > -1) {
+				$out .= "<i class='fa fa-copy InputfieldTableRowCloneLink pw-tooltip' title='$labels[clone]'></i>";
+			}
+			$out .= "</td>";
+		}
+
+		$deleteAttr = $this->field->get('noDeleteLink') ? ' hidden' : '';
+		$out .= "<td class='InputfieldTableActionDelete'$deleteAttr>";
+		
+		if($rowNum > -1) {
+			$id = $row ? (int) $row->id : 0;
+			$out .= 
+				"<i $deleteAttr class='fa fa-trash-o InputfieldTableRowDeleteLink pw-tooltip' title='$labels[delete]'></i>" . 
+				"<input class='InputfieldTableRowDelete' type='hidden' name='{$this->name}_{$rowNum}__delete' value='' />" . 
+				"<input hidden type='checkbox' value='$id' class='InputfieldTableRowCheckbox' name='{$this->name}_{$rowNum}__selected' />" .  
+				"<input class='InputfieldTableRowID' type='hidden' name='{$this->name}_{$rowNum}__id' value='$id' />" .
+				"<input class='InputfieldTableRowSort' type='hidden' name='{$this->name}_{$rowNum}__sort' value='$rowNum' />";
+		} else {
+			$resetLabel = $labels['reset_filters']; 
+			$undoIcon = wireIconMarkup('undo');
+			$out .= 
+				"<a class='InputfieldTableResetFilters pw-tooltip' title='$resetLabel' href='#'>$undoIcon</a>";
+		}
+		
+		$out .= "</td></tr>";
+
+		return $out; 
+	}
+
+	/**
+	 * Render table header row
+	 *
+	 * @param array $cols Column definitions 
+	 * @param Field $field
+	 * @param array $tables
+	 * @param string|bool $currentSort
+	 * @return string
+	 *
+	 */
+	protected function renderHeaderRow(array $cols, Field $field, array $tables, $currentSort = '') {
+		
+		$sanitizer = $this->wire()->sanitizer;
+		$sort = $field->orderByCols;
+		$singleTable = count($tables) === 1;
+		$out = "<thead><tr>";
+		$sortAscLabel = $sanitizer->entities1($this->_('Sort by this column'));
+		$sortDscLabel = $sanitizer->entities1($this->_('Reverse sort by this column'));
+
+		// if($singleTable && (empty($sort) || (is_array($sort) && implode('', $sort) === 'sort'))) {
+		if(empty($sort) || (is_array($sort) && implode('', $sort) === 'sort')) {
+			$headerSortable = false;
+			if($singleTable) $out .= "<th>&nbsp;</th>"; // empty column which is drag sort handle in tbody rows
+		} else if($currentSort === false) {
+			$headerSortable = false;
+		} else {
+			$headerSortable = true;
+		}
+		
+		$language = $this->wire()->languages ? $this->wire()->user->language : null; 
+		if($language && $language->isDefault()) $language = null;
+		$sortAttr = $this->name . '_table_sort';
+		
+		foreach($cols as $name => $col) { 
+			
+			$label = '';
+			if($language) $label = isset($col["label$language"]) ? $col["label$language"] : ''; 
+			if(!$label) $label = $col['label'];
+			$width = (int) $col['width'];
+			$style = $width ? " style='width:$width%;'" : '';
+			if(empty($label)) $label = $name; 
+			$label = $sanitizer->entities($label); 
+			
+			if($headerSortable) {
+				$sortName = $name;
+				$sortLabel = $sortAscLabel;
+
+				if($currentSort == $name) {
+					$sortIcon = wireIconMarkup('caret-down');
+					$sortName = "-$sortName";
+					$sortLabel = $sortDscLabel;
+				} else if($currentSort == "-$name") {
+					$sortIcon = wireIconMarkup('caret-up');
+				} else {
+					$sortIcon = '';
+				}
+				
+				$ajaxQueryString = str_replace("&$sortAttr=", "&x=", $this->ajaxQueryString);
+				$href = "./$ajaxQueryString&$sortAttr=$sortName";
+				$label = 
+					"<span " . 
+						"class='InputfieldTableHeaderSortable' " . 
+						"title='$sortLabel' " . 
+						"data-href='$href'>" . 
+						"$label" . 
+					"</span> $sortIcon";
+			}
+			
+			$out .= "<th$style>$label</th>";
+		}
+		
+		if($singleTable) $out .= "<th>&nbsp;</th>"; // empty column which is trash link on tbody rows
+		
+		$out .= "</tr></thead>";
+		
+		return $out; 
+	}
+	
+	/**
+	 * renderReady triggers load of all css/js files that will be used in our table
+	 * 
+	 * @param Inputfield $parent
+	 * @param bool $renderValueMode
+	 * @return bool
+	 * @throws WireException
+	 * 
+	 */
+	public function renderReady(Inputfield $parent = null, $renderValueMode = false) {
+		$modules = $this->wire()->modules;
+		$config = $this->wire()->config;
+		$field = $this->field;
+		
+		if($modules->isInstalled('LanguageTabs')) {
+			/** @var LanguageTabs $languageTabs */
+			$languageTabs = $modules->get('LanguageTabs');
+			if(method_exists($languageTabs, 'getSettings')) {
+				$this->langTabSettings = $languageTabs->getSettings();
+			}
+		}
+		// inherit styles from MarkupAdminDataTable core module
+		$modules->get('MarkupAdminDataTable');
+		$tableSettings = $config->get('MarkupAdminDataTable');
+		if(is_array($tableSettings)) $this->tableSettings = $tableSettings;
+		$this->addClass('InputfieldNoFocus', 'wrapClass');
+		$type = $field->type; /** @var FieldtypeTable $type */
+		$this->cols = $type->getColumnsByName($field);
+		$this->tables = $this->getTables($this->cols);
+		$this->sessionData = $type->sessionData($this->page, $field);
+		$this->rowTemplate = $this->renderRow(0, $this->tables, $field, null, 'InputfieldTableRowTemplate');
+		if(!$config->js('InputfieldTable')) {
+			$config->js('InputfieldTable', array(
+				'applyToAll' => $this->_('Apply to all?'),
+				'areYouSure' => $this->_('Are you sure? Changes already made to the current rows will be lost!'),
+				'maxBytes' => $this->_('File exceeds max allowed size'), 
+				'howManyRows' => $this->_('How many rows would you like to add?'), 
+				'saveBeforeCopy' => $this->_('Please save before copying unsaved rows.'), 
+				'copiedNumRows' => $this->_('Copied %d row(s)'), 
+				'pastingNumRows' => $this->_('Pasting %d row(s)'), 
+			));
+		}
+		if(!$config->js("InputfieldTable_$this->name")) {
+			$config->js("InputfieldTable_$this->name", array(
+				'useBigDelete' => (int) $field->get('useBigDelete'),
+				'useClone' => (int) $field->get('useClone'),
+				'useActions' => (int) $this->useActions(),
+				'actionsIcon' => $this->actionsIcon,
+			));
+		}
+		
+		if($this->useActions()) {
+			$this->addClass('InputfieldTableUseActions', 'wrapClass');
+		}
+		
+		if($this->field->get('useSmall')) {
+			$this->addClass('InputfieldTableUseSmall', 'wrapClass');
+		}
+	
+		// pick up ajax context when loading field
+		$context = $this->wire()->input->get('table_context');
+		if($context) {
+			$context = $this->wire()->sanitizer->fieldName($context);
+			if($context) {
+				$this->attr('name', $this->attr('name') . '_' . $context);
+			}
+		}
+
+		if(!$context) {
+			// identify context from field name
+			$context = "$this->hasField" != $this->attr('name') ? $this->attr('name') : '';
+			if($context && strpos($context, "{$this->hasField}_") === 0) {
+				$context = str_replace("{$this->hasField}_", '', $context);
+			}
+		}
+		
+		$this->wrapAttr('data-field', (string) $this->hasField);
+		$this->wrapAttr('data-page', (string) $this->hasPage);
+		$this->wrapAttr('data-context', $context);
+	
+
+		return parent::renderReady($parent, $renderValueMode);
+			
+	}
+
+	/**
+	 * Render markup for table Inputfield 
+	 *
+	 * @return string
+	 * @throws WireException
+	 *
+	 */
+	public function ___render() {
+		
+		$config = $this->wire()->config;
+		$sanitizer = $this->wire()->sanitizer;
+		$languages = $this->wire()->languages;
+		$modules = $this->wire()->modules;
+		$user = $this->wire()->user;
+		
+		$name = $this->attr('name');
+		$value = $this->value;
+		$field = $this->field;
+		$tables = $this->tables;
+		$page = $this->getPage();
+		$ajax = $config->ajax;
+		$deleteAll = '';
+		$table = '';
+		$tbody = '';
+		$find = '';
+		$orderByCols = $field->get('orderByCols');
+		$paginationLimit = $orderByCols && count($orderByCols) > 0 ? $field->get('paginationLimit') : 0;
+		$paginationClass = '';
+		$paginationNote = '';
+		$pagination = '';
+		
+		/** @var FieldtypeTable $fieldtype */
+		$fieldtype = $field->type;
+	
+		$labels = array(
+			'filters' => wireIconMarkup('search') . ' ' . $this->_('Find'), 
+			'no_items' => $this->_('No items found'),
+			'add_row' => $this->_('Add Row'), 
+		);
+	
+		$addRowLabel = $field->get('addRowLabel');
+		if($addRowLabel) $labels['add_row'] = $addRowLabel;
+		
+		if($languages && !$user->language->isDefault()) {
+			$addRowLabel = $field->get('addRowLabel' . $user->language->id);
+			if($addRowLabel) {
+				$labels['add_row'] = $addRowLabel;
+			}
+		}
+		
+		$this->ajaxQueryString = "?id=$page->id&field=$field->name&renderInputfieldAjax=$this->id";
+
+		if(!empty($this->sessionData['sort'])) {
+			$this->ajaxQueryString .= "&{$name}_table_sort=" . $this->sessionData['sort'];
+		}
+		if(!empty($this->sessionData['find'])) {
+			$this->ajaxQueryString .= "&{$name}_table_find=" . urlencode($this->sessionData['find']);
+		}
+		
+		if($paginationLimit) {
+
+			$count = $value->count();
+			$total = $value->getTotal();
+			$pager = $modules->get('MarkupPagerNav'); /** @var MarkupPagerNav $pager */
+			$paginationNote = $count ? $value->getPaginationString() : $labels['no_items'];
+			if($total > $count) {
+				$paginationClass = 'InputfieldTableHasPagination';
+				$pagination = $pager->render($value, array(
+					'queryString' => $this->ajaxQueryString,
+					'listMarkup' => "<ul class='MarkupPagerNav InputfieldTablePagerNav'>{out}</ul>",
+				));
+			}
+			
+			if($ajax) $this->sessionData['pageNum'] = $this->wire()->input->pageNum();
+		
+			if(!$this->renderValueMode && $value->getTotal() > $value->count() && $field->get('useBigDelete')) {
+				$deleteAll =
+					"<p class='InputfieldTableDeleteAll'><label>" .
+						"<input name='{$this->name}__delete_all' type='checkbox' value=''> " .
+						wireIconMarkup('angle-left') . ' ' . 
+						"<strong>" . $this->_('Check this box to delete ALL rows across ALL paginations.') . '</strong> ' .
+						$this->_('If not checked, only the rows on this pagination will be deleted.') .
+					"</label></p>";
+			}
+		}
+
+		if(!empty($this->sessionData)) {
+			$fieldtype->sessionData($page, $field, $this->sessionData); // set
+		}
+		
+		$thead = count($tables) == 1 ? $this->renderHeaderRow($this->cols, $field, $tables, $this->sessionData['sort']) : '';
+		$tableClasses = array('AdminDataList', 'AdminDataTable');
+		if(!empty($this->tableSettings['addClass'])) $tableClasses[] = $this->tableSettings['addClass'];
+
+		if($this->renderValueMode) {
+			if(WireArray::iterable($value)) {
+				$thead = str_replace('<th>&nbsp;</th>', '', $thead); // no delete column necessary
+				$table = $value->render(array(
+					'tableClass' => implode(' ', $tableClasses),
+					'thead' => $thead
+				));
+			}
+		} else {
+			$tableClasses[] = 'InputfieldTable';
+			if(count($tables) > 1) $tableClasses[] = 'InputfieldTableHasNested';
+			$tbody .= $this->renderRow(0, $tables, $field, null, 'InputfieldTableRowTemplate');
+
+			$n = 1;
+			foreach($value as $row) {
+				$tbody .= $this->renderRow($n, $tables, $field, $row, '');
+				$n++;
+			}
+		}
+
+		if($paginationLimit) {
+			$paginationNoteClass = '';
+			if(!$ajax) {
+				// only render filters table on original non-ajax request
+				$href = './' . $this->ajaxQueryString;
+				$filters = $this->value->data('filters');
+				if($filters && count($filters)) {
+					$tableClasses[] = 'InputfieldTableSearchActive';
+					$paginationNoteClass .= 'InputfieldTableSearchOpened';
+				}
+				$tableClass = implode(' ', $tableClasses);
+				$find = 
+					"<table class='$tableClass InputfieldTableSearch InputfieldIgnoreChanges' data-search='$href'>" . 
+						$thead . 
+						"<tbody>" . 
+							$this->renderRow(-1, $tables, $field, null, '') . 
+						"</tbody>" . 
+					"</table>";
+			}
+			$paginationNote .= 
+				"<a class='InputfieldTableSearchToggle $paginationNoteClass' href='#'>" . $labels['filters'] . "</a>";
+		}
+		
+		if(!empty($this->sessionData['find']) && $config->debug) {
+			$paginationNote .= " <small>(" . $sanitizer->entities($this->sessionData['find']) . ")</small>";
+		}
+		
+		if($paginationNote) {
+			$paginationNote = "<p class='InputfieldTablePagerNote description'>$paginationNote</p>";
+		}
+	
+		if($this->renderValueMode) {
+			// render value mode, $table is already populated
+			$actions = '';
+			
+		} else {
+			$tableClass = implode(' ', $tableClasses);
+			$table =
+				"<table class='$tableClass'>" .
+					$thead .
+					"<tbody>$tbody</tbody>" .
+				"</table>";
+			
+			$actions =
+					"<a class='InputfieldTableAddRow' href='#'>" .
+						wireIconMarkup('plus-circle fw') . $labels['add_row'] .
+					"</a>";
+
+			if($this->useActions()) {
+				$actions .= $this->renderActions();
+			}
+		}
+		
+		return
+			$find . 
+			"<div class='InputfieldTablePagerNavContent $paginationClass'>" . 
+				$paginationNote . 
+				$pagination .   
+				$table . 
+				$deleteAll . 
+				"<p>$actions</p>" . 
+ 			"</div>";	
+	}
+
+	/**
+	 * Cache for getActionLabels() method
+	 * 
+	 * @var array 
+	 * 
+	 */
+	protected $actionLabels = [];
+
+	/**
+	 * Get action labels
+	 * 
+	 * @return array
+	 * 
+	 */
+	protected function getActionLabels() {
+		if(!empty($this->actionLabels)) return $this->actionLabels;
+		$this->actionLabels = [
+			// A-Z
+			'actions' => $this->_('Actions'),
+			'add' => $this->_('Add'),
+			'add_rows_above' => $this->_('Add rows above'),
+			'add_rows_below' => $this->_('Add rows below'),
+			'clear_copy_paste' => $this->_('Clear copy/paste'),
+			'clone' => $this->_('Clone'),
+			'clone_row' => $this->_('Clone row'), 
+			'copy' => $this->_('Copy'),
+			'copy_rows' => $this->_('Copy rows'), 
+			'copy_paste' => $this->_('Copy/Paste'),
+			'delete' => $this->_('Delete'),
+			'help' => $this->_('Help'),
+			'how_to_use_actions' => $this->_('How to use actions'),
+			'move' => $this->_('Move'),
+			'move_to_bottom' => $this->_('Move to bottom'),
+			'move_to_top' => $this->_('Move to top'),
+			'paste' => $this->_('Paste'),
+			'paste_above' => $this->_('Paste above'),
+			'paste_below' => $this->_('Paste below'),
+			'reset_filters' => $this->_('Reset filters'),
+			'row_actions' => $this->_('Row actions'),
+			'select' => $this->_('Select'),
+			'select_all' => $this->_('Select all'),
+			'select_all_above' => $this->_('Select all above'),
+			'select_all_below' => $this->_('Select all below'),
+			'select_or_move' => $this->_('Click to select or click and drag to move'),
+			'undelete' => $this->_('Undelete'),
+			'unselect_all' => $this->_('Unselect all'),
+		];
+		$sanitizer = $this->wire()->sanitizer;
+		foreach($this->actionLabels as $key => $label) {
+			$this->actionLabels[$key] = $sanitizer->entities1($label);
+		}
+		return $this->actionLabels;
+	}
+
+	/**
+	 * Render the actions select
+	 * 
+	 * @return string
+	 * 
+	 */
+	protected function renderActions() {
+		$modules = $this->wire()->modules;
+		$input = $this->wire()->input;
+		
+		$jQueryUI = $modules->get('JqueryUI'); /** @var JqueryUI $jQueryUI */
+		$jQueryUI->use('vex');
+		$jQuery = $modules->get('JqueryCore'); /** @var JqueryCore $jQuery */
+		$jQuery->use('cookie');
+		
+		$hasPaste = $input->cookie("table_copy_{$this->field->name}");
+		$pasteAttrs = $hasPaste ? "" : " disabled";
+		$uikit = wireInstanceOf($this->wire()->adminTheme, 'AdminThemeUikit');
+		$class = $uikit ? ' uk-link' : '';
+		$attrs = $uikit ? " uk-form-custom='target: true'" : '';
+		$labels = $this->getActionLabels();
+		
+		$out =
+			"<span class='InputfieldTableSelectAction$class'$attrs hidden>" .
+				wireIconMarkup("$this->actionsIcon fw") . ' ' .
+				"<select class='InputfieldTableActionSelect uk-form-width-small' data-ajax-url='./$this->ajaxQueryString'>" .
+					"<option value='' hidden>$labels[actions]</option>" .
+					"<optgroup label='$labels[add]'>" .
+						"<option value='add3'>$labels[add_rows_above]</option>" .
+						"<option value='add4'>$labels[add_rows_below]</option>" .
+					"</optgroup>" .
+					"<optgroup label='$labels[copy_paste]'>" .
+						"<option value='copy'>$labels[copy_rows]</option>" .
+						"<option value='paste1'$pasteAttrs>$labels[paste_above]</option>" .
+						"<option value='paste2'$pasteAttrs>$labels[paste_below]</option>" .
+						"<option value='xcopy'$pasteAttrs>$labels[clear_copy_paste]</option>" .
+					"</optgroup>" .
+					"<optgroup label='$labels[select]'>" .
+						"<option value='all'>$labels[select_all]</option>" .
+						"<option value='unselect'>$labels[unselect_all]</option>" .
+						"<option value='all1'>$labels[select_all_above]</option>" .
+						"<option value='all2'>$labels[select_all_below]</option>" .
+					"</optgroup>" .
+					"<optgroup label='$labels[move]'>" .
+						"<option value='move1'>$labels[move_to_top]</option>" .
+						"<option value='move2'>$labels[move_to_bottom]</option>" .
+					"</optgroup>" .
+					"<optgroup label='$labels[delete]'>" .
+						"<option value='delete'>$labels[delete]</option>" .
+						"<option value='undelete'>$labels[undelete]</option>" .
+					"</optgroup>" .
+					"<optgroup label='$labels[help]'>" .
+						"<option value='help'>$labels[how_to_use_actions]</option>" .
+					"</optgroup>" .
+			"</select>" .
+				($uikit ? "<span></span>" : "") . 
+			"</span>";
+		
+		return $out;
+	}
+
+	/**
+	 * Render value mode
+	 *
+	 * @return string
+	 *
+	 */
+	public function ___renderValue() {
+		$this->renderValueMode = true;
+		$out = $this->render();
+		$this->renderValueMode = false;
+		return $out; 
+	
+		/*
+		$value = $this->attr('value');	
+		if(WireArray::iterable($value)) {
+			return $this->value->render(array(
+				'tableClass' => 'AdminDataList AdminDataTable'
+			));
+		} else {
+			return $value; 
+		}
+		*/
+	}
+
+	/**
+	 * Process input for the submitted table
+	 * 
+	 * Note: sanitization is done by FieldtypeTable::sanitizeValue()
+	 *
+	 * @param WireInputData $input
+	 * @return $this
+	 *
+	 */
+	public function ___processInput(WireInputData $input) {
+		
+		$languages = $this->wire()->languages;
+		$datetime = $this->wire()->datetime;
+
+		$rowNum = 0; 
+		$rows = $this->attr('value'); /** @var TableRows $rows */
+		$rowsArray = array();
+		$rowsDelete = array();
+		$field = $this->field;
+		$fieldtype = $field->type; /** @var FieldtypeTable $fieldtype */
+		$cols = $fieldtype->getColumnsByName($field); 
+		$changes = array();
+		$inputName = $this->attr('name');
+		$numNewRows = 0;
+		
+		$deleteAllName = $inputName . '__delete_all'; 
+		$deleteAll = $input->$deleteAllName;
+		
+		if($deleteAll === 'DELETE-ALL' && $rows && $field->get('paginationLimit') && $field->get('useBigDelete')) {
+			if($rows->getTotal() > $rows->count()) {
+				$numRows = $rows->getTotal();
+				$page = $this->getPage();
+				if($page && $page->id) {
+					$fieldtype->deletePageField($page, $field);
+					$this->message(sprintf($this->_('Deleted all %d rows for field "%s"'), $numRows, $field->name));
+				}
+				return $this;
+			}
+		}
+
+		do {
+			$rowNum++;
+			$idName = $inputName . "_{$rowNum}__id";
+			$id = $input->$idName; 
+			if(is_null($id)) break;
+			$id = (int) $id; 
+
+			$deleteName = $inputName . "_{$rowNum}__delete";
+			$delete = (int) $input->$deleteName; 
+
+			$sortName = $inputName . "_{$rowNum}__sort";
+			$sort = (int) $input->$sortName; 
+
+			$row = $rows->eq($rowNum-1); /** @var TableRow $row */
+
+			if($row && $delete) {
+				$rowsDelete[] = $row;
+				$changes[] = "delete-row-$rowNum";
+			}
+	
+			if(is_null($row)) {
+				if($delete) continue;
+				$row = $rows->makeBlankItem();
+				$changes[] = "add-row-$rowNum";
+				$numNewRows++;
+			}
+			
+			$row->id = $id;
+
+			foreach($cols as $name => $col) {
+				
+				$type = $col['type'];
+				if(!$name || !$type) continue; 
+				
+				$nameAttr = $inputName . "_{$rowNum}_$name";
+				$valuePrevious = $row->$name;
+				$value = $input->$nameAttr;
+				$inputfield = null;
+				$required = !empty($col['settings']['required']);
+				
+				if($type === 'date') {
+					$value = $datetime->stringToTimestamp($value, $col['settings']['dateInputFormat']);
+					
+				} else if($type === 'datetime') {
+					$a = $col['settings'];
+					if(isset($a['inputType']) && isset($a['htmlType'])) {
+						if($a['inputType'] === 'html' && $a['htmlType'] === 'datetime') {
+							$timeValue = $input->{$nameAttr . '__time'};
+							if($timeValue !== null) $value .= " $timeValue";
+						}
+					}
+					$value = $datetime->stringToTimestamp($value, trim("$a[dateInputFormat] $a[timeInputFormat]"));
+					
+				} else if($type === 'time') {
+					$value = (string) $value;
+					if(!strlen($value)) {
+						$value = null;
+					} else if(!preg_match('/^\d\d:\d\d(:\d\d)?$/', $value)) {
+						$value = strtotime("2022-12-15 $value"); 
+						$value = $value === false ? null : date('H:i:s', $value);
+					}
+					
+				} else if($type === 'checkbox') {
+					$valuePrevious = ((int) $valuePrevious) ? 1 : 0;
+					$value = ((int) $value) ? 1 : 0;
+
+				} else if($type === 'textareaCKE') {
+					$inputfield = $this->getCKEditorInputfield($nameAttr, $row->$name, $col);
+					
+				} else if($type === 'textareaMCE') {
+					$inputfield = $this->getTinyMCEInputfield($nameAttr, $row->$name, $col);
+					
+				} else if($col['input'] === 'autocomplete') {
+					$inputfield = $this->getPageAutocompleteInputfield($nameAttr, $row->$name, $col);
+
+				} else if($col['input'] === 'textTags') {
+					$inputfield = $this->getTextTagsInputfield($nameAttr, $row->$name, $col);
+				
+					/*
+				} else if($type === 'toggle') {
+					$inputfield = $this->getToggleInputfield($nameAttr, $row->$name, $col);
+					*/
+					
+				} else if($col['input'] === 'file' || $col['input'] === 'image') {
+					/** @var Pageimage|Pagefile|null $value */
+					$value = $row->$name;
+					$valuePrevious = $value;
+					$value = $this->processInputFile($input, $nameAttr, $col, $value); 
+				}
+				
+				if($inputfield) {
+					$valuePrevious = $inputfield->attr('value');
+					$inputfield->processInput($input);
+					$value = $inputfield->attr('value');
+				}
+					
+				// multi-language values
+				if($col['valid'] === 'LanguagesPageFieldValue' && $languages) {
+					$_value = $row->get($name); 
+					if(!is_object($_value) || !$_value instanceof LanguagesValueInterface) {
+						$_value = $fieldtype->newLanguagesPageFieldValue(new NullPage(), $field);
+					}
+					foreach($languages as $language) {
+						/** @var Language $language */
+						$_nameAttr = $language->isDefault() ? $nameAttr : $nameAttr . '__' . $language;
+						if($type == 'textareaCKELanguage' || $type == 'textareaMCELanguage') {
+							$getMethod = ($type == 'textareaCKELanguage' ? 'getCKEditorInputfield' : 'getTinyMCEInputfield');
+							$inputfield = $this->$getMethod($_nameAttr, $_value->getLanguageValue($language), $col);
+							if($inputfield) {
+								$inputfield->processInput($input);
+								$value = $inputfield->attr('value');
+							}
+						} else {
+							$value = $input->$_nameAttr;
+						}
+						$_value->setLanguageValue($language, $value); 
+					}
+					$value = $_value; 
+				}
+	
+				if($valuePrevious !== $value) {
+					$a = array('value' => $value, 'valuePrevious' => $valuePrevious); 
+					foreach($a as $k => $v) {
+						if($v instanceof Page) {
+							$v = (string) $v;
+						} else if($v instanceof PageArray) {
+							$v = $v->implode(',', 'id');
+						} else if($v instanceof Pagefile) {
+							$v = (string) $v;
+						} else if(is_array($v)) {
+							$v = implode(',', $v);
+						} else if($v === null) {
+							$v = '';
+						} else if("$v" === "0") { 
+							// note: toggle requires ability to use "0" 
+							if(!in_array($type, [ 'toggle', 'float', 'decimal', 'double', 'int1', 'int2' ])) {
+								$v = '';
+							}
+						}
+						$a[$k] = $v;
+					}
+					if("$a[value]" != "$a[valuePrevious]") {
+						$changes[] = "row-$rowNum-$name";
+						$row->set($name, $value);
+					}
+				}
+				
+				if($required && !$delete && empty("$value")) {
+					$this->error(sprintf(
+						$this->_('Missing required value in “%1$s” row %2$d for column “%3$s”'),
+						$this->field->label, $rowNum, "$col[label]"
+					));
+				}
+				
+				if(self::debug) {
+					if(is_array($value)) $value = print_r($value, true); 
+					$this->debugMessage("SET ROW $rowNum: $name=$value"); 
+				}
+			}
+			while(isset($rowsArray[$sort])) $sort++;
+			$rowsArray[$sort] = $row;
+			
+		} while(1);
+
+		$keysPrevious = array_keys($rowsArray);
+		ksort($rowsArray);
+		$keys = array_keys($rowsArray);
+		if($keys != $keysPrevious) $changes[] = 'sort';
+		
+		foreach($rowsArray as $row) $rows->add($row); 
+		$this->debugMessage("Setting n rows: " . count($rows));
+
+		/* the following prevents changes to existing rows from being saved (error)
+		if(!$numNewRows) $rows->setTrackChanges(false);
+		foreach($rowsArray as $row) $rows->add($row);
+		if(!$numNewRows) $rows->setTrackChanges(true);
+		*/
+	
+		if(count($rowsDelete)) {
+			if($field->get('paginationLimit')) { // && $this->value->getTotal() > $this->value->count()) {
+				$page = $this->getPage();
+				if($page && $page->id) {
+					$a = $fieldtype->getBlankValue($page, $field);
+					foreach($rowsDelete as $row) {
+						$a->add($row);
+						$rows->remove($row);
+					}
+					$fieldtype->deletePageFieldRows($page, $field, $a);
+				}
+			} else {
+				foreach($rowsDelete as $row) {
+					$rows->remove($row);
+				}
+			}
+		}
+
+		$this->debugMessage("Setting n rows: " . count($rows)); 
+
+		if(count($changes)) $this->trackChange('value');
+
+		return $this; 
+	}
+
+	/**
+	 * Process a file upload or action
+	 * 
+	 * @param WireInputData $input
+	 * @param string $nameAttr
+	 * @param array $col
+	 * @param Pagefile|Pageimage|null $value
+	 * @return Pagefile|Pageimage|null
+	 * 
+	 */
+	protected function processInputFile(WireInputData $input, $nameAttr, array $col, $value) {
+		
+		$action = $input["{$nameAttr}__action"];
+	
+		if($action === 'delete') {
+			if($value) $value->unlink();
+			return null;
+		}
+		
+		if(empty($_FILES[$nameAttr]['name'])) {
+			return $value;
+		}
+		
+		$page = $this->page;
+		$field = $this->field;
+		$fieldtype = $field->type; /** @var FieldtypeTable $fieldtype */
+		$filesPath = $page->filesManager()->path();
+		$extensions = explode(' ', $col['settings']['extensions']);
+		
+		$ul = new WireUpload($nameAttr);
+		$this->wire($ul);
+		
+		$ul->setValidExtensions($extensions);
+		$ul->setMaxFiles(1);
+		$ul->setOverwrite(false);
+		$ul->setDestinationPath($filesPath);
+		$ul->setExtractArchives(false);
+		$ul->setLowercase(true);
+		
+		$basenames = $ul->execute();
+		
+		if(count($basenames)) {
+			if($value) $value->unlink(); // replace/delete existing file
+			$basename = reset($basenames);
+			$value = $fieldtype->wakeupFile($page, $field, $filesPath . $basename, $col['input']);
+		} else {
+			// no upload present, no change
+		}
+		
+		return $value;
+	}
+
+	/**
+	 * Get an instance of InputfieldCKEditor
+	 *
+	 * @param string $nameAttr
+	 * @param string $value
+	 * @param array $col
+	 * @return InputfieldCKEditor|null
+	 * 
+	 */
+	protected function getCKEditorInputfield($nameAttr, $value, array $col) {
+		if(strpos($col['type'], 'CKE') === false) return null;
+		$settings = $col['settings'];
+		$f = isset($settings['settingsField']) ? $settings['settingsField'] : '';
+		if($f) $f = $this->wire()->fields->get($f); /** @var Field $f */
+		if(!$f || $f->get('inputfieldClass') != 'InputfieldCKEditor') return null;
+		/** @var InputfieldCKEditor $cke */
+		$cke = $f->getInputfield(new NullPage(), $f);
+		if(!$cke) return null;
+		$cke->attr('id+name', $nameAttr);
+		$cke->set('configName', $settings['settingsField']);
+		unset($settings['settingsField']);
+		$cke->setArray($settings);
+		$cke->useLanguages = false;
+		$cke->usePurifier = true;
+		$cke->inlineMode = 1; 
+		$cke->attr('value', $value);
+		return $cke;	
+	}
+	
+	/**
+	 * Get an instance of InputfieldTinyMCE
+	 *
+	 * @param string $nameAttr
+	 * @param string $value
+	 * @param array $col
+	 * @return InputfieldTinyMCE|null
+	 *
+	 */
+	protected function getTinyMCEInputfield($nameAttr, $value, array $col) {
+		if(strpos($col['type'], 'MCE') === false) return null;
+		$settings = $col['settings'];
+		$f = isset($settings['settingsField']) ? $settings['settingsField'] : '';
+		if($f) $f = $this->wire()->fields->get($f); /** @var Field $f */
+		if(!$f || $f->get('inputfieldClass') != 'InputfieldTinyMCE') return null;
+		/** @var InputfieldTinyMCE $mce */
+		$mce = $f->getInputfield(new NullPage(), $f);
+		if(!$mce) return null;
+		$mce->attr('id+name', $nameAttr);
+		$mce->set('configName', $settings['settingsField']);
+		unset($settings['settingsField']);
+		$settings['inlineMode'] = 1;
+		$mce->setArray($settings);
+		$mce->useLanguages = false;
+		$mce->hasPage = $this->hasPage;
+		//$mce->usePurifier = true;
+		//$mce->inlineMode = 1;
+		//$mce->lazyMode = 2;
+		$mce->attr('value', $value);
+		return $mce;
+	}
+
+
+	/**
+	 * Get an instance of InputfieldPageAutocomplete
+	 *
+	 * @param string $nameAttr
+	 * @param array $value
+	 * @param array $col
+	 * @return InputfieldPageAutocomplete|null
+	 *
+	 */
+	protected function getPageAutocompleteInputfield($nameAttr, $value, array $col) {
+		/** @var InputfieldPageAutocomplete $inputfield */
+		$inputfield = $this->wire()->modules->get('InputfieldPageAutocomplete');
+		if(!$inputfield) return null;
+		$inputfield->attr('name', $nameAttr);
+		$inputfield->attr('value', $value);
+		$inputfield->findPagesSelector = $col['selector'];
+		$labelField = $col['settings']['labelField'];
+		if($this->wire()->sanitizer->fieldName($labelField) != $labelField) {
+			$inputfield->labelFieldFormat = $labelField;
+		} else {
+			$inputfield->set('labelField', $labelField); // legacy/no longer used
+			$inputfield->labelFieldName = $labelField;
+		}
+		
+		$inputfield->searchFields = $col['settings']['searchField'];
+		if($col['type'] == 'pageAutocomplete') {
+			$inputfield->maxSelectedItems = 1;
+			$inputfield->useList = false;
+		}
+		$this->setupInputfield($inputfield);
+		return $inputfield; 
+	}
+
+	/**
+	 * Get Toggle Inputfield
+	 * 
+	 * @param string $nameAttr
+	 * @param int $value
+	 * @param array $col
+	 * @return null|InputfieldToggle
+	 * 
+	 */
+	protected function getToggleInputfield($nameAttr, $value, array $col) {
+		/** @var InputfieldToggle $inputfield */
+		$inputfield = $this->wire()->modules->get('InputfieldToggle');
+		if(!$inputfield) return null;
+		if(ctype_digit("$value")) $value = (int) $value;
+		$inputfield->attr('name', $nameAttr);
+		foreach(array('labelType', 'useReverse', 'useOther', 'useDeselect') as $property) {
+			$inputfield->$property = (int) $col['settings'][$property];
+		}
+		foreach(array('otherLabel', 'yesLabel', 'noLabel') as $property) {
+			if(!empty($col['settings'][$property])) $inputfield->$property = $col['settings'][$property];
+		}
+		$defaultOption = strtolower($col['settings']['defaultOption']);
+		if(in_array($defaultOption, array('yes', 'no', 'other', 'none'))) {
+			$inputfield->defaultOption = $defaultOption;
+		}
+		$inputfield->attr('value', $value);
+		$this->setupInputfield($inputfield);
+		return $inputfield; 
+	}
+
+	/**
+	 * Get TextTags Inputfield
+	 * 
+	 * @param string $nameAttr
+	 * @param string|array $value
+	 * @param array $col
+	 * @return InputfieldTextTags|null
+	 * 
+	 */
+	protected function getTextTagsInputfield($nameAttr, $value, array $col) {
+		/** @var InputfieldTextTags $inputfield */
+		$inputfield = $this->wire()->modules->get('InputfieldTextTags');
+		if(!$inputfield) return null;
+		$fieldtype = $this->field->type; /** @var FieldtypeTable $fieldtype */
+		$inputfield->attr('name', $nameAttr);
+		$tagsList = $fieldtype->sanitizeTextTags($col, '', 'tagsList');
+		foreach($tagsList as $k => $v) {
+			$inputfield->addOption($k, $v);
+		}
+		foreach($col['settings'] as $k => $v) {
+			if($k === 'tagsList') continue;
+			if(ctype_digit("$v")) $v = (int) $v;
+			$inputfield->set($k, $v);
+		}
+		$value = $fieldtype->sanitizeTextTags($col, $value, 'string', false, $tagsList);
+		$inputfield->val($value);
+		$adminTheme = $this->wire()->adminTheme;
+		$class = $adminTheme ? $adminTheme->getClass('input') : '';
+		if($class) $inputfield->addClass($class);
+		$this->setupInputfield($inputfield);
+		return $inputfield;
+	}
+
+	/**
+	 * Apply any common settings to Inputfields used for column inputs
+	 * 
+	 * @param Inputfield $inputfield
+	 * @return Inputfield
+	 * 
+	 */
+	protected function setupInputfield(Inputfield $inputfield) {
+		if($this->field->get('useSmall')) {
+			$inputfield->addClass('uk-form-small');
+		}
+		return $inputfield;
+	}
+
+	/**
+	 * Get page being edited
+	 * 
+	 * @return NullPage|Page
+	 * 
+	 */
+	public function getPage() {
+		$process = $this->wire()->process;
+		$page = $process instanceof WirePageEditor ? $process->getPage() : $this->hasPage;
+		if(!$page) $page = new NullPage();
+		return $page;
+	}
+
+	/**
+	 * Allow user of table row actions?
+	 * 
+	 * @return bool
+	 * 
+	 */
+	protected function useActions() {
+		return $this->field->get('useActions') && !$this->field->get('paginationLimit');
+	}
+
+	/**
+	 * Pages selectable pages for a Page input
+	 * 
+	 * Note: when hooking this, make sure that some 'selector' is defined in your column settings
+	 * (even if just "id>0"), otherwise this method won't be called. 
+	 * 
+	 * ~~~~~
+	 * $wire->addHookBefore('InputfieldTable::getSelectablePages', function(HookEvent $event) {
+	 *   $field = $event->arguments(0); // Field object for Table field
+	 *   $col = $event->arguments(1); // array of column information
+	 *   $value = $event->arguments(2); // existing value as array of page IDs (if needed)
+	 *
+	 *   // exit if not the field or column we intend to override 
+	 *   if($field->name != 'your_table_field_name') return;
+	 *   if($col['name'] != 'your_page_column_name') return;
+	 * 
+	 *   if($col['input'] === 'autocomplete']) return; 
+	 *     // autocomplete here should just convert value (array) of IDs to PageArray
+	 *     // so we let the original method handle this
+	 *     return;
+	 *   }
+	 * 
+	 *   // perform our custom find
+	 *   $event->return = $pages->find($col['selector']); 
+	 * 
+	 *   // prevent hooked method from being called
+	 *   $event->replace = true; 
+	 * }); 
+	 * ~~~~~
+	 * 
+	 * @param Field $field The Table field this is being called for
+	 * @param array $col Information for the Page-type column 
+	 * @param array $value Existing value, array of page IDs
+	 * @return PageArray
+	 * @throws WireException
+	 * 
+	 */
+	public function ___getSelectablePages(Field $field, array $col, array $value) {
+		$pages = $this->wire()->pages;
+		
+		if($col['input'] === 'autocomplete') {
+			$items = count($value) ? $pages->getById($value) : new PageArray();
+		} else {
+			$items = $pages->find($col['selector'], array('allowCustom' => true));
+		}
+		
+		/*
+		if(count($value)) {
+			// allows previously selected unpublished/trashed value to continue to appear,
+			// as suggested by SolutionInnovators
+			foreach($this->wire()->pages->getById($value) as $item) {
+				if(!$items->has($item)) $items->add($item);
+			}
+		}
+		*/
+		
+		return $items;
+	}
+	
+}
