@@ -311,3 +311,87 @@
 2026-03-02 16:33:15	maximus	http://skfo.ddev.site/kislovodsk/module/	Cannot create template 'reviews': template 'basic-page' not found.
 2026-03-02 16:33:16	maximus	http://skfo.ddev.site/kislovodsk/rockanalytics/	Cannot create template 'reviews': template 'basic-page' not found.
 2026-03-02 16:33:18	maximus	http://skfo.ddev.site/kislovodsk/	Cannot create template 'reviews': template 'basic-page' not found.
+2026-03-02 21:57:25	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1	Updated field 'home_featured_tours' settings.
+2026-03-02 21:57:25	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1	Updated field 'home_featured_places' settings.
+2026-03-02 21:57:25	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1	Updated field 'home_actual_places' settings.
+2026-03-02 21:57:25	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1	Updated field 'home_featured_articles' settings.
+2026-03-02 21:57:25	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1	Updated field 'region_featured_tours' settings.
+2026-03-02 21:57:25	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1	Updated field 'region_featured_places' settings.
+2026-03-02 21:57:25	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1	Updated field 'region_featured_articles' settings.
+2026-03-02 21:57:25	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1	Updated field 'articles_today_refs' settings.
+2026-03-02 21:57:25	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1	Updated field 'articles_first_time_refs' settings.
+2026-03-02 21:57:25	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1	Updated field 'hotels_featured_refs' settings.
+2026-03-03 16:37:34	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1497&s=1&c=6	Created field 'tour_title'.
+2026-03-03 16:37:34	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1497&s=1&c=6	Updated fields on template 'tour'.
+2026-03-03 16:47:22	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1499	Updated fields on template 'tour'.
+2026-03-03 17:15:47	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1498	Updated fields on template 'tour'.
+2026-03-03 17:15:53	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1498&s=1&c=0	Updated fields on template 'tour'.
+2026-03-03 17:15:55	maximus	http://skfo.ddev.site/kislovodsk/page/	Updated fields on template 'tour'.
+2026-03-03 17:15:55	maximus	http://skfo.ddev.site/kislovodsk/page/list/?id=1&render=JSON&start=0&lang=0&open=0-0&mode=actions	Updated fields on template 'tour'.
+2026-03-03 17:15:58	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1586	Updated fields on template 'tour'.
+2026-03-03 17:16:04	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1586&s=1&c=1	Updated fields on template 'tour'.
+2026-03-03 17:16:24	maximus	http://skfo.ddev.site/kislovodsk/page/	Updated fields on template 'tour'.
+2026-03-03 17:16:25	maximus	http://skfo.ddev.site/kislovodsk/page/list/?id=1&render=JSON&start=0&lang=0&open=0-0&mode=actions	Updated fields on template 'tour'.
+2026-03-03 17:16:27	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1590	Updated fields on template 'tour'.
+2026-03-03 17:16:42	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1590&s=1&c=1	Updated fields on template 'tour'.
+2026-03-03 17:17:55	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1590&field=tour_days&repeater_add=1	Updated fields on template 'tour'.
+2026-03-03 17:18:02	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1590&s=1&c=4	Updated fields on template 'tour'.
+2026-03-03 17:26:35	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1590&s=1&c=2	Updated fields on template 'tour'.
+2026-03-03 17:30:32	maximus	http://skfo.ddev.site/kislovodsk/page/?open=1	Updated fields on template 'tour'.
+2026-03-03 17:30:32	maximus	http://skfo.ddev.site/kislovodsk/page/list/?id=1&render=JSON&start=0&lang=0&open=0-0&mode=actions	Updated fields on template 'tour'.
+2026-03-03 17:30:34	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1160	Updated fields on template 'tour'.
+2026-03-03 17:30:36	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1160&renderInputfieldAjax=ProcessPageEditChildren	Updated fields on template 'tour'.
+2026-03-03 17:30:36	maximus	http://skfo.ddev.site/kislovodsk/page/list/?id=1160&render=JSON&start=0&lang=0&open=undefined&mode=actions	Updated fields on template 'tour'.
+2026-03-03 17:30:37	maximus	http://skfo.ddev.site/kislovodsk/page/add/?parent_id=1160	Updated fields on template 'tour'.
+2026-03-03 17:30:59	maximus	http://skfo.ddev.site/kislovodsk/page/add/exists?parent_id=1160&name=dushe	Updated fields on template 'tour'.
+2026-03-03 17:31:00	maximus	http://skfo.ddev.site/kislovodsk/page/add/exists?parent_id=1160&name=dushevy	Updated fields on template 'tour'.
+2026-03-03 17:31:00	maximus	http://skfo.ddev.site/kislovodsk/page/add/exists?parent_id=1160&name=dushev	Updated fields on template 'tour'.
+2026-03-03 17:31:01	maximus	http://skfo.ddev.site/kislovodsk/page/add/exists?parent_id=1160&name=dushevnyi-tur-v	Updated fields on template 'tour'.
+2026-03-03 17:31:02	maximus	http://skfo.ddev.site/kislovodsk/page/add/exists?parent_id=1160&name=dushevnyi-tur-v-dage	Updated fields on template 'tour'.
+2026-03-03 17:31:03	maximus	http://skfo.ddev.site/kislovodsk/page/add/exists?parent_id=1160&name=dushevnyi-tur-v-dagestan	Updated fields on template 'tour'.
+2026-03-03 17:31:04	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1859&new=1	Updated fields on template 'tour'.
+2026-03-03 17:33:56	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1859&s=1&c=9	Updated fields on template 'tour'.
+2026-03-03 17:34:05	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1859&field=tour_days&repeater_add=1	Updated fields on template 'tour'.
+2026-03-03 17:34:38	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1859&field=tour_days&repeater_add=1&repeater_not=1861_	Updated fields on template 'tour'.
+2026-03-03 17:34:45	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1859&field=tour_days&repeater_add=1&repeater_not=1861_1862_	Updated fields on template 'tour'.
+2026-03-03 17:34:56	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1859&s=1&c=2	Updated fields on template 'tour'.
+2026-03-03 17:45:44	maximus	http://skfo.ddev.site/kislovodsk/page/?open=1	Updated fields on template 'tour'.
+2026-03-03 17:45:44	maximus	http://skfo.ddev.site/kislovodsk/page/list/?id=1&render=JSON&start=0&lang=0&open=0-0&mode=actions	Updated fields on template 'tour'.
+2026-03-03 17:45:56	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1547	Updated fields on template 'tour'.
+2026-03-03 17:46:02	maximus	http://skfo.ddev.site/kislovodsk/page/?open=1	Updated fields on template 'tour'.
+2026-03-03 17:46:03	maximus	http://skfo.ddev.site/kislovodsk/page/list/?id=1&render=JSON&start=0&lang=0&open=0-0&mode=actions	Updated fields on template 'tour'.
+2026-03-03 17:46:08	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1589	Updated fields on template 'tour'.
+2026-03-03 17:46:10	maximus	http://skfo.ddev.site/kislovodsk/page/?open=1	Updated fields on template 'tour'.
+2026-03-03 17:46:11	maximus	http://skfo.ddev.site/kislovodsk/page/list/?id=1&render=JSON&start=0&lang=0&open=0-0&mode=actions	Updated fields on template 'tour'.
+2026-03-03 17:46:14	maximus	http://skfo.ddev.site/kislovodsk/page/list/?id=7&render=JSON&start=0&lang=0&open=0-0&mode=actions	Updated fields on template 'tour'.
+2026-03-03 17:46:27	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1	Updated fields on template 'tour'.
+2026-03-03 17:46:44	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1&s=1&c=1	Updated fields on template 'tour'.
+2026-03-03 17:48:01	maximus	http://skfo.ddev.site/kislovodsk/page/	Updated fields on template 'tour'.
+2026-03-03 17:48:01	maximus	http://skfo.ddev.site/kislovodsk/page/list/?id=1&render=JSON&start=0&lang=0&open=0-0&mode=actions	Updated fields on template 'tour'.
+2026-03-03 17:48:01	maximus	http://skfo.ddev.site/kislovodsk/page/list/?id=7&render=JSON&start=0&lang=0&open=0-0&mode=actions	Updated fields on template 'tour'.
+2026-03-03 17:48:04	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1498	Updated fields on template 'tour'.
+2026-03-03 17:49:09	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1498&s=1&c=5	Updated fields on template 'tour'.
+2026-03-03 17:49:11	maximus	http://skfo.ddev.site/kislovodsk/page/?open=1160	Updated fields on template 'tour'.
+2026-03-03 17:49:12	maximus	http://skfo.ddev.site/kislovodsk/page/list/?id=1&render=JSON&start=0&lang=0&open=1160-0&mode=actions	Updated fields on template 'tour'.
+2026-03-03 17:49:14	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1497	Updated fields on template 'tour'.
+2026-03-03 17:49:16	maximus	http://skfo.ddev.site/kislovodsk/page/?open=1160	Updated fields on template 'tour'.
+2026-03-03 17:49:17	maximus	http://skfo.ddev.site/kislovodsk/page/list/?id=1&render=JSON&start=0&lang=0&open=1160-0&mode=actions	Updated fields on template 'tour'.
+2026-03-03 17:49:19	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1499	Updated fields on template 'tour'.
+2026-03-03 17:52:49	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1499&s=1&c=7	Updated fields on template 'tour'.
+2026-03-03 17:54:38	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1499	Updated fields on template 'tour'.
+2026-03-03 17:54:41	maximus	http://skfo.ddev.site/kislovodsk/page/?open=1160	Updated fields on template 'tour'.
+2026-03-03 17:54:42	maximus	http://skfo.ddev.site/kislovodsk/page/list/?id=1&render=JSON&start=0&lang=0&open=1160-0&mode=actions	Updated fields on template 'tour'.
+2026-03-03 17:54:45	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1586	Updated fields on template 'tour'.
+2026-03-03 17:55:00	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1586&s=1&c=2	Updated fields on template 'tour'.
+2026-03-03 17:55:27	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1586&s=1&c=2	Updated fields on template 'tour'.
+2026-03-03 18:00:12	maximus	http://skfo.ddev.site/kislovodsk/page/?open=1160	Updated fields on template 'tour'.
+2026-03-03 18:00:12	maximus	http://skfo.ddev.site/kislovodsk/page/list/?id=1&render=JSON&start=0&lang=0&open=1160-0&mode=actions	Updated fields on template 'tour'.
+2026-03-03 18:00:15	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1590	Updated fields on template 'tour'.
+2026-03-03 18:00:25	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1590&s=1&c=1	Updated fields on template 'tour'.
+2026-03-03 18:00:46	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1590&field=tour_days&repeater_add=1&repeater_not=1858_	Updated fields on template 'tour'.
+2026-03-03 18:00:57	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1590&field=tour_days&repeater_add=1&repeater_not=1858_1865_	Updated fields on template 'tour'.
+2026-03-03 18:01:06	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1590&field=tour_days&repeater_add=1&repeater_not=1858_1865_1866_	Updated fields on template 'tour'.
+2026-03-03 18:01:15	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1590&field=tour_days&repeater_add=1&repeater_not=1858_1865_1866_1867_	Updated fields on template 'tour'.
+2026-03-03 18:01:25	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1590&field=tour_days&repeater_add=1&repeater_not=1858_1865_1866_1867_1868_	Updated fields on template 'tour'.
+2026-03-03 18:01:37	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1590&field=tour_days&repeater_add=1&repeater_not=1858_1865_1866_1867_1868_1869_	Updated fields on template 'tour'.
+2026-03-03 18:01:48	maximus	http://skfo.ddev.site/kislovodsk/page/edit/?id=1590&s=1&c=1	Updated fields on template 'tour'.

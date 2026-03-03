@@ -32,10 +32,43 @@ $normalizeIncludedItems = static function(array $items) use ($toLower, $normaliz
 	return $normalized;
 };
 
-$tourTitle = trim((string) $page->title);
+$measureTextLength = static function(string $value): int {
+	$value = trim(strip_tags($value));
+	$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+	if($value === '') return 0;
+	return function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
+};
+
+$extractTourPriceAmount = static function(string $raw): int {
+	$raw = trim($raw);
+	if($raw === '') return 0;
+
+	if(stripos($raw, 'ft-table-col-price') !== false) {
+		if(preg_match('/<td[^>]*class\s*=\s*["\'][^"\']*ft-table-col-price[^"\']*["\'][^>]*>(.*?)<\/td>/is', $raw, $matches) === 1) {
+			$priceCellText = trim(strip_tags(html_entity_decode((string) ($matches[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+			$priceCellDigits = preg_replace('/[^\d]+/', '', $priceCellText) ?? '';
+			if($priceCellDigits !== '') return (int) $priceCellDigits;
+		}
+	}
+
+	$visibleText = trim(strip_tags(html_entity_decode($raw, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+	$digits = preg_replace('/[^\d]+/', '', $visibleText) ?? '';
+	if($digits === '') return 0;
+	return (int) $digits;
+};
+
+$formatTourPrice = static function(string $raw) use ($extractTourPriceAmount): string {
+	$amount = $extractTourPriceAmount($raw);
+	if($amount <= 0) return '';
+	return number_format($amount, 0, '', ' ') . ' ₽';
+};
+
+$tourTitle = $page->hasField('tour_title') ? trim((string) $page->tour_title) : '';
+if($tourTitle === '') $tourTitle = trim((string) $page->title);
 $tourRegion = $page->hasField('tour_region') ? trim((string) $page->tour_region) : '';
 $tourDescription = $page->hasField('tour_description') ? trim((string) $page->tour_description) : '';
-$tourPrice = $page->hasField('tour_price') ? trim((string) $page->tour_price) : '';
+$tourPriceRaw = $page->hasField('tour_price') ? (string) $page->getUnformatted('tour_price') : '';
+$tourPrice = $formatTourPrice($tourPriceRaw);
 $tourDuration = $page->hasField('tour_duration') ? trim((string) $page->tour_duration) : '';
 $tourGroup = $page->hasField('tour_group') ? trim((string) $page->tour_group) : '';
 $tourSeason = $page->hasField('tour_season') ? trim((string) $page->tour_season) : '';
@@ -69,12 +102,22 @@ if ($tourRegion === '') $tourRegion = 'Республика Дагестан';
 if ($tourDescription === '') {
 	$tourDescription = "Четырехдневный тур по самым живописным местам Дагестана: от Сулакского каньона до Гунибского района.\n\nВас ждут горные пейзажи, водопады, древние села и уникальные природные объекты.";
 }
-if ($tourPrice === '') $tourPrice = '23 251₽';
+if ($tourPrice === '') $tourPrice = '23 251 ₽';
 if ($tourDuration === '') $tourDuration = '4 дня';
 if ($tourGroup === '') $tourGroup = '4-12 человек';
 if ($tourSeason === '') $tourSeason = 'Май-Октябрь';
 if ($tourDifficulty === '') $tourDifficulty = 'Базовая';
 if ($tourAge === '') $tourAge = '12+';
+
+$tourTitleLength = $measureTextLength($tourTitle);
+$tourDescriptionLength = $measureTextLength($tourDescription);
+$heroTextLoad = ($tourTitleLength * 2) + $tourDescriptionLength;
+$heroCompactClass = '';
+if ($tourTitleLength > 95 || $tourDescriptionLength > 260 || $heroTextLoad > 380) {
+	$heroCompactClass = ' is-compact-2';
+} elseif ($tourTitleLength > 65 || $tourDescriptionLength > 170 || $heroTextLoad > 280) {
+	$heroCompactClass = ' is-compact';
+}
 
 $tourDifficultyDotsFilled = 1;
 $normalizedDifficulty = $toLower($tourDifficulty);
@@ -139,7 +182,7 @@ if (!count($tourDays)) {
 	<section class="tour-hero">
 		<div class="container">
 			<div class="tour-hero-shape">
-				<div class="tour-hero-layout">
+				<div class="tour-hero-layout<?php echo $heroCompactClass; ?>">
 					<div class="tour-hero-main">
 						<h1 class="tour-title"><?php echo $sanitizer->entities($tourTitle); ?></h1>
 						<p class="tour-description"><?php echo nl2br($sanitizer->entities($tourDescription)); ?></p>

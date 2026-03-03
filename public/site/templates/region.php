@@ -16,6 +16,30 @@ $normalizeRegion = static function(string $value) use ($toLower): string {
 	return trim($value);
 };
 
+$extractTourPriceAmount = static function(string $raw): int {
+	$raw = trim($raw);
+	if ($raw === '') return 0;
+
+	if (stripos($raw, 'ft-table-col-price') !== false) {
+		if (preg_match('/<td[^>]*class\s*=\s*["\'][^"\']*ft-table-col-price[^"\']*["\'][^>]*>(.*?)<\/td>/is', $raw, $matches) === 1) {
+			$priceCellText = trim(strip_tags(html_entity_decode((string) ($matches[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+			$priceCellDigits = preg_replace('/[^\d]+/', '', $priceCellText) ?? '';
+			if ($priceCellDigits !== '') return (int) $priceCellDigits;
+		}
+	}
+
+	$visibleText = trim(strip_tags(html_entity_decode($raw, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+	$digits = preg_replace('/[^\d]+/', '', $visibleText) ?? '';
+	if ($digits === '') return 0;
+	return (int) $digits;
+};
+
+$normalizeTourPrice = static function(string $raw) use ($extractTourPriceAmount): string {
+	$amount = $extractTourPriceAmount($raw);
+	if ($amount > 0) return number_format($amount, 0, '', ' ') . ' ₽';
+	return trim(strip_tags(html_entity_decode($raw, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+};
+
 $getImageUrlFromValue = static function($imageValue): string {
 	if ($imageValue instanceof Pageimage) return $imageValue->url;
 	if ($imageValue instanceof Pageimages && $imageValue->count()) return $imageValue->first()->url;
@@ -350,7 +374,8 @@ $tourUrlByTitle = [];
 $tourPagesForLinks = $pages->find('template=tour, include=all, sort=title, limit=500');
 foreach ($tourPagesForLinks as $tourPageForLink) {
 	if (!$tourPageForLink instanceof Page) continue;
-	$tourTitleForLink = trim((string) $tourPageForLink->title);
+	$tourTitleForLink = $tourPageForLink->hasField('tour_title') ? trim((string) $tourPageForLink->getUnformatted('tour_title')) : '';
+	if ($tourTitleForLink === '') $tourTitleForLink = trim((string) $tourPageForLink->title);
 	if ($tourTitleForLink === '') continue;
 	$tourUrlByTitle[$toLower($tourTitleForLink)] = (string) $tourPageForLink->url;
 }
@@ -360,8 +385,9 @@ if ($page->hasField('region_featured_tours') && $page->region_featured_tours->co
 	foreach ($page->region_featured_tours as $tourPage) {
 		if (!$tourPage instanceof Page) continue;
 		$imageUrl = $tourPage->hasField('tour_cover_image') ? $getImageUrlFromValue($tourPage->getUnformatted('tour_cover_image')) : '';
-		$title = trim((string) $tourPage->title);
-		$price = $tourPage->hasField('tour_price') ? trim((string) $tourPage->tour_price) : '';
+		$title = $tourPage->hasField('tour_title') ? trim((string) $tourPage->getUnformatted('tour_title')) : '';
+		if ($title === '') $title = trim((string) $tourPage->title);
+		$price = $tourPage->hasField('tour_price') ? $normalizeTourPrice((string) $tourPage->getUnformatted('tour_price')) : '';
 		if ($title === '' && $price === '' && $imageUrl === '') continue;
 
 		$adventureCards[] = [
@@ -406,7 +432,7 @@ if (!count($adventureCards) && $homePage && $homePage->id && $homePage->hasField
 		}
 
 		$title = $card->hasField('hot_tour_title') ? trim((string) $card->hot_tour_title) : '';
-		$price = $card->hasField('hot_tour_price') ? trim((string) $card->hot_tour_price) : '';
+		$price = $card->hasField('hot_tour_price') ? $normalizeTourPrice((string) $card->getUnformatted('hot_tour_price')) : '';
 		if ($title === '' && $price === '' && $imageUrl === '') continue;
 
 		$adventureCards[] = [
