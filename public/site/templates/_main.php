@@ -193,7 +193,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 						</nav>
 							<div class="tour-header-actions">
 								<?php if($isCmsEditor): ?>
-									<a class="icon-btn tour-header-action" href="/content-admin/" aria-label="Контент-центр">
+									<a class="icon-btn tour-header-action" href="<?php echo $sanitizer->entities((string) $config->urls->admin); ?>" aria-label="Админка ProcessWire">
 										<span>CMS</span>
 									</a>
 								<?php endif; ?>

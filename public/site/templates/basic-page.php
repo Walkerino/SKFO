@@ -40,7 +40,9 @@ if ($page->name === 'profile' || $page->path === '/profile/' || $isProfileReques
 	return;
 }
 if ($page->name === 'content-admin' || $page->path === '/content-admin/' || $isContentAdminRequest) {
-	require __DIR__ . '/content-admin.php';
+	$adminUrl = trim((string) $config->urls->admin);
+	if ($adminUrl === '') $adminUrl = '/processwire/';
+	$session->redirect($adminUrl);
 	return;
 }
 ?>
