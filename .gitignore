@@ -22,3 +22,6 @@ public/site/install/
 .vscode/
 _import/
 EOF
+
+# ProcessWire runtime logs
+public/site/assets/logs/*.txt
