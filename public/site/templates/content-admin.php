@@ -409,10 +409,26 @@ $normalizeIncludedItems = static function(array $items) use ($toLower, $normaliz
 	return $normalized;
 };
 
-$toMoneyString = static function(string $raw): string {
-	$digits = preg_replace('/[^\d]+/', '', $raw) ?? '';
-	if($digits === '') return '';
-	$amount = (int) $digits;
+$extractTourPriceAmount = static function(string $raw): int {
+	$raw = trim($raw);
+	if($raw === '') return 0;
+
+	if(stripos($raw, 'ft-table-col-price') !== false) {
+		if(preg_match('/<td[^>]*class\s*=\s*["\'][^"\']*ft-table-col-price[^"\']*["\'][^>]*>(.*?)<\/td>/is', $raw, $matches) === 1) {
+			$priceCellText = trim(strip_tags(html_entity_decode((string) ($matches[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+			$priceCellDigits = preg_replace('/[^\d]+/', '', $priceCellText) ?? '';
+			if($priceCellDigits !== '') return (int) $priceCellDigits;
+		}
+	}
+
+	$visibleText = trim(strip_tags(html_entity_decode($raw, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+	$digits = preg_replace('/[^\d]+/', '', $visibleText) ?? '';
+	if($digits === '') return 0;
+	return (int) $digits;
+};
+
+$toMoneyString = static function(string $raw) use ($extractTourPriceAmount): string {
+	$amount = $extractTourPriceAmount($raw);
 	if($amount <= 0) return '';
 	return number_format($amount, 0, '', ' ') . ' ₽';
 };
@@ -570,6 +586,10 @@ if($input->requestMethod() === 'POST') {
 		}
 
 		$title = trim((string) $input->post('title'));
+		if($entityType === 'tours') {
+			$tourTitleInput = trim((string) $input->post('tour_title'));
+			if($tourTitleInput !== '') $title = $tourTitleInput;
+		}
 		if($title === '') {
 			$title = 'Новая запись';
 		}
@@ -621,6 +641,7 @@ if($input->requestMethod() === 'POST') {
 			if($entityPage->hasField('tour_season')) $entityPage->tour_season = implode(', ', $tourSeasonLabels);
 			if($entityPage->hasField('tour_age')) $entityPage->tour_age = in_array($tourAge, $tourAgeOptions, true) ? $tourAge : '';
 			if($entityPage->hasField('tour_price')) $entityPage->tour_price = $tourPrice;
+			if($entityPage->hasField('tour_title')) $entityPage->tour_title = $title;
 			if($entityPage->hasField('tour_difficulty')) {
 				$entityPage->tour_difficulty = $tourDifficultyUiMap[$tourDifficultyInput] ?? '';
 			}
@@ -629,18 +650,11 @@ if($input->requestMethod() === 'POST') {
 				$entityPage->set('tour_difficulty_level', $optionId > 0 ? $optionId : null);
 			}
 
-			$selectedIncludeCodes = array_values(array_unique(array_map('strval', (array) ($_POST['tour_included_selected'] ?? []))));
-			foreach($selectedIncludeCodes as $code) {
-				if(isset($tourIncludedLibrary[$code])) {
-					$tourIncludedItemsToPersist[] = $tourIncludedLibrary[$code];
-				}
-			}
 			$rawTourIncludedCustom = $_POST['tour_included_custom'] ?? '';
 			if(is_array($rawTourIncludedCustom)) {
 				$rawTourIncludedCustom = implode("\n", array_map('strval', $rawTourIncludedCustom));
 			}
-			$tourIncludedItemsToPersist = array_merge($tourIncludedItemsToPersist, $normalizeLines((string) $rawTourIncludedCustom));
-			$tourIncludedItemsToPersist = $normalizeIncludedItems($tourIncludedItemsToPersist);
+			$tourIncludedItemsToPersist = $normalizeIncludedItems($normalizeLines((string) $rawTourIncludedCustom));
 			if($entityPage->hasField('tour_included')) {
 				$entityPage->tour_included = implode("\n", $tourIncludedItemsToPersist);
 			}
@@ -1032,7 +1046,7 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 					$hotelGalleryFieldName = '';
 					$hotelGalleryImageUrls = [];
 					$hotelGalleryImagesCount = 0;
-					$tourSelectedIncludeCodes = [];
+					$tourTitleValue = '';
 					$tourIncludedCustomText = '';
 					$hotelSelectedAmenityCodes = ['wifi', 'parking', 'breakfast'];
 					$hotelAmenitiesCustomText = '';
@@ -1047,18 +1061,13 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 						$currentImageUrl = $getImageUrlFromValue($currentEntity->getUnformatted((string) $currentConfig['image_field']));
 
 						if($activeTab === 'tours') {
-								$currentIncluded = $collectTourIncludedFromPage($currentEntity);
-								$customIncluded = [];
-								foreach($currentIncluded as $line) {
-									$key = $toIncludedItemKey($line);
-									if(isset($tourIncludedCodeByLabel[$key])) {
-										$tourSelectedIncludeCodes[] = $tourIncludedCodeByLabel[$key];
-									} else {
-									$customIncluded[] = $line;
-								}
+							$tourTitleValue = trim((string) $currentEntity->title);
+							if($currentEntity->hasField('tour_title')) {
+								$storedTourTitle = trim((string) $currentEntity->getUnformatted('tour_title'));
+								if($storedTourTitle !== '') $tourTitleValue = $storedTourTitle;
 							}
-							$tourSelectedIncludeCodes = array_values(array_unique($tourSelectedIncludeCodes));
-							$tourIncludedCustomText = implode("\n", $customIncluded);
+							$currentIncluded = $collectTourIncludedFromPage($currentEntity);
+							$tourIncludedCustomText = implode("\n", $currentIncluded);
 
 							if($currentEntity->hasField('tour_season')) {
 								$tourSelectedSeasonMonths = $extractSeasonMonthSelection((string) $currentEntity->getUnformatted('tour_season'));
@@ -1093,8 +1102,7 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 								$tourGroupSizeValue = $groupDigits;
 							}
 							if($currentEntity->hasField('tour_price')) {
-								$priceDigits = preg_replace('/[^\d]+/', '', (string) $currentEntity->getUnformatted('tour_price')) ?? '';
-								$tourPricePerPersonValue = $priceDigits;
+								$tourPricePerPersonValue = (string) $extractTourPriceAmount((string) $currentEntity->getUnformatted('tour_price'));
 							}
 
 							if($currentEntity->hasField('tour_days')) {
@@ -1199,15 +1207,23 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 						</div>
 
 						<form class="content-admin-form" method="post" enctype="multipart/form-data">
+								<?php if($activeTab === 'tours'): ?>
+									<label class="content-admin-field">
+										<span>Заголовок тура</span>
+										<input type="text" name="tour_title" value="<?php echo $sanitizer->entities($tourTitleValue !== '' ? $tourTitleValue : ($currentEntity ? (string) $currentEntity->title : '')); ?>" required />
+									</label>
+									<input type="hidden" name="title" value="<?php echo $sanitizer->entities($tourTitleValue !== '' ? $tourTitleValue : ($currentEntity ? (string) $currentEntity->title : '')); ?>" />
+								<?php else: ?>
+									<label class="content-admin-field">
+										<span>Название</span>
+										<input type="text" name="title" value="<?php echo $sanitizer->entities($currentEntity ? (string) $currentEntity->title : ''); ?>" required />
+									</label>
+								<?php endif; ?>
+
 							<input type="hidden" name="action" value="save_entity" />
 							<input type="hidden" name="entity_type" value="<?php echo $sanitizer->entities($activeTab); ?>" />
 							<input type="hidden" name="entity_id" value="<?php echo $currentEntity && $currentEntity->id ? (int) $currentEntity->id : 0; ?>" />
 							<input type="hidden" name="<?php echo $sanitizer->entities($session->CSRF->getTokenName()); ?>" value="<?php echo $sanitizer->entities($session->CSRF->getTokenValue()); ?>" />
-
-								<label class="content-admin-field">
-									<span>Название</span>
-									<input type="text" name="title" value="<?php echo $sanitizer->entities($currentEntity ? (string) $currentEntity->title : ''); ?>" required />
-								</label>
 
 								<?php if($activeTab === 'tours'): ?>
 									<label class="content-admin-field">
@@ -1232,17 +1248,9 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 
 									<div class="content-admin-subsection">
 										<h3>Что включено</h3>
-										<div class="content-admin-check-grid">
-											<?php foreach($tourIncludedLibrary as $includeCode => $includeLabel): ?>
-												<label class="content-admin-check-card">
-													<input type="checkbox" name="tour_included_selected[]" value="<?php echo $sanitizer->entities($includeCode); ?>"<?php echo in_array($includeCode, $tourSelectedIncludeCodes, true) ? ' checked' : ''; ?> />
-													<span><?php echo $sanitizer->entities($includeLabel); ?></span>
-												</label>
-											<?php endforeach; ?>
-										</div>
 										<label class="content-admin-field">
-											<span>Дополнительные пункты (по строкам)</span>
-											<textarea name="tour_included_custom" rows="4"><?php echo $sanitizer->entities($tourIncludedCustomText); ?></textarea>
+											<span>Пункты (по строкам)</span>
+											<textarea name="tour_included_custom" rows="6"><?php echo $sanitizer->entities($tourIncludedCustomText); ?></textarea>
 										</label>
 									</div>
 
@@ -1297,38 +1305,6 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 										</div>
 									</div>
 
-									<div class="content-admin-subsection">
-										<div class="content-admin-subhead">
-											<h3>По дням</h3>
-											<button class="content-admin-btn" type="button" data-tour-day-add>Добавить день</button>
-										</div>
-										<div class="tour-day-editor" data-tour-day-list>
-											<?php foreach($tourDayRows as $dayIndex => $tourDayRow): ?>
-												<div class="tour-day-row" data-tour-day-row>
-													<div class="tour-day-row-head">
-														<strong class="tour-day-row-label">День <?php echo (int) $dayIndex + 1; ?></strong>
-														<button class="content-item-btn is-danger" type="button" data-tour-day-remove>Удалить</button>
-													</div>
-													<input type="hidden" name="tour_days[<?php echo (int) $dayIndex; ?>][id]" value="<?php echo (int) ($tourDayRow['id'] ?? 0); ?>" data-tour-day-field="id" />
-													<label class="content-admin-field">
-														<span>Заголовок</span>
-														<input type="text" name="tour_days[<?php echo (int) $dayIndex; ?>][title]" value="<?php echo $sanitizer->entities((string) ($tourDayRow['title'] ?? '')); ?>" data-tour-day-field="title" />
-													</label>
-													<label class="content-admin-field">
-														<span>Описание</span>
-														<textarea name="tour_days[<?php echo (int) $dayIndex; ?>][description]" rows="4" data-tour-day-field="description"><?php echo $sanitizer->entities((string) ($tourDayRow['description'] ?? '')); ?></textarea>
-													</label>
-													<label class="content-admin-field">
-														<span>Изображения дня</span>
-														<input type="file" name="tour_day_images[<?php echo (int) $dayIndex; ?>][]" multiple accept=".jpg,.jpeg,.png,.gif,.webp" data-tour-day-field="images" />
-													</label>
-													<?php if((int) ($tourDayRow['images_count'] ?? 0) > 0): ?>
-														<div class="tour-day-row-note">Сейчас загружено: <?php echo (int) $tourDayRow['images_count']; ?></div>
-													<?php endif; ?>
-												</div>
-											<?php endforeach; ?>
-										</div>
-									</div>
 								<?php endif; ?>
 
 								<?php if($activeTab === 'articles'): ?>
@@ -1418,6 +1394,41 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 									<input type="checkbox" name="clear_image" value="1" />
 									<span>Удалить текущее изображение</span>
 								</label>
+							<?php endif; ?>
+
+							<?php if($activeTab === 'tours'): ?>
+								<div class="content-admin-subsection">
+									<div class="content-admin-subhead">
+										<h3>По дням</h3>
+										<button class="content-admin-btn" type="button" data-tour-day-add>Добавить день</button>
+									</div>
+									<div class="tour-day-editor" data-tour-day-list>
+										<?php foreach($tourDayRows as $dayIndex => $tourDayRow): ?>
+											<div class="tour-day-row" data-tour-day-row>
+												<div class="tour-day-row-head">
+													<strong class="tour-day-row-label">День <?php echo (int) $dayIndex + 1; ?></strong>
+													<button class="content-item-btn is-danger" type="button" data-tour-day-remove>Удалить</button>
+												</div>
+												<input type="hidden" name="tour_days[<?php echo (int) $dayIndex; ?>][id]" value="<?php echo (int) ($tourDayRow['id'] ?? 0); ?>" data-tour-day-field="id" />
+												<label class="content-admin-field">
+													<span>Заголовок</span>
+													<input type="text" name="tour_days[<?php echo (int) $dayIndex; ?>][title]" value="<?php echo $sanitizer->entities((string) ($tourDayRow['title'] ?? '')); ?>" data-tour-day-field="title" />
+												</label>
+												<label class="content-admin-field">
+													<span>Описание</span>
+													<textarea name="tour_days[<?php echo (int) $dayIndex; ?>][description]" rows="4" data-tour-day-field="description"><?php echo $sanitizer->entities((string) ($tourDayRow['description'] ?? '')); ?></textarea>
+												</label>
+												<label class="content-admin-field">
+													<span>Изображения дня</span>
+													<input type="file" name="tour_day_images[<?php echo (int) $dayIndex; ?>][]" multiple accept=".jpg,.jpeg,.png,.gif,.webp" data-tour-day-field="images" />
+												</label>
+												<?php if((int) ($tourDayRow['images_count'] ?? 0) > 0): ?>
+													<div class="tour-day-row-note">Сейчас загружено: <?php echo (int) $tourDayRow['images_count']; ?></div>
+												<?php endif; ?>
+											</div>
+										<?php endforeach; ?>
+									</div>
+								</div>
 							<?php endif; ?>
 
 							<div class="content-admin-form-actions">
