@@ -97,7 +97,7 @@
 
 .content-admin-tabs {
 	display: grid;
-	grid-template-columns: repeat(5, minmax(0, 1fr));
+	grid-template-columns: repeat(6, minmax(0, 1fr));
 	gap: 0.6rem;
 	margin: 1.2rem 0 1.1rem;
 }
@@ -166,6 +166,10 @@
 	padding-right: 0.2rem;
 }
 
+.content-admin-list--reviews {
+	max-height: 76vh;
+}
+
 .content-item-card {
 	border: 1px solid var(--admin-border);
 	border-radius: 12px;
@@ -174,6 +178,79 @@
 	grid-template-columns: minmax(0, 1fr) auto;
 	gap: 0.6rem;
 	background: #fbfdfb;
+}
+
+.review-admin-card {
+	align-items: start;
+}
+
+.review-admin-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 0.7rem;
+}
+
+.review-admin-badges {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+	margin: 0.45rem 0;
+}
+
+.review-admin-badge {
+	display: inline-flex;
+	align-items: center;
+	border-radius: 999px;
+	border: 1px solid var(--admin-border);
+	background: #ffffff;
+	padding: 0.2rem 0.52rem;
+	font-size: 0.72rem;
+	line-height: 1.2;
+	color: #3b4f5b;
+}
+
+.review-admin-badge.is-warning {
+	border-color: #f2cd9f;
+	background: #fff7ec;
+	color: #8d5a17;
+}
+
+.review-admin-badge.is-flag {
+	border-color: #f0cccc;
+	background: #fff5f5;
+	color: #9f3f3f;
+}
+
+.review-admin-badge.is-status-approved {
+	border-color: #b8ebcd;
+	background: #eaf8f0;
+	color: #0d6a45;
+}
+
+.review-admin-badge.is-status-duplicate {
+	border-color: #f2cd9f;
+	background: #fff7ec;
+	color: #8d5a17;
+}
+
+.review-admin-badge.is-status-blocked {
+	border-color: #efc1c1;
+	background: #fff0f0;
+	color: #9f2f2f;
+}
+
+.review-admin-badge.is-status-hidden {
+	border-color: #d8dfe4;
+	background: #f5f8fa;
+	color: #5d707c;
+}
+
+.review-admin-text {
+	margin: 0 0 0.45rem;
+	font-size: 0.85rem;
+	line-height: 1.45;
+	color: #2a3d48;
 }
 
 .content-item-card.is-active {
@@ -383,6 +460,32 @@
 	flex-wrap: wrap;
 	gap: 0.5rem;
 	margin-top: 0.25rem;
+}
+
+.review-stats-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.55rem;
+	margin-top: 0.8rem;
+}
+
+.review-stats-card {
+	border: 1px solid var(--admin-border);
+	border-radius: 11px;
+	background: #fbfdfb;
+	padding: 0.7rem;
+}
+
+.review-stats-card-value {
+	font-size: 1.35rem;
+	font-weight: 700;
+	line-height: 1;
+}
+
+.review-stats-card-label {
+	margin-top: 0.25rem;
+	font-size: 0.78rem;
+	color: var(--admin-muted);
 }
 
 .content-admin-btn {
@@ -598,7 +701,8 @@
 	.content-admin-check-grid,
 	.content-admin-month-grid,
 	.placement-region-grid,
-	.content-admin-gallery-preview {
+	.content-admin-gallery-preview,
+	.review-stats-grid {
 		grid-template-columns: 1fr;
 	}
 
