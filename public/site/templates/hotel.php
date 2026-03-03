@@ -10,6 +10,167 @@ $normalizeLine = static function(string $value): string {
 	$line = preg_replace('/\s+/u', ' ', $line) ?? $line;
 	return trim($line);
 };
+$extractComboTextParts = static function($value) use ($normalizeLine): array {
+	$parts = [];
+
+	if ($value instanceof ComboValue) {
+		for ($i = 1; $i <= 20; $i++) {
+			$key = 'i' . $i;
+			$subValue = $value->get($key);
+
+			if (is_array($subValue)) {
+				foreach ($subValue as $item) {
+					$line = $normalizeLine((string) $item);
+					if ($line !== '') $parts[] = $line;
+				}
+				continue;
+			}
+
+			$line = $normalizeLine((string) $subValue);
+			if ($line !== '') $parts[] = $line;
+		}
+
+		return $parts;
+	}
+
+	if (is_array($value)) {
+		foreach ($value as $item) {
+			$line = $normalizeLine((string) $item);
+			if ($line !== '') $parts[] = $line;
+		}
+		return $parts;
+	}
+
+	if (is_scalar($value)) {
+		$text = (string) $value;
+		$lines = preg_split('/\R+/u', $text) ?: [];
+		foreach ($lines as $line) {
+			$normalized = $normalizeLine((string) $line);
+			if ($normalized !== '') $parts[] = $normalized;
+		}
+	}
+
+	return $parts;
+};
+$extractAmenityItems = static function($value) use ($normalizeLine): array {
+	$items = [];
+	$push = static function(string $line) use (&$items, $normalizeLine): void {
+		$line = $normalizeLine($line);
+		if ($line === '') return;
+		$items[] = $line;
+	};
+	$walk = null;
+	$walk = static function($input) use (&$walk, $push): void {
+		if ($input instanceof ComboValue) {
+			for ($i = 1; $i <= 20; $i++) {
+				$walk($input->get('i' . $i));
+			}
+			return;
+		}
+		if (is_array($input)) {
+			foreach ($input as $entry) $walk($entry);
+			return;
+		}
+		if (!is_scalar($input)) return;
+
+		$text = trim((string) $input);
+		if ($text === '') return;
+
+		$decoded = null;
+		if (($text[0] ?? '') === '{' || ($text[0] ?? '') === '[') {
+			$decoded = json_decode($text, true);
+		}
+		if (is_array($decoded)) {
+			$walk($decoded);
+			return;
+		}
+
+		$lines = preg_split('/\R+/u', $text) ?: [];
+		foreach ($lines as $line) $push((string) $line);
+	};
+	$walk($value);
+	return array_values(array_unique($items));
+};
+$extractComboGroups = static function($value) use ($normalizeLine): array {
+	$groups = [];
+	$push = static function(string $groupKey, string $line) use (&$groups, $normalizeLine): void {
+		$groupKey = trim($groupKey);
+		if ($groupKey === '') $groupKey = 'other';
+		$line = $normalizeLine($line);
+		if ($line === '') return;
+		if (!isset($groups[$groupKey])) $groups[$groupKey] = [];
+		$groups[$groupKey][] = $line;
+	};
+	$walk = null;
+	$walk = static function(string $groupKey, $input) use (&$walk, $push): void {
+		if ($input instanceof ComboValue) {
+			for ($i = 1; $i <= 20; $i++) {
+				$walk('i' . $i, $input->get('i' . $i));
+			}
+			return;
+		}
+		if (is_array($input)) {
+			$isAssoc = array_keys($input) !== range(0, count($input) - 1);
+			if ($isAssoc) {
+				foreach ($input as $key => $entry) {
+					$resolvedKey = is_string($key) && preg_match('/^i\d+$/', $key) ? $key : $groupKey;
+					$walk($resolvedKey, $entry);
+				}
+				return;
+			}
+			foreach ($input as $entry) $walk($groupKey, $entry);
+			return;
+		}
+		if (!is_scalar($input)) return;
+
+		$text = trim((string) $input);
+		if ($text === '') return;
+
+		$decoded = null;
+		if (($text[0] ?? '') === '{' || ($text[0] ?? '') === '[') {
+			$decoded = json_decode($text, true);
+		}
+		if (is_array($decoded)) {
+			$walk($groupKey, $decoded);
+			return;
+		}
+
+		$lines = preg_split('/\R+/u', $text) ?: [];
+		foreach ($lines as $line) $push($groupKey, (string) $line);
+	};
+	$walk('other', $value);
+
+	foreach ($groups as $groupKey => $items) {
+		$groups[$groupKey] = array_values(array_unique($items));
+	}
+	return $groups;
+};
+$getComboItem = static function($value, string $itemKey) {
+	if ($itemKey === '') return null;
+	if ($value instanceof ComboValue) return $value->get($itemKey);
+	if (is_array($value)) return $value[$itemKey] ?? null;
+	if (is_scalar($value)) {
+		$text = trim((string) $value);
+		if ($text === '') return null;
+		$decoded = json_decode($text, true);
+		if (is_array($decoded)) return $decoded[$itemKey] ?? null;
+	}
+	return null;
+};
+$parseOptionMap = static function(string $rawOptions) use ($normalizeLine): array {
+	$map = [];
+	$lines = preg_split('/\R+/u', $rawOptions) ?: [];
+	foreach ($lines as $line) {
+		$line = trim((string) $line);
+		if ($line === '' || strpos($line, '=') === false) continue;
+		[$key, $label] = explode('=', $line, 2);
+		$key = trim($key);
+		$label = $normalizeLine((string) $label);
+		if ($key === '' || $label === '') continue;
+		$map[$key] = $label;
+	}
+	return $map;
+};
 
 $formatRating = static function(float $value): string {
 	$value = max(0.0, min(5.0, $value));
@@ -39,6 +200,28 @@ $getImageUrlFromValue = static function($imageValue): string {
 	if ($imageValue instanceof Pageimages && $imageValue->count()) return $imageValue->first()->url;
 	return '';
 };
+$sanitizeHeadingText = static function(string $value): string {
+	$value = trim(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+	$value = str_replace(['&quot;', '"', '«', '»'], '', $value);
+	$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+	return trim($value);
+};
+$getComboFieldConfig = static function(string $fieldName) use ($fields): array {
+	if (!isset($fields) || !($fields instanceof Fields)) return [];
+	$field = $fields->get($fieldName);
+	if (!$field || !$field->id) return [];
+	$data = $field->get('data');
+	if (is_array($data)) return $data;
+	if (is_string($data)) {
+		$decoded = json_decode($data, true);
+		return is_array($decoded) ? $decoded : [];
+	}
+	if (is_object($data) && method_exists($data, 'getArray')) {
+		$decoded = $data->getArray();
+		return is_array($decoded) ? $decoded : [];
+	}
+	return [];
+};
 
 $amenityMap = [
 	'wifi' => ['title' => 'Бесплатный Wi-Fi', 'icon' => 'hotel-amenity-wifi.svg'],
@@ -57,6 +240,109 @@ $amenityMap = [
 	'pool' => ['title' => 'Бассейн', 'icon' => 'hotel-amenity-pool.svg'],
 	'restaurant' => ['title' => 'Ресторан'],
 	'pets' => ['title' => 'Можно с питомцами'],
+];
+$amenityCodeByLabel = [];
+foreach ($amenityMap as $amenityCode => $amenityConfig) {
+	$title = trim((string) ($amenityConfig['title'] ?? ''));
+	if ($title === '') continue;
+	$amenityCodeByLabel[$toLower($title)] = $amenityCode;
+}
+$mapAmenityItemToCode = static function(string $item) use ($amenityMap, $amenityCodeByLabel, $toLower): string {
+	$key = $toLower($item);
+	if ($key === '') return '';
+	if (isset($amenityMap[$key])) return $key;
+	if (isset($amenityCodeByLabel[$key])) return (string) $amenityCodeByLabel[$key];
+
+	if (strpos($key, 'wi-fi') !== false || strpos($key, 'wifi') !== false || strpos($key, 'интернет') !== false) return 'wifi';
+	if (strpos($key, 'парков') !== false) return 'parking';
+	if (strpos($key, 'лифт') !== false) return 'elevator';
+	if (strpos($key, 'звукоизол') !== false || strpos($key, 'тишин') !== false) return 'soundproof_rooms';
+	if (strpos($key, 'кондицион') !== false) return 'air_conditioning';
+	if (strpos($key, 'дет') !== false || strpos($key, 'семейн') !== false) return 'kids';
+	if (strpos($key, 'телевиз') !== false || strpos($key, 'tv') !== false || strpos($key, 'кабельн') !== false) return 'tv';
+	if (strpos($key, 'spa') !== false || strpos($key, 'спа') !== false) return 'spa';
+	if (strpos($key, 'мини-бар') !== false || strpos($key, 'мини бар') !== false) return 'minibar';
+	if (strpos($key, 'завтрак') !== false || strpos($key, 'питани') !== false || strpos($key, 'шведск') !== false) return 'breakfast';
+	if (strpos($key, 'трансфер') !== false || strpos($key, 'аэропорт') !== false) return 'transfer';
+	if (strpos($key, 'доступ') !== false || strpos($key, 'ограниченн') !== false || strpos($key, 'инвалид') !== false) return 'accessible';
+	if (strpos($key, 'фитнес') !== false || strpos($key, 'тренаж') !== false || strpos($key, 'спортзал') !== false) return 'gym';
+	if (strpos($key, 'бассейн') !== false) return 'pool';
+	if (strpos($key, 'ресторан') !== false || strpos($key, 'кафе') !== false || strpos($key, 'бар') !== false) return 'restaurant';
+	if (strpos($key, 'питом') !== false || strpos($key, 'животн') !== false) return 'pets';
+
+	return '';
+};
+$amenityGroupLabels = [
+	'i2' => 'Основные особенности',
+	'i3' => 'Основное',
+	'i4' => 'Номера',
+	'i5' => 'Доступность',
+	'i6' => 'Питание',
+	'i7' => 'Интернет',
+	'i8' => 'Трансфер',
+	'i9' => 'Языки общения',
+	'i10' => 'Развлечения / Досуг',
+	'i11' => 'Парковка',
+	'i12' => 'Туристические услуги',
+	'i13' => 'Бизнес',
+	'i14' => 'Спорт',
+	'i15' => 'Красота и здоровье',
+	'i16' => 'Дети',
+	'i17' => 'Меры здравоохранения и безопасности',
+	'other' => 'Прочее',
+];
+$amenityGroupOrder = ['i2', 'i3', 'i4', 'i5', 'i6', 'i7', 'i8', 'i9', 'i10', 'i11', 'i12', 'i13', 'i14', 'i15', 'i16', 'i17', 'other'];
+$amenityGroupByCode = [
+	'wifi' => 'i7',
+	'parking' => 'i11',
+	'elevator' => 'i3',
+	'soundproof_rooms' => 'i4',
+	'air_conditioning' => 'i3',
+	'kids' => 'i16',
+	'tv' => 'i4',
+	'spa' => 'i15',
+	'minibar' => 'i4',
+	'breakfast' => 'i6',
+	'transfer' => 'i8',
+	'accessible' => 'i5',
+	'gym' => 'i14',
+	'pool' => 'i14',
+	'restaurant' => 'i6',
+	'pets' => 'other',
+];
+$amenitiesFieldConfig = $getComboFieldConfig('hotel_amenities');
+foreach ($amenitiesFieldConfig as $configKey => $configValue) {
+	if (!preg_match('/^(i\d+)_label$/', (string) $configKey, $matches)) continue;
+	$groupKey = (string) ($matches[1] ?? '');
+	$groupLabel = $normalizeLine((string) $configValue);
+	if ($groupKey === '' || $groupLabel === '') continue;
+	$amenityGroupLabels[$groupKey] = $groupLabel;
+	if (!in_array($groupKey, $amenityGroupOrder, true)) $amenityGroupOrder[] = $groupKey;
+}
+$hotelConditionsFieldConfig = $getComboFieldConfig('hotel_conditions');
+$conditionParkingOptionMap = $parseOptionMap((string) ($hotelConditionsFieldConfig['i6_options'] ?? ''));
+if (!count($conditionParkingOptionMap)) {
+	$conditionParkingOptionMap = [
+		'free' => 'Бесплатно',
+		'paid' => 'Платно',
+		'valet' => 'Парковка с услугами парковщика',
+	];
+}
+$conditionPetsOptionMap = $parseOptionMap((string) ($hotelConditionsFieldConfig['i7_options'] ?? ''));
+if (!count($conditionPetsOptionMap)) {
+	$conditionPetsOptionMap = [
+		'allowed' => 'Животные разрешены',
+		'disallowed' => 'Животные не разрешены',
+		'any' => 'Любые животные',
+		'cats' => 'Кошки разрешены',
+		'dogs' => 'Собаки разрешены',
+		'dogs_small' => 'Маленькие собаки',
+		'reptile' => 'Рептилии',
+	];
+}
+$countryCodeLabels = [
+	'ru' => 'Россия',
+	'by' => 'Беларусь',
 ];
 
 $defaultHotelImage = $config->urls->templates . 'assets/image1.png';
@@ -79,7 +365,9 @@ $fallbackHotelGalleryAssets = [
 	'site/assets/files/1126/df72bbf9803f91dae6ccae1ffda49c5b7ada217d.png',
 ];
 
-$hotelTitle = trim((string) $page->title);
+$hotelTitleRaw = trim((string) $page->title);
+$hotelTitle = $sanitizeHeadingText($hotelTitleRaw);
+$hotelTitle = $hotelTitle !== '' ? $hotelTitle : $hotelTitleRaw;
 $hotelCity = $page->hasField('hotel_city') ? trim((string) $page->hotel_city) : '';
 $hotelRegion = $page->hasField('hotel_region') ? trim((string) $page->hotel_region) : '';
 $hotelLocation = trim($hotelCity . ', ' . $hotelRegion, ', ');
@@ -96,7 +384,10 @@ $hotelGuestsDefault = min(2, $hotelMaxGuests);
 $hotelGuestsLabel = $formatGuestLabel($hotelGuestsDefault);
 
 $hotelDescription = '';
-if ($page->hasField('hotel_description')) $hotelDescription = trim((string) $page->hotel_description);
+if ($page->hasField('hotel_description')) {
+	$descriptionParts = $extractComboTextParts($page->getUnformatted('hotel_description'));
+	if (count($descriptionParts)) $hotelDescription = implode("\n\n", $descriptionParts);
+}
 if ($hotelDescription === '' && $page->hasField('summary')) $hotelDescription = trim((string) $page->summary);
 if ($hotelDescription === '' && $page->hasField('body')) $hotelDescription = trim((string) $page->body);
 
@@ -115,54 +406,265 @@ if ($hotelDescription === '') {
 	$hotelDescription = "Комфортный отель для отдыха и поездок по региону.\nУдобное расположение, сервис и продуманная инфраструктура для гостей.";
 }
 
-$hotelAmenities = [];
-$hotelAmenityKeys = [];
-$addAmenity = static function(string $title, string $iconFile = '', string $iconText = '') use (&$hotelAmenities, &$hotelAmenityKeys, $toLower, $config): void {
-	$title = trim($title);
-	if ($title === '') return;
-	$key = $toLower($title);
-	if (isset($hotelAmenityKeys[$key])) return;
-	$hotelAmenityKeys[$key] = true;
-	$iconText = trim($iconText);
-	$hotelAmenities[] = [
-		'title' => $title,
-		'icon_url' => $iconFile !== '' ? $config->urls->templates . 'assets/icons/' . ltrim($iconFile, '/') : '',
-		'icon_text' => $iconText,
-	];
+$normalizeRichTextToPlain = static function($value) use ($extractAmenityItems): string {
+	if (is_array($value)) $value = implode("\n", $extractAmenityItems($value));
+	$text = trim((string) $value);
+	if ($text === '') return '';
+	$textLower = function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
+	if ($textLower === 'combovalueformatted' || $textLower === 'combovalue') return '';
+
+	$text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+	$text = str_replace("\xc2\xa0", ' ', $text);
+	$text = str_replace(["\\r\\n", "\\n", "\\r"], "\n", $text);
+	$text = preg_replace('/<\s*br\s*\/?\s*>/iu', "\n", $text) ?? $text;
+	$text = preg_replace('/<\s*\/p\s*>/iu', "\n\n", $text) ?? $text;
+	$text = strip_tags($text);
+	$text = preg_replace('/[ \t]+/u', ' ', $text) ?? $text;
+	$text = preg_replace("/\n{3,}/u", "\n\n", $text) ?? $text;
+	return trim($text);
 };
-
-if ($page->hasField('hotel_amenities')) {
-	$amenitiesRaw = trim((string) $page->hotel_amenities);
-	$lines = preg_split('/\R+/u', $amenitiesRaw) ?: [];
-	foreach ($lines as $line) {
-		$item = $normalizeLine((string) $line);
-		if ($item === '') continue;
-
-		$amenityCode = $toLower($item);
-		if (isset($amenityMap[$amenityCode])) {
-			$amenityConfig = $amenityMap[$amenityCode];
-			$addAmenity(
-				(string) ($amenityConfig['title'] ?? ''),
-				(string) ($amenityConfig['icon'] ?? ''),
-				(string) ($amenityConfig['short'] ?? '')
-			);
-			continue;
+$hotelDescriptionRawFromDb = '';
+$hotelContentRawFromDb = '';
+if (isset($database) && $database instanceof WireDatabasePDO) {
+	try {
+		$stmtDescription = $database->prepare("SELECT data FROM field_hotel_description WHERE pages_id = :page_id LIMIT 1");
+		if ($stmtDescription) {
+			$stmtDescription->bindValue(':page_id', (int) $page->id, \PDO::PARAM_INT);
+			$stmtDescription->execute();
+			$hotelDescriptionRawFromDb = trim((string) $stmtDescription->fetchColumn());
 		}
-
-		$addAmenity($item);
+		$stmtContent = $database->prepare("SELECT data FROM field_content WHERE pages_id = :page_id LIMIT 1");
+		if ($stmtContent) {
+			$stmtContent->bindValue(':page_id', (int) $page->id, \PDO::PARAM_INT);
+			$stmtContent->execute();
+			$hotelContentRawFromDb = trim((string) $stmtContent->fetchColumn());
+		}
+	} catch (\Throwable $e) {
+		// Ignore DB fallback errors; block is optional.
+	}
+}
+$hotelAboutSections = [];
+if ($page->hasField('hotel_description')) {
+	$hotelDescriptionRaw = $page->getUnformatted('hotel_description');
+	$locationText = $normalizeRichTextToPlain($getComboItem($hotelDescriptionRaw, 'i1'));
+	if ($locationText === '' && $hotelDescriptionRawFromDb !== '') {
+		$descriptionDecoded = json_decode($hotelDescriptionRawFromDb, true);
+		if (is_array($descriptionDecoded)) {
+			$locationText = $normalizeRichTextToPlain((string) ($descriptionDecoded['i1'] ?? ''));
+		}
+	}
+	if ($locationText !== '') {
+		$hotelAboutSections[] = [
+			'title' => 'Расположение',
+			'text' => $locationText,
+		];
 	}
 }
 
-if (!count($hotelAmenities)) {
+if ($page->hasField('content')) {
+	$contentText = $normalizeRichTextToPlain($page->getUnformatted('content'));
+	if ($contentText === '' && $hotelContentRawFromDb !== '') {
+		$contentText = $normalizeRichTextToPlain($hotelContentRawFromDb);
+	}
+	if ($contentText !== '') {
+		$hotelAboutSections[] = [
+			'title' => 'Описание',
+			'text' => $contentText,
+		];
+	}
+}
+
+$hotelAddressLabel = '';
+if ($page->hasField('address')) {
+	$hotelAddressRaw = $page->getUnformatted('address');
+	$addressStreet = $normalizeLine((string) $getComboItem($hotelAddressRaw, 'i1'));
+	$addressStreet2 = $normalizeLine((string) $getComboItem($hotelAddressRaw, 'i6'));
+	$addressCity = $normalizeLine((string) $getComboItem($hotelAddressRaw, 'i2'));
+	$addressPostcode = $normalizeLine((string) $getComboItem($hotelAddressRaw, 'i5'));
+
+	$addressRegion = '';
+	$addressRegionRaw = $getComboItem($hotelAddressRaw, 'i3');
+	if ($addressRegionRaw instanceof Page) {
+		$addressRegion = $normalizeLine((string) $addressRegionRaw->title);
+	} elseif (is_numeric((string) $addressRegionRaw) && (int) $addressRegionRaw > 0) {
+		$regionPage = $pages->get((int) $addressRegionRaw);
+		if ($regionPage && $regionPage->id) $addressRegion = $normalizeLine((string) $regionPage->title);
+	} else {
+		$addressRegion = $normalizeLine((string) $addressRegionRaw);
+	}
+
+	$countryCode = $toLower((string) $getComboItem($hotelAddressRaw, 'i4'));
+	$countryLabel = $countryCodeLabels[$countryCode] ?? $normalizeLine((string) $countryCode);
+
+	$streetLine = trim(implode(', ', array_filter([$addressStreet, $addressStreet2], static fn(string $item): bool => $item !== '')));
+	$geoLine = trim(implode(', ', array_filter([
+		$addressCity !== '' ? $addressCity : $hotelCity,
+		$addressRegion !== '' ? $addressRegion : $hotelRegion,
+		$addressPostcode,
+		$countryLabel,
+	], static fn(string $item): bool => $item !== '')));
+
+	$hotelAddressLabel = trim(implode(', ', array_filter([$streetLine, $geoLine], static fn(string $item): bool => $item !== '')));
+}
+if ($hotelAddressLabel === '') $hotelAddressLabel = $hotelLocation;
+
+$getFirstLine = static function($value) use ($extractAmenityItems): string {
+	$items = $extractAmenityItems($value);
+	if (!count($items)) return '';
+	return trim((string) $items[0]);
+};
+$hotelRules = [];
+$hotelConditionsRaw = $page->hasField('hotel_conditions') ? $page->getUnformatted('hotel_conditions') : null;
+if ($hotelConditionsRaw !== null) {
+	$checkIn = $getFirstLine($getComboItem($hotelConditionsRaw, 'i2'));
+	if ($checkIn !== '') {
+		$checkIn = preg_replace('/^\s*регистрация\s+заезда\s*:?\s*/iu', '', $checkIn) ?? $checkIn;
+		$hotelRules[] = 'Регистрация заезда: ' . $checkIn;
+	}
+
+	$checkOut = $getFirstLine($getComboItem($hotelConditionsRaw, 'i3'));
+	if ($checkOut !== '') {
+		$checkOut = preg_replace('/^\s*регистрация\s+выезда\s*:?\s*/iu', '', $checkOut) ?? $checkOut;
+		$hotelRules[] = 'Регистрация выезда: ' . $checkOut;
+	}
+
+	$earlyCheck = $getFirstLine($getComboItem($hotelConditionsRaw, 'i4'));
+	if ($earlyCheck !== '') $hotelRules[] = 'Ранний заезд / поздний выезд: ' . $earlyCheck;
+
+	$additionalBed = $getFirstLine($getComboItem($hotelConditionsRaw, 'i5'));
+	if ($additionalBed !== '') $hotelRules[] = 'Дополнительная кровать: ' . $additionalBed;
+
+	$parkingRaw = $getFirstLine($getComboItem($hotelConditionsRaw, 'i6'));
+	if ($parkingRaw !== '') {
+		$parkingLabel = $conditionParkingOptionMap[$parkingRaw] ?? $parkingRaw;
+		$hotelRules[] = 'Парковка: ' . $parkingLabel;
+	}
+
+	$petsRawItems = $extractAmenityItems($getComboItem($hotelConditionsRaw, 'i7'));
+	if (count($petsRawItems)) {
+		$petsLabels = [];
+		foreach ($petsRawItems as $petsRawItem) {
+			$petsKey = trim((string) $petsRawItem);
+			if ($petsKey === '') continue;
+			$petsLabels[] = $conditionPetsOptionMap[$petsKey] ?? $petsKey;
+		}
+		if (count($petsLabels)) {
+			$hotelRules[] = 'Проживание с животными: ' . implode(', ', array_values(array_unique($petsLabels)));
+		}
+	}
+
+	$petsFee = $getFirstLine($getComboItem($hotelConditionsRaw, 'i8'));
+	if ($petsFee !== '') $hotelRules[] = 'Плата за животных: ' . $petsFee;
+
+	$parkingFee = $getFirstLine($getComboItem($hotelConditionsRaw, 'i9'));
+	if ($parkingFee !== '') $hotelRules[] = 'Плата за парковку: ' . $parkingFee;
+
+	$deposit = $getFirstLine($getComboItem($hotelConditionsRaw, 'i10'));
+	if ($deposit !== '') $hotelRules[] = 'Депозит: ' . $deposit;
+}
+if (!count($hotelRules)) $hotelRules[] = 'Уточняются при бронировании.';
+
+$hotelAmenitiesRawFromDb = '';
+if (isset($database) && $database instanceof WireDatabasePDO) {
+	try {
+		$stmt = $database->prepare("SELECT data FROM field_hotel_amenities WHERE pages_id = :page_id LIMIT 1");
+		if ($stmt) {
+			$stmt->bindValue(':page_id', (int) $page->id, \PDO::PARAM_INT);
+			$stmt->execute();
+			$rawData = trim((string) $stmt->fetchColumn());
+			if ($rawData !== '') $hotelAmenitiesRawFromDb = $rawData;
+		}
+	} catch (\Throwable $e) {
+		// Ignore DB fallback errors; page still has safe defaults.
+	}
+}
+
+$hotelAmenitySections = [];
+$hotelAmenitySectionItemKeys = [];
+$addAmenitySectionItem = static function(string $sectionKey, string $sectionTitle, string $itemTitle) use (&$hotelAmenitySections, &$hotelAmenitySectionItemKeys, $toLower): void {
+	$sectionKey = trim($sectionKey);
+	if ($sectionKey === '') $sectionKey = 'other';
+	$sectionTitle = trim($sectionTitle);
+	if ($sectionTitle === '') $sectionTitle = 'Прочее';
+	$itemTitle = trim($itemTitle);
+	if ($itemTitle === '') return;
+	$itemKey = $sectionKey . ':' . $toLower($itemTitle);
+	if (isset($hotelAmenitySectionItemKeys[$itemKey])) return;
+	$hotelAmenitySectionItemKeys[$itemKey] = true;
+	if (!isset($hotelAmenitySections[$sectionKey])) {
+		$hotelAmenitySections[$sectionKey] = [
+			'key' => $sectionKey,
+			'title' => $sectionTitle,
+			'items' => [],
+		];
+	}
+	$hotelAmenitySections[$sectionKey]['items'][] = $itemTitle;
+};
+
+$amenityGroupsRaw = [];
+if ($page->hasField('hotel_amenities')) {
+	$amenityGroupsRaw = $extractComboGroups($page->getUnformatted('hotel_amenities'));
+}
+if (!count($amenityGroupsRaw) && $hotelAmenitiesRawFromDb !== '') {
+	$amenityGroupsRaw = $extractComboGroups($hotelAmenitiesRawFromDb);
+}
+
+$hasDetailedAmenityGroups = false;
+foreach ($amenityGroupsRaw as $amenityGroupKey => $amenityGroupItems) {
+	if ((string) $amenityGroupKey === 'i2') continue;
+	if (!is_array($amenityGroupItems)) continue;
+	if (count($amenityGroupItems)) {
+		$hasDetailedAmenityGroups = true;
+		break;
+	}
+}
+
+if (count($amenityGroupsRaw)) {
+	foreach ($amenityGroupsRaw as $groupKeyRaw => $groupItems) {
+		$groupKey = preg_match('/^i\d+$/', (string) $groupKeyRaw) ? (string) $groupKeyRaw : 'other';
+		if ($groupKey === 'i2' && $hasDetailedAmenityGroups) continue;
+		$groupItems = is_array($groupItems) ? $groupItems : [];
+		foreach ($groupItems as $groupItemRaw) {
+			$groupItem = $normalizeLine(html_entity_decode((string) $groupItemRaw, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+			if ($groupItem === '') continue;
+
+			$displayItem = $groupItem;
+			$detectedCode = $mapAmenityItemToCode($groupItem);
+			$isLikelyCode = preg_match('/^[a-z0-9_]+$/', $groupItem) === 1;
+			if ($isLikelyCode && isset($amenityMap[$groupItem])) {
+				$displayItem = (string) ($amenityMap[$groupItem]['title'] ?? $groupItem);
+			}
+
+			$sectionKey = $groupKey;
+			if ($sectionKey === 'other' || !isset($amenityGroupLabels[$sectionKey])) {
+				if ($detectedCode !== '' && isset($amenityGroupByCode[$detectedCode])) {
+					$sectionKey = (string) $amenityGroupByCode[$detectedCode];
+				}
+			}
+			$sectionTitle = (string) ($amenityGroupLabels[$sectionKey] ?? $amenityGroupLabels['other']);
+			$addAmenitySectionItem($sectionKey, $sectionTitle, $displayItem);
+		}
+	}
+}
+
+if (!count($hotelAmenitySections)) {
 	foreach (['wifi', 'breakfast', 'parking', 'transfer'] as $fallbackAmenityCode) {
 		if (!isset($amenityMap[$fallbackAmenityCode])) continue;
-		$amenityConfig = $amenityMap[$fallbackAmenityCode];
-		$addAmenity(
-			(string) ($amenityConfig['title'] ?? ''),
-			(string) ($amenityConfig['icon'] ?? ''),
-			(string) ($amenityConfig['short'] ?? '')
-		);
+		$sectionKey = (string) ($amenityGroupByCode[$fallbackAmenityCode] ?? 'other');
+		$sectionTitle = (string) ($amenityGroupLabels[$sectionKey] ?? $amenityGroupLabels['other']);
+		$itemTitle = (string) ($amenityMap[$fallbackAmenityCode]['title'] ?? '');
+		$addAmenitySectionItem($sectionKey, $sectionTitle, $itemTitle);
 	}
+}
+
+$orderedAmenitySections = [];
+foreach ($amenityGroupOrder as $orderedGroupKey) {
+	if (!isset($hotelAmenitySections[$orderedGroupKey])) continue;
+	$orderedAmenitySections[] = $hotelAmenitySections[$orderedGroupKey];
+	unset($hotelAmenitySections[$orderedGroupKey]);
+}
+foreach ($hotelAmenitySections as $remainingSection) {
+	$orderedAmenitySections[] = $remainingSection;
 }
 
 $hotelMedia = [];
@@ -236,18 +738,20 @@ if (count($hotelMedia) > 12) $hotelMedia = array_slice($hotelMedia, 0, 12);
 		<div class="container tour-overview-layout">
 			<div class="tour-included-card hotel-amenities-card">
 				<h2 class="tour-section-title">Сервис и удобства</h2>
-				<ul class="tour-included-list hotel-included-list">
-					<?php foreach ($hotelAmenities as $amenity): ?>
-						<li>
-							<?php if ((string) ($amenity['icon_url'] ?? '') !== ''): ?>
-								<img class="hotel-included-icon" src="<?php echo $sanitizer->entities((string) ($amenity['icon_url'] ?? '')); ?>" alt="" aria-hidden="true" />
-							<?php elseif ((string) ($amenity['icon_text'] ?? '') !== ''): ?>
-								<span class="hotel-included-icon-badge"><?php echo $sanitizer->entities((string) ($amenity['icon_text'] ?? '')); ?></span>
-							<?php endif; ?>
-							<span><?php echo $sanitizer->entities((string) ($amenity['title'] ?? '')); ?></span>
-						</li>
+				<div class="hotel-amenity-groups">
+					<?php foreach ($orderedAmenitySections as $amenitySection): ?>
+						<?php $sectionItems = (array) ($amenitySection['items'] ?? []); ?>
+						<?php if (!count($sectionItems)) continue; ?>
+						<section class="hotel-amenity-group">
+							<h3 class="hotel-amenity-group-title"><?php echo $sanitizer->entities((string) ($amenitySection['title'] ?? '')); ?></h3>
+							<ul class="tour-included-list hotel-amenity-group-list">
+								<?php foreach ($sectionItems as $sectionItem): ?>
+									<li><?php echo $sanitizer->entities((string) $sectionItem); ?></li>
+								<?php endforeach; ?>
+							</ul>
+						</section>
 					<?php endforeach; ?>
-				</ul>
+				</div>
 			</div>
 			<div class="tour-details-card hotel-details-card">
 				<h2 class="tour-section-title">Детали Отеля</h2>
@@ -284,6 +788,20 @@ if (count($hotelMedia) > 12) $hotelMedia = array_slice($hotelMedia, 0, 12);
 						<dt>Регион</dt>
 						<dd><?php echo $sanitizer->entities($hotelLocation); ?></dd>
 					</div>
+					<div class="hotel-meta-row hotel-meta-row--address">
+						<dt>Адрес</dt>
+						<dd><?php echo $sanitizer->entities($hotelAddressLabel); ?></dd>
+					</div>
+					<div class="hotel-meta-row hotel-meta-row--rules">
+						<dt>Правила отеля</dt>
+						<dd>
+							<ul class="hotel-meta-list">
+								<?php foreach ($hotelRules as $hotelRule): ?>
+									<li><?php echo $sanitizer->entities((string) $hotelRule); ?></li>
+								<?php endforeach; ?>
+							</ul>
+						</dd>
+					</div>
 				</dl>
 				<div class="tour-details-footer">
 					<div class="tour-price-wrap">
@@ -295,6 +813,24 @@ if (count($hotelMedia) > 12) $hotelMedia = array_slice($hotelMedia, 0, 12);
 			</div>
 		</div>
 	</section>
+
+	<?php if (count($hotelAboutSections)): ?>
+	<section class="hotel-about-section">
+		<div class="container">
+			<div class="hotel-about-card">
+				<h2 class="tour-section-title">Подробнее об отеле</h2>
+				<div class="hotel-about-content">
+					<?php foreach ($hotelAboutSections as $aboutSection): ?>
+						<article class="hotel-about-item">
+							<h3 class="hotel-about-item-title"><?php echo $sanitizer->entities((string) ($aboutSection['title'] ?? '')); ?></h3>
+							<p class="hotel-about-item-text"><?php echo nl2br($sanitizer->entities((string) ($aboutSection['text'] ?? ''))); ?></p>
+						</article>
+					<?php endforeach; ?>
+				</div>
+			</div>
+		</div>
+	</section>
+	<?php endif; ?>
 
 	<section class="hotel-media-section">
 		<div class="container">
