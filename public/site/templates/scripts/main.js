@@ -551,10 +551,12 @@ const initAuthModal = () => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
 
+      const returnTo = `${window.location.pathname || "/"}${window.location.search || ""}${window.location.hash || ""}`;
       const payload = {
         mode,
         email: emailInput.value.trim(),
         code: codeInput.value.trim(),
+        return_to: returnTo,
       };
       if (mode === "register" && nameInput) {
         payload.name = nameInput.value.trim();
@@ -564,7 +566,7 @@ const initAuthModal = () => {
       try {
         const data = await sendRequest("verify_code", payload);
         setMessage(data.message || "Успешный вход.", "success");
-        const redirect = (data.data && data.data.redirect) || "/profile/";
+        const redirect = (data.data && data.data.redirect) || returnTo || "/";
         window.setTimeout(() => {
           window.location.href = redirect;
         }, 250);
