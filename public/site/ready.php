@@ -41,12 +41,47 @@ $wire->addHookAfter('Page::render', function($event) {
 
 /** @var User $user */
 $user = wire('user');
-if(!$user || !$user->isSuperuser()) return;
-
 /** @var Page|null $currentPage */
 $currentPage = wire('page');
 $isAdminRequest = $currentPage && $currentPage->template && $currentPage->template->name === 'admin';
 if(!$isAdminRequest) return;
+
+// Enforce native ProcessWire admin form layout for tours:
+// - title at top (label: "Заголовок тура")
+// - remove legacy "tour_title" and "tour_included_items" inputs
+$wire->addHookAfter('ProcessPageEdit::buildForm', function(HookEvent $event) {
+	$process = $event->object;
+	if(!is_object($process) || !method_exists($process, 'getPage')) return;
+
+	$editedPage = $process->getPage();
+	if(!$editedPage instanceof Page || !$editedPage->template || $editedPage->template->name !== 'tour') return;
+
+	$form = $event->return;
+	if(!$form instanceof InputfieldWrapper) return;
+
+	$removeInputByName = static function(InputfieldWrapper $wrapper, string $name): void {
+		$input = $wrapper->getChildByName($name);
+		if($input instanceof Inputfield && $input->parent instanceof InputfieldWrapper) {
+			$input->parent->remove($input);
+		}
+	};
+
+	$removeInputByName($form, 'tour_included_items');
+	$removeInputByName($form, 'tour_title');
+
+	$titleInput = $form->getChildByName('title');
+	if($titleInput instanceof Inputfield) {
+		$titleInput->label = 'Заголовок тура';
+		if($titleInput->parent instanceof InputfieldWrapper) {
+			$titleInput->parent->remove($titleInput);
+			$form->prepend($titleInput);
+		}
+	}
+
+	$event->return = $form;
+});
+
+if(!$user || !$user->isSuperuser()) return;
 
 /** @var WireInput $input */
 $input = wire('input');
@@ -168,6 +203,7 @@ $regionArticleFreshField = $ensureField('region_article_is_fresh', 'FieldtypeChe
 $regionArticlesCardsField = $ensureField('region_articles_cards', 'FieldtypeRepeater', 'Регион: блок "Интересное о регионе"');
 
 $tourRegionField = $ensureField('tour_region', 'FieldtypeText', 'Регион тура');
+$tourTitleField = $ensureField('tour_title', 'FieldtypeText', 'Заголовок тура');
 $tourDescriptionField = $ensureField('tour_description', 'FieldtypeTextarea', 'Описание тура');
 $tourPriceField = $ensureField('tour_price', 'FieldtypeText', 'Цена тура');
 $tourDurationField = $ensureField('tour_duration', 'FieldtypeText', 'Длительность тура');
@@ -435,9 +471,19 @@ foreach($catalogImageFields as $fieldName => $field) {
 $syncPageReferenceField = static function(?Field $field, string $selector) use ($fields, $log): void {
 	if(!$field || !$field->id) return;
 	$changed = false;
+	$desiredInputfield = 'InputfieldAsmSelect';
+	$currentInputfieldClass = ltrim((string) $field->get('inputfieldClass'), '_');
+	$currentInputfield = ltrim((string) $field->get('inputfield'), '_');
 
-	if((string) $field->get('inputfieldClass') !== 'InputfieldAsmSelect') {
-		$field->set('inputfieldClass', 'InputfieldAsmSelect');
+	if($currentInputfieldClass !== $desiredInputfield) {
+		$field->set('inputfieldClass', $desiredInputfield);
+		$changed = true;
+	}
+
+	// FieldtypePage expects "inputfield" setting; missing value triggers
+	// "This field needs to be configured before it can be used."
+	if($currentInputfield !== $desiredInputfield) {
+		$field->set('inputfield', $desiredInputfield);
 		$changed = true;
 	}
 
@@ -799,6 +845,7 @@ $tourTemplate = $templates->get('tour');
 if($tourTemplate && $tourTemplate->id) {
 	$tourFieldgroup = $tourTemplate->fieldgroup;
 	$tourChanged = false;
+	$tourContextChanged = false;
 	$tourFields = [
 		$tourRegionField,
 		$tourDescriptionField,
@@ -809,7 +856,6 @@ if($tourTemplate && $tourTemplate->id) {
 		$tourDifficultyLevelField,
 		$tourAgeField,
 		$tourIncludedField,
-		$tourIncludedItemsField,
 		$tourCoverImageField,
 		$tourDaysField,
 	];
@@ -822,7 +868,21 @@ if($tourTemplate && $tourTemplate->id) {
 		}
 	}
 
-	$tourFieldsToRemove = ['tour_subtitle', 'tour_transfer', 'tour_difficulty'];
+	$systemTitleFieldForTour = $fields->get('title');
+	if($systemTitleFieldForTour && $systemTitleFieldForTour->id) {
+		if(!$tourFieldgroup->has($systemTitleFieldForTour)) {
+			$tourFieldgroup->add($systemTitleFieldForTour);
+			$tourChanged = true;
+		}
+		if($tourFieldgroup->has($systemTitleFieldForTour)) {
+			// Keep tour title field first in native ProcessWire page edit form.
+			$tourFieldgroup->softRemove($systemTitleFieldForTour);
+			$tourFieldgroup->prepend($systemTitleFieldForTour);
+			$tourChanged = true;
+		}
+	}
+
+	$tourFieldsToRemove = ['tour_subtitle', 'tour_transfer', 'tour_difficulty', 'tour_title', 'tour_included_items'];
 	foreach($tourFieldsToRemove as $fieldName) {
 		$field = $fields->get($fieldName);
 		if($field && $field->id && $tourFieldgroup->has($field)) {
@@ -831,9 +891,29 @@ if($tourTemplate && $tourTemplate->id) {
 		}
 	}
 
+	if($systemTitleFieldForTour && $systemTitleFieldForTour->id && $tourFieldgroup->has($systemTitleFieldForTour)) {
+		$titleContext = $tourFieldgroup->getFieldContextArray((int) $systemTitleFieldForTour->id);
+		if((string) ($titleContext['label'] ?? '') !== 'Заголовок тура') {
+			$titleContext['label'] = 'Заголовок тура';
+			$tourFieldgroup->setFieldContextArray((int) $systemTitleFieldForTour->id, $titleContext);
+			$tourContextChanged = true;
+		}
+	}
+
+	if($tourDaysField && $tourDaysField->id && $tourFieldgroup->has($tourDaysField)) {
+		// Keep "Информация по дням" at the end of tour fields in native ProcessWire edit UI.
+		$tourFieldgroup->softRemove($tourDaysField);
+		$tourFieldgroup->add($tourDaysField);
+		$tourChanged = true;
+	}
+
 	if($tourChanged) {
 		$tourFieldgroup->save();
 		$log->save('actual-cards-setup', "Updated fields on template 'tour'.");
+	}
+	if($tourContextChanged) {
+		$tourFieldgroup->saveContext();
+		$log->save('actual-cards-setup', "Updated field context on template 'tour'.");
 	}
 }
 
@@ -1285,19 +1365,7 @@ if($contentRoot && $contentRoot->id) {
 	$ensureCatalogSection($contentRoot, 'hotels', 'Каталог отелей', $basicPageTemplate);
 }
 
-$contentAdminPage = $pages->get('/content-admin/');
-if((!$contentAdminPage || !$contentAdminPage->id) && $homePage && $homePage->id) {
-	$basicTemplate = $templates->get('basic-page');
-	if($basicTemplate && $basicTemplate->id) {
-		$contentAdminPage = new Page();
-		$contentAdminPage->template = $basicTemplate;
-		$contentAdminPage->parent = $homePage;
-		$contentAdminPage->name = 'content-admin';
-		$contentAdminPage->title = 'Контент-центр';
-		$pages->save($contentAdminPage);
-		$log->save('actual-cards-setup', "Created page '/content-admin/'.");
-	}
-}
+// Deprecated: custom /content-admin/ page is no longer auto-created.
 
 $reviewsTemplate = $templates->get('reviews');
 if(!$reviewsTemplate || !$reviewsTemplate->id) {
