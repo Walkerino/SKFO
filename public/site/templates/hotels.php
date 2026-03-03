@@ -46,46 +46,33 @@ if (!count($regionOptions)) {
 $toLower = static function(string $value): string {
 	return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
 };
-
-$normalizeDateInput = static function(string $value): string {
-	$value = trim($value);
-	if ($value === '') return '';
-
-	if (preg_match('/^\d{1,2}\.\d{1,2}\.\d{4}$/', $value)) {
-		[$day, $month, $year] = array_map('intval', explode('.', $value));
-		if (!checkdate($month, $day, $year)) return '';
-		return sprintf('%04d-%02d-%02d', $year, $month, $day);
-	}
-
-	if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) return '';
-	[$year, $month, $day] = array_map('intval', explode('-', $value));
-	if (!checkdate($month, $day, $year)) return '';
-	return sprintf('%04d-%02d-%02d', $year, $month, $day);
+$normalizeAmenityLine = static function(string $value): string {
+	$line = trim(str_replace("\xc2\xa0", ' ', $value));
+	$line = preg_replace('/\s+/u', ' ', $line) ?? $line;
+	return trim($line);
 };
-
-$formatDateForDisplay = static function(string $value): string {
-	$value = trim($value);
-	if ($value === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) return '';
-	[$year, $month, $day] = array_map('intval', explode('-', $value));
-	if (!checkdate($month, $day, $year)) return '';
-	return sprintf('%02d.%02d.%04d', $day, $month, $year);
+$hotelTypeOptions = [
+	'villa' => 'Вилла',
+	'sanatorium' => 'Санаторий',
+	'hotel' => 'Отель',
+	'apartments' => 'Апартаменты',
+];
+$resolveHotelType = static function(string $title) use ($toLower): string {
+	$value = $toLower($title);
+	if ($value === '') return 'hotel';
+	if (strpos($value, 'вилл') !== false || strpos($value, 'villa') !== false) return 'villa';
+	if (strpos($value, 'санатор') !== false) return 'sanatorium';
+	if (strpos($value, 'апарт') !== false || strpos($value, 'apartment') !== false) return 'apartments';
+	return 'hotel';
 };
 
 $formatPrice = static function(int $value): string {
 	return number_format($value, 0, '', ' ') . '₽';
 };
 
-$formatRating = static function(float $value): string {
-	return str_replace('.', ',', number_format($value, 1, '.', ''));
-};
-
-$formatGuestLabel = static function(int $count): string {
-	$count = max(1, $count);
-	$mod10 = $count % 10;
-	$mod100 = $count % 100;
-	if ($mod10 === 1 && $mod100 !== 11) return $count . ' гость';
-	if ($mod10 >= 2 && $mod10 <= 4 && ($mod100 < 10 || $mod100 >= 20)) return $count . ' гостя';
-	return $count . ' гостей';
+$normalizeRating = static function(float $value): int {
+	if ($value <= 0) return 4;
+	return max(1, min(5, (int) round($value)));
 };
 
 $amenityMap = [
@@ -108,11 +95,95 @@ $amenityMap = [
 	'restaurant' => ['title' => 'Ресторан', 'short' => 'Rest'],
 	'pets' => ['title' => 'Можно с питомцами', 'short' => 'Pet'],
 ];
+$extractAmenityItems = static function($value) use ($normalizeAmenityLine): array {
+	$items = [];
+	$push = static function(string $line) use (&$items, $normalizeAmenityLine): void {
+		$line = $normalizeAmenityLine($line);
+		if ($line === '') return;
+		$items[] = $line;
+	};
+	$walk = null;
+	$walk = static function($input) use (&$walk, $push): void {
+		if ($input instanceof ComboValue) {
+			for ($i = 1; $i <= 20; $i++) {
+				$walk($input->get('i' . $i));
+			}
+			return;
+		}
+		if (is_array($input)) {
+			foreach ($input as $entry) $walk($entry);
+			return;
+		}
+		if (!is_scalar($input)) return;
+
+		$text = trim((string) $input);
+		if ($text === '') return;
+
+		$decoded = null;
+		if (($text[0] ?? '') === '{' || ($text[0] ?? '') === '[') {
+			$decoded = json_decode($text, true);
+		}
+		if (is_array($decoded)) {
+			$walk($decoded);
+			return;
+		}
+
+		$lines = preg_split('/\R+/u', $text) ?: [];
+		foreach ($lines as $line) $push((string) $line);
+	};
+	$walk($value);
+	return array_values(array_unique($items));
+};
+$amenityCodeByLabel = [];
+foreach ($amenityMap as $code => $amenityConfig) {
+	$title = trim((string) ($amenityConfig['title'] ?? ''));
+	if ($title === '') continue;
+	$amenityCodeByLabel[$toLower($title)] = $code;
+}
+$mapAmenityItemToCode = static function(string $item) use ($amenityMap, $amenityCodeByLabel, $toLower): string {
+	$key = $toLower($item);
+	if ($key === '') return '';
+	if (isset($amenityMap[$key])) return $key;
+	if (isset($amenityCodeByLabel[$key])) return (string) $amenityCodeByLabel[$key];
+
+	if (strpos($key, 'wi-fi') !== false || strpos($key, 'wifi') !== false || strpos($key, 'интернет') !== false) return 'wifi';
+	if (strpos($key, 'парков') !== false) return 'parking';
+	if (strpos($key, 'лифт') !== false) return 'elevator';
+	if (strpos($key, 'звукоизол') !== false || strpos($key, 'тишин') !== false) return 'soundproof_rooms';
+	if (strpos($key, 'кондицион') !== false) return 'air_conditioning';
+	if (strpos($key, 'дет') !== false || strpos($key, 'семейн') !== false) return 'kids';
+	if (strpos($key, 'телевиз') !== false || strpos($key, 'tv') !== false || strpos($key, 'кабельн') !== false) return 'tv';
+	if (strpos($key, 'spa') !== false || strpos($key, 'спа') !== false) return 'spa';
+	if (strpos($key, 'мини-бар') !== false || strpos($key, 'мини бар') !== false) return 'minibar';
+	if (strpos($key, 'завтрак') !== false || strpos($key, 'питани') !== false || strpos($key, 'шведск') !== false) return 'breakfast';
+	if (strpos($key, 'трансфер') !== false || strpos($key, 'аэропорт') !== false) return 'transfer';
+	if (strpos($key, 'доступ') !== false || strpos($key, 'ограниченн') !== false || strpos($key, 'инвалид') !== false) return 'accessible';
+	if (strpos($key, 'фитнес') !== false || strpos($key, 'тренаж') !== false || strpos($key, 'спортзал') !== false) return 'gym';
+	if (strpos($key, 'бассейн') !== false) return 'pool';
+	if (strpos($key, 'ресторан') !== false || strpos($key, 'кафе') !== false || strpos($key, 'бар') !== false) return 'restaurant';
+	if (strpos($key, 'питом') !== false || strpos($key, 'животн') !== false) return 'pets';
+
+	return '';
+};
 
 $getImageUrlFromValue = static function($imageValue): string {
 	if ($imageValue instanceof Pageimage) return $imageValue->url;
 	if ($imageValue instanceof Pageimages && $imageValue->count()) return $imageValue->first()->url;
 	return '';
+};
+$getHotelPrimaryImage = static function(Page $hotelPage) use ($getImageUrlFromValue): string {
+	foreach (['hotel_image', 'images', 'hotel_gallery', 'hotel_images'] as $fieldName) {
+		if (!$hotelPage->hasField($fieldName)) continue;
+		$imageUrl = $getImageUrlFromValue($hotelPage->getUnformatted($fieldName));
+		if ($imageUrl !== '') return $imageUrl;
+	}
+	return '';
+};
+$sanitizeHeadingText = static function(string $value): string {
+	$value = trim(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+	$value = str_replace(['&quot;', '"', '«', '»'], '', $value);
+	$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+	return trim($value);
 };
 
 $defaultHotelImage = $config->urls->templates . 'assets/image1.png';
@@ -161,6 +232,22 @@ if (isset($pages) && $pages instanceof Pages) {
 		$defaultHotelDetailsUrl = (string) $defaultHotelDetailsPage->url;
 	}
 }
+$hotelAmenitiesRawByPageId = [];
+if (isset($database) && $database instanceof WireDatabasePDO) {
+	try {
+		$stmt = $database->query("SELECT pages_id, data FROM field_hotel_amenities WHERE data IS NOT NULL AND data <> ''");
+		if ($stmt) {
+			foreach (($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: []) as $row) {
+				$pageId = (int) ($row['pages_id'] ?? 0);
+				$rawData = trim((string) ($row['data'] ?? ''));
+				if ($pageId < 1 || $rawData === '') continue;
+				$hotelAmenitiesRawByPageId[$pageId] = $rawData;
+			}
+		}
+	} catch (\Throwable $e) {
+		// Ignore DB fallback errors; regular field parsing will still work.
+	}
+}
 $hotelsCatalog = [];
 
 if (isset($pages) && $pages instanceof Pages) {
@@ -172,29 +259,39 @@ if (isset($pages) && $pages instanceof Pages) {
 		$priceRaw = $hotelPage->hasField('hotel_price') ? (string) $hotelPage->getUnformatted('hotel_price') : '';
 		$price = (int) preg_replace('/[^\d]+/', '', $priceRaw);
 		$ratingRaw = $hotelPage->hasField('hotel_rating') ? trim((string) $hotelPage->getUnformatted('hotel_rating')) : '';
+		$ratingRaw = str_replace(',', '.', $ratingRaw);
 		$rating = is_numeric($ratingRaw) ? (float) $ratingRaw : 0.0;
 		$maxGuests = $hotelPage->hasField('hotel_max_guests') ? (int) $hotelPage->getUnformatted('hotel_max_guests') : 1;
 		if ($maxGuests < 1) $maxGuests = 1;
+		$region = $hotelPage->hasField('hotel_region') ? trim((string) $hotelPage->hotel_region) : '';
+		if ($region !== '') $addRegionOption($region);
 
 		$amenities = [];
 		if ($hotelPage->hasField('hotel_amenities')) {
-			$amenitiesRaw = trim((string) $hotelPage->hotel_amenities);
-			$amenities = array_values(array_filter(array_map('trim', preg_split('/\R+/u', $amenitiesRaw) ?: []), static function(string $code) use ($amenityMap): bool {
-				return $code !== '' && isset($amenityMap[$code]);
-			}));
+			$amenityItems = $extractAmenityItems($hotelPage->getUnformatted('hotel_amenities'));
+			$pageId = (int) $hotelPage->id;
+			if (!count($amenityItems) && isset($hotelAmenitiesRawByPageId[$pageId])) {
+				$amenityItems = $extractAmenityItems($hotelAmenitiesRawByPageId[$pageId]);
+			}
+			foreach ($amenityItems as $amenityItem) {
+				$code = $mapAmenityItemToCode((string) $amenityItem);
+				if ($code === '' || !isset($amenityMap[$code])) continue;
+				if (!in_array($code, $amenities, true)) $amenities[] = $code;
+			}
 		}
 
-		$image = $hotelPage->hasField('hotel_image') ? $getImageUrlFromValue($hotelPage->getUnformatted('hotel_image')) : '';
+		$image = $getHotelPrimaryImage($hotelPage);
 		if ($image === '') $image = $pickDefaultHotelImage(count($hotelsCatalog));
 
 		$hotelsCatalog[] = [
 			'title' => $title,
 			'city' => $hotelPage->hasField('hotel_city') ? trim((string) $hotelPage->hotel_city) : '',
-			'region' => $hotelPage->hasField('hotel_region') ? trim((string) $hotelPage->hotel_region) : '',
-			'rating' => $rating > 0 ? $rating : 4.0,
+			'region' => $region,
+			'rating' => $normalizeRating($rating),
 			'price' => $price > 0 ? $price : 10000,
 			'max_guests' => $maxGuests,
-			'amenities' => count($amenities) ? $amenities : ['wifi'],
+			'amenities' => $amenities,
+			'type' => $resolveHotelType($title),
 			'image' => $image,
 			'url' => (string) $hotelPage->url,
 		];
@@ -333,6 +430,26 @@ if (!count($hotelsCatalog)) {
 	}
 }
 
+foreach ($hotelsCatalog as $index => $hotel) {
+	$hotelsCatalog[$index]['title'] = trim((string) ($hotel['title'] ?? ''));
+	$hotelsCatalog[$index]['region'] = trim((string) ($hotel['region'] ?? ''));
+	$hotelsCatalog[$index]['type'] = trim((string) ($hotel['type'] ?? ''));
+	if ($hotelsCatalog[$index]['type'] === '' || !isset($hotelTypeOptions[$hotelsCatalog[$index]['type']])) {
+		$hotelsCatalog[$index]['type'] = $resolveHotelType($hotelsCatalog[$index]['title']);
+	}
+
+	$ratingRaw = (float) ($hotel['rating'] ?? 0);
+	$hotelsCatalog[$index]['rating'] = $normalizeRating($ratingRaw);
+	if ($hotelsCatalog[$index]['region'] !== '') $addRegionOption($hotelsCatalog[$index]['region']);
+	if (trim((string) ($hotelsCatalog[$index]['url'] ?? '')) === '') {
+		$hotelsCatalog[$index]['url'] = $defaultHotelDetailsUrl !== '' ? $defaultHotelDetailsUrl : $page->url;
+	}
+}
+
+if (count($regionOptions)) {
+	sort($regionOptions, SORT_NATURAL | SORT_FLAG_CASE);
+}
+
 $featuredHotelOrder = [];
 if ($page->hasField('hotels_featured_refs') && $page->hotels_featured_refs->count()) {
 	$order = 0;
@@ -362,36 +479,33 @@ if (count($featuredHotelOrder)) {
 	});
 }
 
-$searchRegion = trim((string) $input->get('where'));
-$searchCheckIn = $normalizeDateInput((string) $input->get('checkin'));
-$searchCheckOut = $normalizeDateInput((string) $input->get('checkout'));
-$searchCheckInDisplay = $formatDateForDisplay($searchCheckIn);
-$searchCheckOutDisplay = $formatDateForDisplay($searchCheckOut);
-$searchGuests = (int) $input->get('guests');
-if ($searchGuests < 1) $searchGuests = 1;
-$searchGuestsLabel = $formatGuestLabel($searchGuests);
+$filterRegion = trim((string) $input->get('region'));
+$filterHotelType = trim((string) $input->get('hotel_type'));
+$filterStars = (int) $input->get('stars');
+if ($filterStars < 2 || $filterStars > 5) $filterStars = 0;
+if ($filterHotelType !== '' && !isset($hotelTypeOptions[$filterHotelType])) $filterHotelType = '';
+if ($filterRegion !== '' && !in_array($filterRegion, $regionOptions, true)) $filterRegion = '';
 
-$isSearchSubmitted = trim((string) $input->get('search_hotels')) === '1';
-$searchError = '';
-if ($isSearchSubmitted && $searchCheckIn !== '' && $searchCheckOut !== '' && $searchCheckIn > $searchCheckOut) {
-	$searchError = 'Дата выезда должна быть позже даты заезда.';
-}
+$hasActiveFilters = $filterRegion !== '' || $filterHotelType !== '' || $filterStars > 0;
+$isFiltersApplied = trim((string) $input->get('apply_filters')) === '1' || $hasActiveFilters;
 
-$regionFieldClass = $searchRegion !== '' ? ' is-filled' : '';
-$checkInFieldClass = $searchCheckIn !== '' ? ' is-filled' : '';
-$checkOutFieldClass = $searchCheckOut !== '' ? ' is-filled' : '';
-$guestsFieldClass = $isSearchSubmitted ? ' is-filled' : '';
+$regionFieldClass = $filterRegion !== '' ? ' is-filled' : '';
+$typeFieldClass = $filterHotelType !== '' ? ' is-filled' : '';
+$starsFieldClass = $filterStars > 0 ? ' is-filled' : '';
 
-$filteredHotels = [];
-if ($isSearchSubmitted && $searchError === '') {
-	$regionNeedle = $toLower($searchRegion);
-	$filteredHotels = array_values(array_filter($hotelsCatalog, static function(array $hotel) use ($regionNeedle, $toLower, $searchGuests): bool {
-		if ($regionNeedle !== '') {
-			$haystack = $toLower(trim((string) ($hotel['title'] ?? '')) . ' ' . trim((string) ($hotel['city'] ?? '')) . ' ' . trim((string) ($hotel['region'] ?? '')));
-			if (strpos($haystack, $regionNeedle) === false) return false;
-		}
-		$maxGuests = (int) ($hotel['max_guests'] ?? 1);
-		if ($maxGuests < $searchGuests) return false;
+$filteredHotels = $hotelsCatalog;
+if ($isFiltersApplied) {
+	$filteredHotels = array_values(array_filter($hotelsCatalog, static function(array $hotel) use ($filterRegion, $filterHotelType, $filterStars): bool {
+		$hotelRegion = trim((string) ($hotel['region'] ?? ''));
+		if ($filterRegion !== '' && $hotelRegion !== $filterRegion) return false;
+
+		$hotelType = trim((string) ($hotel['type'] ?? ''));
+		if ($filterHotelType !== '' && $hotelType !== $filterHotelType) return false;
+
+		$hotelStars = (int) ($hotel['rating'] ?? 0);
+		$hotelStars = max(1, min(5, $hotelStars));
+		if ($filterStars > 0 && $hotelStars !== $filterStars) return false;
+
 		return true;
 	}));
 }
@@ -402,14 +516,14 @@ $totalHotels = count($filteredHotels);
 $totalPages = $totalHotels > 0 ? (int) ceil($totalHotels / $perPage) : 1;
 if ($currentPage > $totalPages) $currentPage = $totalPages;
 $offset = ($currentPage - 1) * $perPage;
-$visibleHotels = $isSearchSubmitted ? array_slice($filteredHotels, $offset, $perPage) : [];
+$visibleHotels = array_slice($filteredHotels, $offset, $perPage);
 
-$buildPageUrl = static function(int $pageNumber) use ($page, $searchRegion, $searchCheckIn, $searchCheckOut, $searchGuests): string {
-	$params = ['search_hotels' => '1'];
-	if ($searchRegion !== '') $params['where'] = $searchRegion;
-	if ($searchCheckIn !== '') $params['checkin'] = $searchCheckIn;
-	if ($searchCheckOut !== '') $params['checkout'] = $searchCheckOut;
-	if ($searchGuests > 1) $params['guests'] = (string) $searchGuests;
+$buildPageUrl = static function(int $pageNumber) use ($page, $filterRegion, $filterHotelType, $filterStars, $hasActiveFilters): string {
+	$params = [];
+	if ($hasActiveFilters) $params['apply_filters'] = '1';
+	if ($filterRegion !== '') $params['region'] = $filterRegion;
+	if ($filterHotelType !== '') $params['hotel_type'] = $filterHotelType;
+	if ($filterStars > 0) $params['stars'] = (string) $filterStars;
 	if ($pageNumber > 1) $params['page'] = (string) $pageNumber;
 
 	$query = http_build_query($params, '', '&', PHP_QUERY_RFC3986);
@@ -457,122 +571,123 @@ $forumExternalUrl = 'https://club.skfo.ru';
 				</a>
 			</div>
 			<form class="hero-search hotels-search" action="<?php echo $sanitizer->entities($page->url); ?>" method="get">
-				<input type="hidden" name="search_hotels" value="1" />
+				<input type="hidden" name="apply_filters" value="1" />
 				<div class="hero-search-fields hotels-search-fields">
-					<label class="hero-field hero-field-where<?php echo $regionFieldClass; ?>">
+					<label class="hero-field<?php echo $regionFieldClass; ?>">
 						<span class="sr-only">Регион</span>
-						<input type="text" name="where" placeholder="Регион" list="hotel-region-list" value="<?php echo $sanitizer->entities($searchRegion); ?>" />
+						<select name="region">
+							<option value="">Все регионы</option>
+							<?php foreach ($regionOptions as $regionOption): ?>
+								<option value="<?php echo $sanitizer->entities($regionOption); ?>"<?php echo $regionOption === $filterRegion ? ' selected' : ''; ?>>
+									<?php echo $sanitizer->entities($regionOption); ?>
+								</option>
+							<?php endforeach; ?>
+						</select>
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 					</label>
-					<label class="hero-field<?php echo $checkInFieldClass; ?>">
-						<span class="sr-only">Дата заезда</span>
-						<input type="text" name="checkin" placeholder="Дата заезда" value="<?php echo $sanitizer->entities($searchCheckInDisplay); ?>" data-date-input />
-						<img src="<?php echo $config->urls->templates; ?>assets/icons/when.svg" alt="" aria-hidden="true" />
+					<label class="hero-field<?php echo $typeFieldClass; ?>">
+						<span class="sr-only">Тип отеля</span>
+						<select name="hotel_type">
+							<option value="">Все типы</option>
+							<?php foreach ($hotelTypeOptions as $typeCode => $typeLabel): ?>
+								<option value="<?php echo $sanitizer->entities($typeCode); ?>"<?php echo $typeCode === $filterHotelType ? ' selected' : ''; ?>>
+									<?php echo $sanitizer->entities($typeLabel); ?>
+								</option>
+							<?php endforeach; ?>
+						</select>
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/hotel.svg" alt="" aria-hidden="true" />
 					</label>
-					<label class="hero-field<?php echo $checkOutFieldClass; ?>">
-						<span class="sr-only">Дата выезда</span>
-						<input type="text" name="checkout" placeholder="Дата выезда" value="<?php echo $sanitizer->entities($searchCheckOutDisplay); ?>" data-date-input />
-						<img src="<?php echo $config->urls->templates; ?>assets/icons/when.svg" alt="" aria-hidden="true" />
-					</label>
-					<label
-							class="hero-field hero-field-people hotels-field-guests<?php echo $guestsFieldClass; ?>"
-						data-people-min="1"
-						data-people-max="12"
-						data-people-unit-singular="гость"
-						data-people-unit-few="гостя"
-						data-people-unit-many="гостей"
-					>
-						<span class="sr-only">Количество гостей</span>
-						<input type="text" value="<?php echo $sanitizer->entities($searchGuestsLabel); ?>" readonly />
-						<input type="hidden" name="guests" value="<?php echo (int) $searchGuests; ?>" />
-						<img src="<?php echo $config->urls->templates; ?>assets/icons/human.svg" alt="" aria-hidden="true" />
-						<div class="people-popover" aria-hidden="true">
-							<div class="people-row">
-								<button class="people-btn" type="button" data-action="minus" aria-label="Уменьшить количество">−</button>
-								<span class="people-count" aria-live="polite"><?php echo (int) $searchGuests; ?></span>
-								<button class="people-btn" type="button" data-action="plus" aria-label="Увеличить количество">+</button>
-							</div>
-						</div>
+					<label class="hero-field<?php echo $starsFieldClass; ?>">
+						<span class="sr-only">Количество звезд</span>
+						<select name="stars">
+							<option value="">Любая категория</option>
+							<?php for ($stars = 2; $stars <= 5; $stars++): ?>
+								<option value="<?php echo $stars; ?>"<?php echo $filterStars === $stars ? ' selected' : ''; ?>>
+									<?php echo $stars; ?> звезды
+								</option>
+							<?php endfor; ?>
+						</select>
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
 					</label>
 				</div>
-				<datalist id="hotel-region-list">
-					<?php foreach ($regionOptions as $regionOption): ?>
-						<option value="<?php echo $sanitizer->entities($regionOption); ?>"></option>
-					<?php endforeach; ?>
-				</datalist>
-				<button class="search-btn" type="submit">Найти отели</button>
+				<button class="search-btn" type="submit">Применить фильтры</button>
 			</form>
 		</div>
 	</section>
 
-	<?php if ($isSearchSubmitted): ?>
-		<section class="section section--hotels-results">
-			<div class="container">
-				<?php if ($searchError !== ''): ?>
-					<div class="hotels-empty">
-						<?php echo $sanitizer->entities($searchError); ?>
-					</div>
-				<?php elseif (count($visibleHotels)): ?>
-					<div class="hotels-grid">
-						<?php foreach ($visibleHotels as $hotel): ?>
-							<?php
-							$imageUrl = trim((string) ($hotel['image'] ?? ''));
-							$hotelUrl = trim((string) ($hotel['url'] ?? ''));
-							$city = trim((string) ($hotel['city'] ?? ''));
-							$region = trim((string) ($hotel['region'] ?? ''));
-							$locationLabel = trim($city . ', ' . $region, ', ');
-							if ($hotelUrl === '') $hotelUrl = $page->url;
-							?>
-							<article class="hotel-card">
-								<div class="hotel-card-media"<?php echo $imageUrl !== '' ? " style=\"background-image: url('" . htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8') . "');\"" : ''; ?>>
-									<span class="hotel-card-rating"><?php echo $sanitizer->entities($formatRating((float) ($hotel['rating'] ?? 0))); ?></span>
-								</div>
-								<h2 class="hotel-card-title"><?php echo $sanitizer->entities((string) ($hotel['title'] ?? '')); ?></h2>
-								<p class="hotel-card-location"><?php echo $sanitizer->entities($locationLabel); ?></p>
-								<ul class="hotel-card-amenities" aria-label="Опции отеля">
-										<?php foreach ((array) ($hotel['amenities'] ?? []) as $amenityCode): ?>
-											<?php if (!isset($amenityMap[$amenityCode])) continue; ?>
-											<?php
-											$amenity = $amenityMap[$amenityCode];
-											$amenityTitle = (string) ($amenity['title'] ?? '');
-											$amenityShort = (string) ($amenity['short'] ?? '');
-											$amenityIconFile = trim((string) ($amenity['icon'] ?? ''));
-											$amenityIconUrl = $amenityIconFile !== '' ? $config->urls->templates . 'assets/icons/' . ltrim($amenityIconFile, '/') : '';
-											?>
-											<li class="hotel-card-amenity" title="<?php echo $sanitizer->entities($amenityTitle); ?>">
-												<span class="hotel-card-amenity-icon">
-													<?php if ($amenityIconUrl !== ''): ?>
-														<img src="<?php echo $sanitizer->entities($amenityIconUrl); ?>" alt="" aria-hidden="true" />
-													<?php else: ?>
-														<?php echo $sanitizer->entities($amenityShort); ?>
-													<?php endif; ?>
-												</span>
-											</li>
-										<?php endforeach; ?>
-								</ul>
-								<div class="hotel-card-footer">
-									<div class="hotel-card-price"><?php echo $sanitizer->entities($formatPrice((int) ($hotel['price'] ?? 0))); ?></div>
-									<a class="hotel-card-btn" href="<?php echo $sanitizer->entities($hotelUrl); ?>">Выбрать номер</a>
-								</div>
-							</article>
-						<?php endforeach; ?>
-					</div>
+	<section class="section section--hotels-results">
+		<div class="container">
+			<?php if (count($visibleHotels)): ?>
+				<div class="hotels-grid">
+					<?php foreach ($visibleHotels as $hotel): ?>
+						<?php
+						$imageUrl = trim((string) ($hotel['image'] ?? ''));
+						$hotelUrl = trim((string) ($hotel['url'] ?? ''));
+						$city = trim((string) ($hotel['city'] ?? ''));
+						$region = trim((string) ($hotel['region'] ?? ''));
+						$locationLabel = trim($city . ', ' . $region, ', ');
+						$titleLabel = $sanitizeHeadingText((string) ($hotel['title'] ?? ''));
+						if ($titleLabel === '') $titleLabel = trim((string) ($hotel['title'] ?? ''));
+						$ratingValue = (int) ($hotel['rating'] ?? 0);
+						$ratingValue = max(1, min(5, $ratingValue));
+						$ratingToneClass = $ratingValue <= 2
+							? ' hotel-card-rating--danger'
+							: ($ratingValue === 3 ? ' hotel-card-rating--warning' : ' hotel-card-rating--success');
+						if ($hotelUrl === '') $hotelUrl = $page->url;
+						?>
+						<article class="hotel-card">
+							<div class="hotel-card-media"<?php echo $imageUrl !== '' ? " style=\"background-image: url('" . htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8') . "');\"" : ''; ?>>
+								<span class="hotel-card-rating<?php echo $ratingToneClass; ?>">
+									<span class="hotel-card-rating-star" aria-hidden="true">★</span>
+									<span class="hotel-card-rating-value"><?php echo (int) $ratingValue; ?></span>
+								</span>
+							</div>
+							<h2 class="hotel-card-title"><?php echo $sanitizer->entities($titleLabel); ?></h2>
+							<p class="hotel-card-location"><?php echo $sanitizer->entities($locationLabel); ?></p>
+							<ul class="hotel-card-amenities" aria-label="Опции отеля">
+									<?php foreach ((array) ($hotel['amenities'] ?? []) as $amenityCode): ?>
+										<?php if (in_array($amenityCode, ['soundproof_rooms', 'restaurant'], true)) continue; ?>
+										<?php if (!isset($amenityMap[$amenityCode])) continue; ?>
+										<?php
+										$amenity = $amenityMap[$amenityCode];
+										$amenityTitle = (string) ($amenity['title'] ?? '');
+										$amenityShort = (string) ($amenity['short'] ?? '');
+										$amenityIconFile = trim((string) ($amenity['icon'] ?? ''));
+										$amenityIconUrl = $amenityIconFile !== '' ? $config->urls->templates . 'assets/icons/' . ltrim($amenityIconFile, '/') : '';
+										?>
+										<li class="hotel-card-amenity" title="<?php echo $sanitizer->entities($amenityTitle); ?>">
+											<span class="hotel-card-amenity-icon">
+												<?php if ($amenityIconUrl !== ''): ?>
+													<img src="<?php echo $sanitizer->entities($amenityIconUrl); ?>" alt="" aria-hidden="true" />
+												<?php else: ?>
+													<?php echo $sanitizer->entities($amenityShort); ?>
+												<?php endif; ?>
+											</span>
+										</li>
+									<?php endforeach; ?>
+							</ul>
+							<div class="hotel-card-footer">
+								<div class="hotel-card-price"><?php echo $sanitizer->entities($formatPrice((int) ($hotel['price'] ?? 0))); ?></div>
+								<a class="hotel-card-btn" href="<?php echo $sanitizer->entities($hotelUrl); ?>">Выбрать номер</a>
+							</div>
+						</article>
+					<?php endforeach; ?>
+				</div>
 
-					<?php if ($totalPages > 1): ?>
-						<nav class="hotels-pagination" aria-label="Страницы отелей">
-							<?php for ($i = 1; $i <= $totalPages; $i++): ?>
-								<a class="hotels-pagination-link<?php echo $i === $currentPage ? ' is-active' : ''; ?>" href="<?php echo $sanitizer->entities($buildPageUrl($i)); ?>">
-									<?php echo $i; ?>
-								</a>
-							<?php endfor; ?>
-						</nav>
-					<?php endif; ?>
-				<?php else: ?>
-					<div class="hotels-empty">
-						По вашему запросу отели не найдены. Измените фильтры и попробуйте снова.
-					</div>
+				<?php if ($totalPages > 1): ?>
+					<nav class="hotels-pagination" aria-label="Страницы отелей">
+						<?php for ($i = 1; $i <= $totalPages; $i++): ?>
+							<a class="hotels-pagination-link<?php echo $i === $currentPage ? ' is-active' : ''; ?>" href="<?php echo $sanitizer->entities($buildPageUrl($i)); ?>">
+								<?php echo $i; ?>
+							</a>
+						<?php endfor; ?>
+					</nav>
 				<?php endif; ?>
-			</div>
-		</section>
-	<?php endif; ?>
+			<?php else: ?>
+				<div class="hotels-empty">
+					По выбранным фильтрам отели не найдены. Измените фильтры и попробуйте снова.
+				</div>
+			<?php endif; ?>
+		</div>
+	</section>
 </div>
