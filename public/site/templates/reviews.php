@@ -1,6 +1,8 @@
 <?php namespace ProcessWire;
 
 $reviewTable = 'tour_reviews';
+require_once __DIR__ . '/_reviews_moderation.php';
+
 $reviewError = '';
 $reviewSuccess = '';
 $reviewAuthorValue = '';
@@ -53,28 +55,6 @@ $resolveReviewAuthor = static function(?array $user): string {
 	return 'Пользователь';
 };
 
-$createReviewsTable = static function($database, string $table): void {
-	$database->exec(
-		"CREATE TABLE IF NOT EXISTS `$table` (
-			`id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-			`page_id` INT UNSIGNED NOT NULL,
-			`author` VARCHAR(120) NOT NULL,
-			`review_text` TEXT NOT NULL,
-			`rating` TINYINT UNSIGNED NOT NULL,
-			`avatar_color` VARCHAR(16) NOT NULL DEFAULT 'blue',
-			`created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (`id`),
-			KEY `page_created` (`page_id`, `created_at`)
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
-	);
-
-	try {
-		$database->exec("ALTER TABLE `$table` ADD COLUMN `avatar_color` VARCHAR(16) NOT NULL DEFAULT 'blue'");
-	} catch (\Throwable $e) {
-		// Column already exists on upgraded installations.
-	}
-};
-
 $reviewError = (string) ($pullFlash($session, $flashPrefix . 'error') ?? '');
 $reviewSuccess = (string) ($pullFlash($session, $flashPrefix . 'success') ?? '');
 $reviewTextValue = (string) ($pullFlash($session, $flashPrefix . 'text') ?? '');
@@ -105,22 +85,44 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 		$reviewError = 'Выберите оценку от 1 до 5.';
 	} else {
 		try {
-			$createReviewsTable($database, $reviewTable);
+			skfoReviewsEnsureTable($database, $reviewTable);
+			skfoReviewsBackfillHashes($database, $reviewTable, 50);
+
+			$moderation = skfoReviewsBuildModerationDecision($database, $reviewTable, (int) $page->id, $reviewTextValue);
+			$moderationStatus = (string) ($moderation['status'] ?? 'approved');
+			$contentHash = (string) ($moderation['content_hash'] ?? '');
+			$moderationFlags = skfoReviewsEncodeFlags((array) ($moderation['flags'] ?? []));
+
 			$avatarColorKey = $avatarColorKeys[array_rand($avatarColorKeys)];
 			$insertReview = $database->prepare(
-				"INSERT INTO `$reviewTable` (`page_id`, `author`, `review_text`, `rating`, `avatar_color`) VALUES (:page_id, :author, :review_text, :rating, :avatar_color)"
+				"INSERT INTO `$reviewTable` (`page_id`, `author`, `review_text`, `rating`, `avatar_color`, `content_hash`, `moderation_status`, `moderation_flags`)
+				VALUES (:page_id, :author, :review_text, :rating, :avatar_color, :content_hash, :moderation_status, :moderation_flags)"
 			);
 			$insertReview->bindValue(':page_id', (int) $page->id, \PDO::PARAM_INT);
 			$insertReview->bindValue(':author', $reviewAuthorValue, \PDO::PARAM_STR);
 			$insertReview->bindValue(':review_text', $reviewTextValue, \PDO::PARAM_STR);
 			$insertReview->bindValue(':rating', $reviewRatingValue, \PDO::PARAM_INT);
 			$insertReview->bindValue(':avatar_color', $avatarColorKey, \PDO::PARAM_STR);
+			$insertReview->bindValue(':content_hash', $contentHash, \PDO::PARAM_STR);
+			$insertReview->bindValue(':moderation_status', $moderationStatus, \PDO::PARAM_STR);
+			$insertReview->bindValue(':moderation_flags', $moderationFlags, \PDO::PARAM_STR);
 			$insertReview->execute();
 
-			$reviewSuccess = 'Спасибо! Ваш отзыв отправлен.';
-			$reviewAuthorValue = '';
-			$reviewTextValue = '';
-			$reviewRatingValue = 5;
+			if ($moderationStatus === 'blocked') {
+				$banLabels = skfoReviewsBanwordLabels((array) ($moderation['ban_categories'] ?? []));
+				$banSuffix = count($banLabels) ? (' (' . implode(', ', $banLabels) . ')') : '';
+				$reviewError = 'Отзыв не опубликован: обнаружены запрещенные темы' . $banSuffix . '.';
+			} elseif ($moderationStatus === 'duplicate') {
+				$reviewSuccess = 'Похожий отзыв уже есть. Ваш отзыв отправлен на модерацию.';
+				$reviewAuthorValue = '';
+				$reviewTextValue = '';
+				$reviewRatingValue = 5;
+			} else {
+				$reviewSuccess = 'Спасибо! Ваш отзыв отправлен.';
+				$reviewAuthorValue = '';
+				$reviewTextValue = '';
+				$reviewRatingValue = 5;
+			}
 		} catch (\Throwable $e) {
 			$reviewError = 'Не удалось сохранить отзыв. Попробуйте позже.';
 			$log->save('errors', "reviews page save error: " . $e->getMessage());
@@ -142,11 +144,13 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 
 $reviews = [];
 try {
-	$createReviewsTable($database, $reviewTable);
+	skfoReviewsEnsureTable($database, $reviewTable);
+	skfoReviewsBackfillHashes($database, $reviewTable, 50);
 	$selectReviews = $database->prepare(
 		"SELECT `author`, `review_text`, `rating`, `avatar_color`
 		FROM `$reviewTable`
 		WHERE `page_id`=:page_id
+		AND `moderation_status`='approved'
 		ORDER BY `created_at` DESC, `id` DESC"
 	);
 	$selectReviews->bindValue(':page_id', (int) $page->id, \PDO::PARAM_INT);

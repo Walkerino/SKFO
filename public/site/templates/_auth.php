@@ -57,6 +57,43 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		return substr($ip, 0, 64);
 	}
 
+	function skfoAuthRequestPath(): string {
+		$requestUri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+		$path = parse_url($requestUri, PHP_URL_PATH);
+		if (!is_string($path) || $path === '') return '/';
+		if ($path[0] !== '/') $path = '/' . $path;
+		return $path;
+	}
+
+	function skfoAuthSanitizeReturnTo(string $raw, string $fallback = '/'): string {
+		$fallback = trim($fallback);
+		if ($fallback === '' || $fallback[0] !== '/') $fallback = '/';
+
+		$raw = trim($raw);
+		if ($raw === '' || preg_match('/[\r\n]/', $raw) === 1) return $fallback;
+
+		$parts = parse_url($raw);
+		if (!is_array($parts)) return $fallback;
+
+		$requestHost = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+		$requestHost = preg_replace('/:\d+$/', '', $requestHost) ?? $requestHost;
+		$targetHost = strtolower((string) ($parts['host'] ?? ''));
+		if ($targetHost !== '' && $targetHost !== $requestHost) return $fallback;
+
+		$path = trim((string) ($parts['path'] ?? ''));
+		if ($path === '') $path = '/';
+		if ($path[0] !== '/' || strpos($path, '//') === 0) return $fallback;
+
+		$query = isset($parts['query']) && is_string($parts['query']) && $parts['query'] !== ''
+			? ('?' . $parts['query'])
+			: '';
+		$fragment = isset($parts['fragment']) && is_string($parts['fragment']) && $parts['fragment'] !== ''
+			? ('#' . $parts['fragment'])
+			: '';
+
+		return $path . $query . $fragment;
+	}
+
 	function skfoAuthJson(bool $ok, string $message, array $data = [], int $status = 200): void {
 		http_response_code($status);
 		header('Content-Type: application/json; charset=utf-8');
@@ -504,6 +541,7 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		$name = skfoAuthNormalizeName((string) $input->post('name'));
 		$code = preg_replace('/\D+/', '', (string) $input->post('code'));
 		$ip = skfoAuthClientIp();
+		$returnTo = skfoAuthSanitizeReturnTo((string) $input->post('return_to'), skfoAuthRequestPath());
 
 		if ($email === '') {
 			skfoAuthJson(false, 'Укажите корректный email.', [], 422);
@@ -609,7 +647,7 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		skfoAuthTouchLogin($database, (int) ($account['id'] ?? 0), $ip);
 		skfoAuthSetSession($session, $account);
 
-		skfoAuthJson(true, 'Успешный вход в профиль.', ['redirect' => '/profile/']);
+		skfoAuthJson(true, 'Успешный вход в профиль.', ['redirect' => $returnTo]);
 	}
 
 	function skfoAuthLogout($session): void {

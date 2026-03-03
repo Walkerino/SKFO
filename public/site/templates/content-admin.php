@@ -1,5 +1,7 @@
 <?php namespace ProcessWire;
 
+require_once __DIR__ . '/_reviews_moderation.php';
+
 $isLoggedInCmsUser = $user && $user->isLoggedin();
 $isAllowedUser = $isLoggedInCmsUser && ($user->isSuperuser() || $user->hasPermission('page-edit'));
 if(!$isLoggedInCmsUser) {
@@ -38,6 +40,36 @@ if(!isset($tabs[$activeTab])) $activeTab = 'tours';
 
 $contentRoot = $pages->get('/content/');
 $contentAdminBaseUrl = rtrim((string) $config->urls->root, '/') . '/content-admin/';
+$reviewTable = 'tour_reviews';
+$reviewStatusOptions = [
+	'all' => 'Все',
+	'approved' => 'Одобрены',
+	'duplicate' => 'Дубликаты',
+	'blocked' => 'Заблокированы',
+	'hidden' => 'Скрыты',
+];
+$reviewStatusCounts = [
+	'all' => 0,
+	'approved' => 0,
+	'duplicate' => 0,
+	'blocked' => 0,
+	'hidden' => 0,
+];
+$reviewRows = [];
+$reviewStatusFilter = trim((string) $input->get('review_status'));
+if(!isset($reviewStatusOptions[$reviewStatusFilter])) $reviewStatusFilter = 'all';
+$reviewQuery = trim((string) $input->get('review_query'));
+$buildReviewsRedirectUrl = static function(string $statusFilter, string $query) use ($contentAdminBaseUrl, $reviewStatusOptions): string {
+	$params = ['tab' => 'reviews'];
+	if(isset($reviewStatusOptions[$statusFilter]) && $statusFilter !== 'all') {
+		$params['review_status'] = $statusFilter;
+	}
+	$query = trim($query);
+	if($query !== '') {
+		$params['review_query'] = $query;
+	}
+	return $contentAdminBaseUrl . '?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+};
 $catalogParents = [
 	'tours' => $pages->get('/content/tours/'),
 	'articles' => $pages->get('/content/articles/'),
@@ -515,6 +547,41 @@ $collectUploadedTmpByRow = static function(string $filesKey, int $rowIndex): arr
 	return $out;
 };
 
+$reviewStatusLabel = static function(string $status): string {
+	return skfoReviewsStatusLabel($status);
+};
+$reviewFlagLabels = static function(array $flags): array {
+	$labels = [];
+	$banCategories = [];
+
+	foreach($flags as $flag) {
+		$flag = trim((string) $flag);
+		if($flag === '') continue;
+		if($flag === 'duplicate') {
+			$labels[] = 'Дубликат';
+			continue;
+		}
+		if(strpos($flag, 'ban-') === 0) {
+			$category = trim(substr($flag, 4));
+			if($category !== '') $banCategories[] = $category;
+		}
+	}
+
+	$banLabels = skfoReviewsBanwordLabels(array_values(array_unique($banCategories)));
+	foreach($banLabels as $banLabel) {
+		$labels[] = 'Бан: ' . $banLabel;
+	}
+
+	return array_values(array_unique($labels));
+};
+$formatReviewDate = static function(string $raw): string {
+	$raw = trim($raw);
+	if($raw === '') return '';
+	$timestamp = strtotime($raw);
+	if($timestamp === false || $timestamp < 1) return $raw;
+	return date('d.m.Y H:i', $timestamp);
+};
+
 $catalogItems = [
 	'tours' => $pages->find('template=tour, include=all, sort=title, limit=500'),
 	'articles' => $pages->find('template=article, include=all, sort=-article_publish_date, limit=500'),
@@ -550,6 +617,74 @@ if($input->requestMethod() === 'POST') {
 	}
 
 	$action = trim((string) $input->post('action'));
+
+	if($action === 'review_update_status' || $action === 'review_delete') {
+		$returnStatusFilter = trim((string) $input->post('review_status_filter'));
+		$returnQueryFilter = trim((string) $input->post('review_query_filter'));
+		$reviewsRedirectUrl = $buildReviewsRedirectUrl($returnStatusFilter, $returnQueryFilter);
+		$reviewId = (int) $input->post('review_id');
+
+		if($reviewId < 1) {
+			$setFlash($session, $flashPrefix . 'error', 'Некорректный ID отзыва.');
+			$session->redirect($reviewsRedirectUrl);
+		}
+
+		try {
+			skfoReviewsEnsureTable($database, $reviewTable);
+			skfoReviewsBackfillHashes($database, $reviewTable, 400);
+
+			$getReview = $database->prepare("SELECT `id`, `content_hash`, `moderation_flags` FROM `$reviewTable` WHERE `id`=:id LIMIT 1");
+			$getReview->bindValue(':id', $reviewId, \PDO::PARAM_INT);
+			$getReview->execute();
+			$reviewRow = $getReview->fetch(\PDO::FETCH_ASSOC) ?: null;
+
+			if(!is_array($reviewRow)) {
+				$setFlash($session, $flashPrefix . 'error', 'Отзыв не найден.');
+				$session->redirect($reviewsRedirectUrl);
+			}
+
+			if($action === 'review_delete') {
+				$deleteReview = $database->prepare("DELETE FROM `$reviewTable` WHERE `id`=:id");
+				$deleteReview->bindValue(':id', $reviewId, \PDO::PARAM_INT);
+				$deleteReview->execute();
+				$setFlash($session, $flashPrefix . 'success', 'Отзыв удалён.');
+				$session->redirect($reviewsRedirectUrl);
+			}
+
+			$newStatus = trim((string) $input->post('review_status'));
+			$allowedStatuses = ['approved', 'duplicate', 'hidden', 'blocked'];
+			if(!in_array($newStatus, $allowedStatuses, true)) {
+				$setFlash($session, $flashPrefix . 'error', 'Неизвестный статус отзыва.');
+				$session->redirect($reviewsRedirectUrl);
+			}
+
+			$flags = skfoReviewsDecodeFlags((string) ($reviewRow['moderation_flags'] ?? ''));
+			$flags = array_values(array_filter($flags, static function(string $flag): bool {
+				return trim($flag) !== 'duplicate';
+			}));
+			if($newStatus === 'duplicate') {
+				$flags[] = 'duplicate';
+			}
+			$flagsRaw = skfoReviewsEncodeFlags($flags);
+
+			$updateReview = $database->prepare(
+				"UPDATE `$reviewTable`
+				SET `moderation_status`=:moderation_status, `moderation_flags`=:moderation_flags
+				WHERE `id`=:id"
+			);
+			$updateReview->bindValue(':moderation_status', $newStatus, \PDO::PARAM_STR);
+			$updateReview->bindValue(':moderation_flags', $flagsRaw, \PDO::PARAM_STR);
+			$updateReview->bindValue(':id', $reviewId, \PDO::PARAM_INT);
+			$updateReview->execute();
+
+			$setFlash($session, $flashPrefix . 'success', 'Статус отзыва обновлён.');
+		} catch(\Throwable $e) {
+			$setFlash($session, $flashPrefix . 'error', 'Не удалось обновить отзыв.');
+			$log->save('errors', 'content-admin reviews action error: ' . $e->getMessage());
+		}
+
+		$session->redirect($reviewsRedirectUrl);
+	}
 
 	if($action === 'save_entity') {
 		$entityType = trim((string) $input->post('entity_type'));
@@ -932,6 +1067,140 @@ if($input->requestMethod() === 'POST') {
 	}
 }
 
+if($activeTab === 'reviews') {
+	try {
+		skfoReviewsEnsureTable($database, $reviewTable);
+		skfoReviewsBackfillHashes($database, $reviewTable, 500);
+
+		$totalStmt = $database->query("SELECT COUNT(*) FROM `$reviewTable`");
+		$reviewStatusCounts['all'] = (int) ($totalStmt ? $totalStmt->fetchColumn() : 0);
+
+		$statusCountsStmt = $database->query("SELECT `moderation_status`, COUNT(*) AS cnt FROM `$reviewTable` GROUP BY `moderation_status`");
+		$statusCountRows = $statusCountsStmt ? ($statusCountsStmt->fetchAll(\PDO::FETCH_ASSOC) ?: []) : [];
+		foreach($statusCountRows as $statusCountRow) {
+			$statusName = trim((string) ($statusCountRow['moderation_status'] ?? ''));
+			if(isset($reviewStatusCounts[$statusName])) {
+				$reviewStatusCounts[$statusName] = (int) ($statusCountRow['cnt'] ?? 0);
+			}
+		}
+
+		$where = [];
+		$bindings = [];
+		if($reviewStatusFilter !== 'all') {
+			$where[] = "`moderation_status`=:moderation_status";
+			$bindings[':moderation_status'] = ['value' => $reviewStatusFilter, 'type' => \PDO::PARAM_STR];
+		}
+		if($reviewQuery !== '') {
+			$where[] = "(`author` LIKE :review_query OR `review_text` LIKE :review_query)";
+			$bindings[':review_query'] = ['value' => '%' . $reviewQuery . '%', 'type' => \PDO::PARAM_STR];
+		}
+
+		$reviewsSql = "SELECT `id`, `page_id`, `author`, `review_text`, `rating`, `moderation_status`, `moderation_flags`, `content_hash`, `created_at`
+			FROM `$reviewTable`";
+		if(count($where)) {
+			$reviewsSql .= ' WHERE ' . implode(' AND ', $where);
+		}
+		$reviewsSql .= ' ORDER BY `created_at` DESC, `id` DESC LIMIT 300';
+
+		$reviewsStmt = $database->prepare($reviewsSql);
+		foreach($bindings as $bindingName => $bindingData) {
+			$reviewsStmt->bindValue($bindingName, $bindingData['value'], $bindingData['type']);
+		}
+		$reviewsStmt->execute();
+		$rawReviewRows = $reviewsStmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+		$hashes = [];
+		$pageIds = [];
+		foreach($rawReviewRows as $rawReviewRow) {
+			$contentHash = trim((string) ($rawReviewRow['content_hash'] ?? ''));
+			if($contentHash !== '') $hashes[$contentHash] = true;
+			$pageId = (int) ($rawReviewRow['page_id'] ?? 0);
+			if($pageId > 0) $pageIds[$pageId] = true;
+		}
+
+		$duplicateCountByKey = [];
+		if(count($hashes) && count($pageIds)) {
+			$hashKeys = array_keys($hashes);
+			$pageIdKeys = array_keys($pageIds);
+			$hashPlaceholders = [];
+			$pagePlaceholders = [];
+			$dupSql = "SELECT `page_id`, `content_hash`, COUNT(*) AS cnt FROM `$reviewTable` WHERE `content_hash` IN (";
+			foreach($hashKeys as $hashIndex => $hashValue) {
+				$placeholder = ':hash_' . $hashIndex;
+				$hashPlaceholders[] = $placeholder;
+			}
+			$dupSql .= implode(', ', $hashPlaceholders) . ') AND `page_id` IN (';
+			foreach($pageIdKeys as $pageIdIndex => $pageIdValue) {
+				$placeholder = ':page_id_' . $pageIdIndex;
+				$pagePlaceholders[] = $placeholder;
+			}
+			$dupSql .= implode(', ', $pagePlaceholders) . ') GROUP BY `page_id`, `content_hash`';
+
+			$dupStmt = $database->prepare($dupSql);
+			foreach($hashKeys as $hashIndex => $hashValue) {
+				$dupStmt->bindValue(':hash_' . $hashIndex, $hashValue, \PDO::PARAM_STR);
+			}
+			foreach($pageIdKeys as $pageIdIndex => $pageIdValue) {
+				$dupStmt->bindValue(':page_id_' . $pageIdIndex, (int) $pageIdValue, \PDO::PARAM_INT);
+			}
+			$dupStmt->execute();
+			$dupRows = $dupStmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+			foreach($dupRows as $dupRow) {
+				$hashValue = trim((string) ($dupRow['content_hash'] ?? ''));
+				$pageId = (int) ($dupRow['page_id'] ?? 0);
+				if($hashValue === '' || $pageId < 1) continue;
+				$duplicateCountByKey[$pageId . '|' . $hashValue] = (int) ($dupRow['cnt'] ?? 0);
+			}
+		}
+
+		$pageLabelById = [];
+		foreach($rawReviewRows as $rawReviewRow) {
+			$pageId = (int) ($rawReviewRow['page_id'] ?? 0);
+			if($pageId < 1 || isset($pageLabelById[$pageId])) continue;
+
+			$reviewPage = $pages->get($pageId);
+			if($reviewPage && $reviewPage->id) {
+				$pageTitle = trim((string) $reviewPage->title);
+				$pagePath = trim((string) $reviewPage->path);
+				$label = $pagePath !== '' ? $pagePath : ('ID ' . $pageId);
+				if($pageTitle !== '') $label .= ' (' . $pageTitle . ')';
+				$pageLabelById[$pageId] = $label;
+			} else {
+				$pageLabelById[$pageId] = 'ID ' . $pageId;
+			}
+		}
+
+		foreach($rawReviewRows as $rawReviewRow) {
+			$status = trim((string) ($rawReviewRow['moderation_status'] ?? ''));
+			if($status === '') $status = 'approved';
+			$flags = skfoReviewsDecodeFlags((string) ($rawReviewRow['moderation_flags'] ?? ''));
+			$contentHash = trim((string) ($rawReviewRow['content_hash'] ?? ''));
+			$pageId = (int) ($rawReviewRow['page_id'] ?? 0);
+			$duplicateKey = $pageId . '|' . $contentHash;
+			$duplicateCount = $contentHash !== '' ? (int) ($duplicateCountByKey[$duplicateKey] ?? 0) : 0;
+			$reviewRows[] = [
+				'id' => (int) ($rawReviewRow['id'] ?? 0),
+				'page_id' => $pageId,
+				'page_label' => (string) ($pageLabelById[$pageId] ?? 'ID 0'),
+				'author' => trim((string) ($rawReviewRow['author'] ?? 'Гость')),
+				'review_text' => trim((string) ($rawReviewRow['review_text'] ?? '')),
+				'rating' => max(1, min(5, (int) ($rawReviewRow['rating'] ?? 5))),
+				'status' => $status,
+				'status_label' => $reviewStatusLabel($status),
+				'status_class' => preg_replace('/[^a-z0-9_-]+/i', '-', $status) ?: 'unknown',
+				'flags' => $flags,
+				'flag_labels' => $reviewFlagLabels($flags),
+				'duplicate_count' => $duplicateCount,
+				'created_at' => (string) ($rawReviewRow['created_at'] ?? ''),
+				'created_at_label' => $formatReviewDate((string) ($rawReviewRow['created_at'] ?? '')),
+			];
+		}
+	} catch(\Throwable $e) {
+		$noticeError = 'Не удалось загрузить отзывы: ' . $e->getMessage();
+		$log->save('errors', 'content-admin reviews load error: ' . $e->getMessage());
+	}
+}
+
 $templateCssPath = $config->paths->templates . 'styles/content-admin.css';
 $templateCssVersion = is_file($templateCssPath) ? (int) filemtime($templateCssPath) : time();
 $renderPlacementChecklist = static function(string $fieldName, PageArray $items, $selectedItems, string $emptyMessage) use ($sanitizer): void {
@@ -1038,7 +1307,151 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 					</div>
 				<?php endif; ?>
 
-			<?php if($activeTab !== 'placements' && isset($catalogConfigs[$activeTab])): ?>
+				<?php if($activeTab === 'reviews'): ?>
+					<div class="content-admin-grid">
+						<div class="content-admin-panel">
+							<div class="content-admin-panel-head">
+								<h2>Отзывы пользователей</h2>
+								<span><?php echo (int) count($reviewRows); ?> из <?php echo (int) $reviewStatusCounts['all']; ?></span>
+							</div>
+							<div class="content-admin-list content-admin-list--reviews">
+								<?php foreach($reviewRows as $reviewRow): ?>
+									<?php
+									$statusClass = trim((string) ($reviewRow['status_class'] ?? 'unknown'));
+									$statusClass = $statusClass !== '' ? $statusClass : 'unknown';
+									$reviewText = trim((string) ($reviewRow['review_text'] ?? ''));
+									$maxLength = 620;
+									$reviewTextLength = function_exists('mb_strlen') ? mb_strlen($reviewText, 'UTF-8') : strlen($reviewText);
+									if($reviewTextLength > $maxLength) {
+										$reviewText = function_exists('mb_substr')
+											? mb_substr($reviewText, 0, $maxLength, 'UTF-8')
+											: substr($reviewText, 0, $maxLength);
+										$reviewText = rtrim($reviewText) . '...';
+									}
+									?>
+									<article class="content-item-card review-admin-card">
+										<div class="content-item-main">
+											<div class="review-admin-head">
+												<div class="content-item-title"><?php echo $sanitizer->entities((string) ($reviewRow['author'] ?? 'Гость')); ?></div>
+												<div class="content-item-meta"><?php echo $sanitizer->entities((string) ($reviewRow['created_at_label'] ?? '')); ?></div>
+											</div>
+											<div class="review-admin-badges">
+												<span class="review-admin-badge is-status-<?php echo $sanitizer->entities($statusClass); ?>">
+													<?php echo $sanitizer->entities((string) ($reviewRow['status_label'] ?? '')); ?>
+												</span>
+												<span class="review-admin-badge">★ <?php echo (int) ($reviewRow['rating'] ?? 5); ?>/5</span>
+												<?php if((int) ($reviewRow['duplicate_count'] ?? 0) > 1): ?>
+													<span class="review-admin-badge is-warning">Повторов: <?php echo (int) ($reviewRow['duplicate_count'] ?? 0); ?></span>
+												<?php endif; ?>
+												<?php foreach((array) ($reviewRow['flag_labels'] ?? []) as $flagLabel): ?>
+													<span class="review-admin-badge is-flag"><?php echo $sanitizer->entities((string) $flagLabel); ?></span>
+												<?php endforeach; ?>
+											</div>
+											<p class="review-admin-text"><?php echo nl2br($sanitizer->entities($reviewText)); ?></p>
+											<div class="content-item-meta">Страница: <?php echo $sanitizer->entities((string) ($reviewRow['page_label'] ?? '')); ?></div>
+										</div>
+										<div class="content-item-actions">
+											<?php if(($reviewRow['status'] ?? '') !== 'approved'): ?>
+												<form method="post">
+													<input type="hidden" name="action" value="review_update_status" />
+													<input type="hidden" name="review_id" value="<?php echo (int) ($reviewRow['id'] ?? 0); ?>" />
+													<input type="hidden" name="review_status" value="approved" />
+													<input type="hidden" name="review_status_filter" value="<?php echo $sanitizer->entities($reviewStatusFilter); ?>" />
+													<input type="hidden" name="review_query_filter" value="<?php echo $sanitizer->entities($reviewQuery); ?>" />
+													<input type="hidden" name="<?php echo $sanitizer->entities($session->CSRF->getTokenName()); ?>" value="<?php echo $sanitizer->entities($session->CSRF->getTokenValue()); ?>" />
+													<button class="content-item-btn" type="submit">Одобрить</button>
+												</form>
+											<?php endif; ?>
+											<?php if(($reviewRow['status'] ?? '') !== 'duplicate'): ?>
+												<form method="post">
+													<input type="hidden" name="action" value="review_update_status" />
+													<input type="hidden" name="review_id" value="<?php echo (int) ($reviewRow['id'] ?? 0); ?>" />
+													<input type="hidden" name="review_status" value="duplicate" />
+													<input type="hidden" name="review_status_filter" value="<?php echo $sanitizer->entities($reviewStatusFilter); ?>" />
+													<input type="hidden" name="review_query_filter" value="<?php echo $sanitizer->entities($reviewQuery); ?>" />
+													<input type="hidden" name="<?php echo $sanitizer->entities($session->CSRF->getTokenName()); ?>" value="<?php echo $sanitizer->entities($session->CSRF->getTokenValue()); ?>" />
+													<button class="content-item-btn" type="submit">Дубликат</button>
+												</form>
+											<?php endif; ?>
+											<?php if(($reviewRow['status'] ?? '') !== 'hidden'): ?>
+												<form method="post">
+													<input type="hidden" name="action" value="review_update_status" />
+													<input type="hidden" name="review_id" value="<?php echo (int) ($reviewRow['id'] ?? 0); ?>" />
+													<input type="hidden" name="review_status" value="hidden" />
+													<input type="hidden" name="review_status_filter" value="<?php echo $sanitizer->entities($reviewStatusFilter); ?>" />
+													<input type="hidden" name="review_query_filter" value="<?php echo $sanitizer->entities($reviewQuery); ?>" />
+													<input type="hidden" name="<?php echo $sanitizer->entities($session->CSRF->getTokenName()); ?>" value="<?php echo $sanitizer->entities($session->CSRF->getTokenValue()); ?>" />
+													<button class="content-item-btn" type="submit">Скрыть</button>
+												</form>
+											<?php endif; ?>
+											<form method="post" onsubmit="return confirm('Удалить отзыв?');">
+												<input type="hidden" name="action" value="review_delete" />
+												<input type="hidden" name="review_id" value="<?php echo (int) ($reviewRow['id'] ?? 0); ?>" />
+												<input type="hidden" name="review_status_filter" value="<?php echo $sanitizer->entities($reviewStatusFilter); ?>" />
+												<input type="hidden" name="review_query_filter" value="<?php echo $sanitizer->entities($reviewQuery); ?>" />
+												<input type="hidden" name="<?php echo $sanitizer->entities($session->CSRF->getTokenName()); ?>" value="<?php echo $sanitizer->entities($session->CSRF->getTokenValue()); ?>" />
+												<button class="content-item-btn is-danger" type="submit">Удалить</button>
+											</form>
+										</div>
+									</article>
+								<?php endforeach; ?>
+								<?php if(!count($reviewRows)): ?>
+									<div class="content-admin-empty">По текущему фильтру отзывов нет.</div>
+								<?php endif; ?>
+							</div>
+						</div>
+
+						<div class="content-admin-panel">
+							<div class="content-admin-panel-head">
+								<h2>Фильтры и статистика</h2>
+								<span>Автомодерация: бан-слова и дубликаты</span>
+							</div>
+
+							<form class="content-admin-form" method="get">
+								<input type="hidden" name="tab" value="reviews" />
+								<label class="content-admin-field">
+									<span>Статус</span>
+									<select name="review_status">
+										<?php foreach($reviewStatusOptions as $statusKey => $statusTitle): ?>
+											<option value="<?php echo $sanitizer->entities($statusKey); ?>"<?php echo $reviewStatusFilter === $statusKey ? ' selected' : ''; ?>>
+												<?php echo $sanitizer->entities($statusTitle); ?>
+											</option>
+										<?php endforeach; ?>
+									</select>
+								</label>
+								<label class="content-admin-field">
+									<span>Поиск по автору или тексту</span>
+									<input type="text" name="review_query" value="<?php echo $sanitizer->entities($reviewQuery); ?>" placeholder="Например: Дагестан" />
+								</label>
+								<div class="content-admin-form-actions">
+									<button class="content-admin-btn is-primary" type="submit">Применить</button>
+									<a class="content-admin-btn" href="<?php echo $sanitizer->entities($contentAdminBaseUrl . '?tab=reviews'); ?>">Сбросить</a>
+								</div>
+							</form>
+
+							<div class="review-stats-grid">
+								<div class="review-stats-card">
+									<div class="review-stats-card-value"><?php echo (int) $reviewStatusCounts['all']; ?></div>
+									<div class="review-stats-card-label">Всего</div>
+								</div>
+								<div class="review-stats-card">
+									<div class="review-stats-card-value"><?php echo (int) $reviewStatusCounts['approved']; ?></div>
+									<div class="review-stats-card-label">Одобрены</div>
+								</div>
+								<div class="review-stats-card">
+									<div class="review-stats-card-value"><?php echo (int) $reviewStatusCounts['duplicate']; ?></div>
+									<div class="review-stats-card-label">Дубликаты</div>
+								</div>
+								<div class="review-stats-card">
+									<div class="review-stats-card-value"><?php echo (int) $reviewStatusCounts['blocked']; ?></div>
+									<div class="review-stats-card-label">Заблокированы</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				<?php endif; ?>
+
+			<?php if($activeTab !== 'placements' && $activeTab !== 'reviews' && isset($catalogConfigs[$activeTab])): ?>
 				<?php
 					$currentConfig = $catalogConfigs[$activeTab];
 					$listItems = $catalogItems[$activeTab] ?? new PageArray();
