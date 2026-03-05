@@ -17,3 +17,30 @@ if(!defined("PROCESSWIRE")) die();
  * });
  *
  */
+
+$requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+$requestPath = is_string($requestPath) ? $requestPath : '';
+
+if ($requestPath === '/region' || $requestPath === '/region/') {
+	$query = isset($_SERVER['QUERY_STRING']) && $_SERVER['QUERY_STRING'] !== '' ? '?' . (string) $_SERVER['QUERY_STRING'] : '';
+	$wire->session->redirect('/regions/' . $query, true);
+}
+
+if (preg_match('#^/region/([^/]+)/?$#', $requestPath, $matches) === 1) {
+	$legacySlug = trim((string) ($matches[1] ?? ''));
+	$slugMap = [
+		'dagestan' => 'respublika-dagestan',
+		'ingushetya' => 'respublika-ingushetiya',
+		'kbr' => 'kabardino-balkarskaya-respublika',
+		'kchr' => 'karachaevo-cherkesskaya-respublika',
+		'ossetia' => 'respublika-severnaya-osetiya',
+		'chechnya' => 'chechenskaya-respublika',
+		'stavropolye' => 'stavropolskiy-kray',
+	];
+	$targetSlug = $slugMap[$legacySlug] ?? '';
+
+	if ($targetSlug !== '') {
+		$query = isset($_SERVER['QUERY_STRING']) && $_SERVER['QUERY_STRING'] !== '' ? '?' . (string) $_SERVER['QUERY_STRING'] : '';
+		$wire->session->redirect('/regions/' . $targetSlug . '/' . $query, true);
+	}
+}
