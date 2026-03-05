@@ -592,6 +592,7 @@ $catalogItems = [
 $homePage = $pages->get('/');
 $articlesPage = $pages->get('/articles/');
 $hotelsPage = $pages->get('/hotels/');
+$regionsLandingPage = $pages->get('/regions/');
 
 $currentEntity = null;
 $editId = (int) $input->get('id');
@@ -1040,6 +1041,89 @@ if($input->requestMethod() === 'POST') {
 				$hotelsPage->setAndSave('hotels_featured_refs', $ids);
 			}
 
+			if($regionsLandingPage && $regionsLandingPage->id && $regionsLandingPage->hasField('region_cards')) {
+				$regionsLandingPage = $pages->get((int) $regionsLandingPage->id);
+				$regionsLandingPage->of(false);
+
+				$postedRegionCards = isset($_POST['region_cards']) && is_array($_POST['region_cards'])
+					? array_values($_POST['region_cards'])
+					: [];
+
+				$currentRegionCards = $regionsLandingPage->getUnformatted('region_cards');
+				$existingRegionCardsById = [];
+				if($currentRegionCards instanceof PageArray) {
+					foreach($currentRegionCards as $currentRegionCard) {
+						if($currentRegionCard instanceof Page && $currentRegionCard->id) {
+							$existingRegionCardsById[(int) $currentRegionCard->id] = $currentRegionCard;
+						}
+					}
+				}
+
+				$submittedRegionCardIds = [];
+				foreach($postedRegionCards as $rowIndex => $rowData) {
+					if(!is_array($rowData)) continue;
+
+					$regionCardId = (int) ($rowData['id'] ?? 0);
+					$regionCardTitle = trim((string) ($rowData['title'] ?? ''));
+					$regionCardDescription = trim((string) ($rowData['description'] ?? ''));
+					$clearRegionCardImage = (int) ($rowData['clear_image'] ?? 0) === 1;
+					$regionCardUploads = $collectUploadedTmpByRow('region_card_image_upload', (int) $rowIndex);
+					$hasRegionCardUpload = count($regionCardUploads) > 0;
+
+					$regionCardPage = null;
+					if($regionCardId > 0 && isset($existingRegionCardsById[$regionCardId])) {
+						$regionCardPage = $existingRegionCardsById[$regionCardId];
+					}
+
+					if(!$regionCardPage instanceof Page) {
+						if($regionCardTitle === '' && $regionCardDescription === '' && !$hasRegionCardUpload) {
+							continue;
+						}
+						$regionCardPage = method_exists($regionsLandingPage->region_cards, 'getNewItem')
+							? $regionsLandingPage->region_cards->getNewItem()
+							: $regionsLandingPage->region_cards->getNew();
+						$regionCardPage->of(false);
+						$regionCardPage->save();
+					}
+
+					$regionCardPage->of(false);
+					if($regionCardPage->hasField('region_card_title')) {
+						$regionCardPage->region_card_title = $regionCardTitle;
+					}
+					if($regionCardPage->hasField('region_card_description')) {
+						$regionCardPage->region_card_description = $regionCardDescription;
+					}
+					$regionCardPage->save();
+
+					if($regionCardPage->hasField('region_card_image') && ($clearRegionCardImage || $hasRegionCardUpload)) {
+						$regionCardImages = $regionCardPage->getUnformatted('region_card_image');
+						if($regionCardImages instanceof Pageimages) {
+							foreach($regionCardImages as $regionCardImage) {
+								$regionCardImages->remove($regionCardImage);
+							}
+							if($hasRegionCardUpload) {
+								$regionCardImages->add((string) ($regionCardUploads[0] ?? ''));
+							}
+							$regionCardPage->save('region_card_image');
+						}
+					}
+
+					$submittedRegionCardIds[(int) $regionCardPage->id] = true;
+				}
+
+				$regionsLandingPage = $pages->get((int) $regionsLandingPage->id);
+				$regionsLandingPage->of(false);
+				$currentRegionCards = $regionsLandingPage->getUnformatted('region_cards');
+				if($currentRegionCards instanceof PageArray) {
+					foreach($currentRegionCards as $currentRegionCard) {
+						if(!isset($submittedRegionCardIds[(int) $currentRegionCard->id])) {
+							$regionsLandingPage->region_cards->remove($currentRegionCard);
+						}
+					}
+				}
+				$regionsLandingPage->save('region_cards');
+			}
+
 		$regionToursMap = isset($_POST['region_featured_tours']) && is_array($_POST['region_featured_tours']) ? $_POST['region_featured_tours'] : [];
 		$regionPlacesMap = isset($_POST['region_featured_places']) && is_array($_POST['region_featured_places']) ? $_POST['region_featured_places'] : [];
 		$regionArticlesMap = isset($_POST['region_featured_articles']) && is_array($_POST['region_featured_articles']) ? $_POST['region_featured_articles'] : [];
@@ -1062,8 +1146,8 @@ if($input->requestMethod() === 'POST') {
 			}
 		}
 
-		$setFlash($session, $flashPrefix . 'success', 'Привязки обновлены.');
-		$session->redirect($contentAdminBaseUrl . '?tab=placements');
+			$setFlash($session, $flashPrefix . 'success', 'Привязки обновлены.');
+			$session->redirect($contentAdminBaseUrl . '?tab=placements');
 	}
 }
 
@@ -1939,7 +2023,7 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 			<?php endif; ?>
 
 			<?php if($activeTab === 'placements'): ?>
-				<form class="content-admin-panel" method="post">
+				<form class="content-admin-panel" method="post" enctype="multipart/form-data">
 					<input type="hidden" name="action" value="save_placements" />
 					<input type="hidden" name="<?php echo $sanitizer->entities($session->CSRF->getTokenName()); ?>" value="<?php echo $sanitizer->entities($session->CSRF->getTokenValue()); ?>" />
 
@@ -1953,10 +2037,17 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 					$homeSelectedPlaces = $homePage && $homePage->hasField('home_featured_places') ? $homePage->home_featured_places : new PageArray();
 					$homeSelectedActual = $homePage && $homePage->hasField('home_actual_places') ? $homePage->home_actual_places : new PageArray();
 					$homeSelectedArticles = $homePage && $homePage->hasField('home_featured_articles') ? $homePage->home_featured_articles : new PageArray();
-					$todaySelected = $articlesPage && $articlesPage->hasField('articles_today_refs') ? $articlesPage->articles_today_refs : new PageArray();
-					$firstTimeSelected = $articlesPage && $articlesPage->hasField('articles_first_time_refs') ? $articlesPage->articles_first_time_refs : new PageArray();
-					$hotelsSelected = $hotelsPage && $hotelsPage->hasField('hotels_featured_refs') ? $hotelsPage->hotels_featured_refs : new PageArray();
-					?>
+						$todaySelected = $articlesPage && $articlesPage->hasField('articles_today_refs') ? $articlesPage->articles_today_refs : new PageArray();
+						$firstTimeSelected = $articlesPage && $articlesPage->hasField('articles_first_time_refs') ? $articlesPage->articles_first_time_refs : new PageArray();
+						$hotelsSelected = $hotelsPage && $hotelsPage->hasField('hotels_featured_refs') ? $hotelsPage->hotels_featured_refs : new PageArray();
+						$regionsLandingCards = new PageArray();
+						if($regionsLandingPage && $regionsLandingPage->id && $regionsLandingPage->hasField('region_cards')) {
+							$regionsLandingCardsValue = $regionsLandingPage->getUnformatted('region_cards');
+							if($regionsLandingCardsValue instanceof PageArray) {
+								$regionsLandingCards = $regionsLandingCardsValue;
+							}
+						}
+						?>
 					<div class="placement-builder" data-placement-builder>
 						<section class="placement-step-card">
 							<p class="placement-step-index">Шаг 1</p>
@@ -2067,35 +2158,128 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 						</section>
 
 						<section class="placement-page" data-placement-page="regions">
-							<div class="placement-step-card">
-								<p class="placement-step-index">Шаг 2</p>
-								<h3>Выберите региональную страницу</h3>
-								<div class="placement-block-nav" role="tablist" aria-label="Региональные страницы">
-									<?php foreach($regionPages as $regionPage): ?>
-										<button class="placement-nav-btn" type="button" data-placement-block-button="region-<?php echo (int) $regionPage->id; ?>">
-											<?php echo $sanitizer->entities((string) $regionPage->title); ?>
+								<div class="placement-step-card">
+									<p class="placement-step-index">Шаг 2</p>
+									<h3>Выберите региональную страницу</h3>
+									<div class="placement-block-nav" role="tablist" aria-label="Региональные страницы">
+										<button class="placement-nav-btn" type="button" data-placement-block-button="regions-cards">
+											Карточки страницы /regions/
 										</button>
-									<?php endforeach; ?>
+										<?php foreach($regionPages as $regionPage): ?>
+											<?php
+											$regionPageButtonTitle = trim((string) $regionPage->title);
+											if($regionPageButtonTitle === '') $regionPageButtonTitle = trim((string) $regionPage->name);
+											if($regionPageButtonTitle === '') $regionPageButtonTitle = 'Регион #' . (int) $regionPage->id;
+											?>
+											<button class="placement-nav-btn" type="button" data-placement-block-button="region-<?php echo (int) $regionPage->id; ?>">
+												<?php echo $sanitizer->entities($regionPageButtonTitle); ?>
+											</button>
+										<?php endforeach; ?>
+									</div>
 								</div>
-							</div>
 
-							<?php if(!$regionPages->count()): ?>
-								<div class="placement-empty">Региональные страницы не найдены.</div>
-							<?php endif; ?>
+								<?php if(!$regionPages->count()): ?>
+									<div class="placement-empty">Региональные страницы не найдены.</div>
+								<?php endif; ?>
 
-							<?php foreach($regionPages as $regionPage): ?>
-								<?php
-								$selectedTours = $regionPage->hasField('region_featured_tours') ? $regionPage->region_featured_tours : new PageArray();
-								$selectedPlaces = $regionPage->hasField('region_featured_places') ? $regionPage->region_featured_places : new PageArray();
-								$selectedArticles = $regionPage->hasField('region_featured_articles') ? $regionPage->region_featured_articles : new PageArray();
-								$regionId = (int) $regionPage->id;
-								?>
-								<article class="placement-block" data-placement-block="region-<?php echo $regionId; ?>">
+								<article class="placement-block" data-placement-block="regions-cards">
 									<header class="placement-block-head">
 										<p class="placement-step-index">Шаг 3</p>
-										<h4><?php echo $sanitizer->entities((string) $regionPage->title); ?></h4>
-										<p>Показывается на странице <?php echo $sanitizer->entities((string) $regionPage->url); ?></p>
+										<h4>Карточки страницы регионов</h4>
+										<p>Заголовок, описание и изображение карточек для страницы <code>/regions/</code>.</p>
 									</header>
+
+									<?php if(!$regionsLandingPage || !$regionsLandingPage->id || !$regionsLandingPage->hasField('region_cards')): ?>
+										<div class="placement-empty">Страница <code>/regions/</code> или поле <code>region_cards</code> не найдены.</div>
+									<?php else: ?>
+										<div class="placement-region-cards-editor" data-region-cards-editor>
+											<div class="placement-region-cards-list" data-region-cards-list>
+												<?php foreach($regionsLandingCards as $cardIndex => $regionCard): ?>
+													<?php
+													$regionCardTitle = $regionCard->hasField('region_card_title') ? trim((string) $regionCard->region_card_title) : '';
+													$regionCardDescription = $regionCard->hasField('region_card_description') ? trim((string) $regionCard->region_card_description) : '';
+													$regionCardImageUrl = $regionCard->hasField('region_card_image') ? $getImageUrlFromValue($regionCard->getUnformatted('region_card_image')) : '';
+													?>
+													<div class="placement-region-card-editor" data-region-card-row>
+														<input type="hidden" name="region_cards[<?php echo (int) $cardIndex; ?>][id]" value="<?php echo (int) $regionCard->id; ?>" data-region-card-field="id" />
+														<div class="content-admin-cols">
+															<label class="content-admin-field">
+																<span>Заголовок</span>
+																<input type="text" name="region_cards[<?php echo (int) $cardIndex; ?>][title]" value="<?php echo $sanitizer->entities($regionCardTitle); ?>" data-region-card-field="title" />
+															</label>
+															<label class="content-admin-field">
+																<span>Описание</span>
+																<textarea name="region_cards[<?php echo (int) $cardIndex; ?>][description]" rows="3" data-region-card-field="description"><?php echo $sanitizer->entities($regionCardDescription); ?></textarea>
+															</label>
+														</div>
+														<label class="content-admin-field">
+															<span>Изображение</span>
+															<input type="file" name="region_card_image_upload[<?php echo (int) $cardIndex; ?>][]" accept=".jpg,.jpeg,.png,.gif,.webp" data-region-card-field="image" />
+														</label>
+														<?php if($regionCardImageUrl !== ''): ?>
+															<div class="content-admin-image-preview" style="background-image:url('<?php echo htmlspecialchars((string) $regionCardImageUrl, ENT_QUOTES, 'UTF-8'); ?>');"></div>
+														<?php endif; ?>
+														<label class="content-admin-checkbox">
+															<input type="checkbox" name="region_cards[<?php echo (int) $cardIndex; ?>][clear_image]" value="1" data-region-card-field="clear_image" />
+															<span>Удалить текущее изображение</span>
+														</label>
+														<div class="placement-region-card-editor-actions">
+															<button class="content-admin-btn" type="button" data-region-card-remove>Удалить карточку</button>
+														</div>
+													</div>
+												<?php endforeach; ?>
+											</div>
+
+											<div class="content-admin-form-actions">
+												<button class="content-admin-btn" type="button" data-region-card-add>Добавить карточку</button>
+											</div>
+
+											<template id="region-card-row-template">
+												<div class="placement-region-card-editor" data-region-card-row>
+													<input type="hidden" name="region_cards[__INDEX__][id]" value="0" data-region-card-field="id" />
+													<div class="content-admin-cols">
+														<label class="content-admin-field">
+															<span>Заголовок</span>
+															<input type="text" name="region_cards[__INDEX__][title]" value="" data-region-card-field="title" />
+														</label>
+														<label class="content-admin-field">
+															<span>Описание</span>
+															<textarea name="region_cards[__INDEX__][description]" rows="3" data-region-card-field="description"></textarea>
+														</label>
+													</div>
+													<label class="content-admin-field">
+														<span>Изображение</span>
+														<input type="file" name="region_card_image_upload[__INDEX__][]" accept=".jpg,.jpeg,.png,.gif,.webp" data-region-card-field="image" />
+													</label>
+													<label class="content-admin-checkbox">
+														<input type="checkbox" name="region_cards[__INDEX__][clear_image]" value="1" data-region-card-field="clear_image" />
+														<span>Удалить текущее изображение</span>
+													</label>
+													<div class="placement-region-card-editor-actions">
+														<button class="content-admin-btn" type="button" data-region-card-remove>Удалить карточку</button>
+													</div>
+												</div>
+											</template>
+										</div>
+									<?php endif; ?>
+								</article>
+
+								<?php foreach($regionPages as $regionPage): ?>
+									<?php
+									$selectedTours = $regionPage->hasField('region_featured_tours') ? $regionPage->region_featured_tours : new PageArray();
+									$selectedPlaces = $regionPage->hasField('region_featured_places') ? $regionPage->region_featured_places : new PageArray();
+									$selectedArticles = $regionPage->hasField('region_featured_articles') ? $regionPage->region_featured_articles : new PageArray();
+									$regionId = (int) $regionPage->id;
+									$regionPageTitle = trim((string) $regionPage->title);
+									if($regionPageTitle === '') $regionPageTitle = trim((string) $regionPage->name);
+									if($regionPageTitle === '') $regionPageTitle = 'Регион #' . $regionId;
+									?>
+									<article class="placement-block" data-placement-block="region-<?php echo $regionId; ?>">
+										<header class="placement-block-head">
+											<p class="placement-step-index">Шаг 3</p>
+											<h4><?php echo $sanitizer->entities($regionPageTitle); ?></h4>
+											<p>Показывается на странице <?php echo $sanitizer->entities((string) $regionPage->url); ?></p>
+										</header>
 									<div class="placement-region-grid">
 										<section class="placement-region-card">
 											<h5>Туры региона</h5>
@@ -2120,10 +2304,10 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 					</div>
 				</form>
 				<script>
-					(function() {
-						var builder = document.querySelector('[data-placement-builder]');
-						if(!builder) return;
-						builder.classList.add('is-enhanced');
+						(function() {
+							var builder = document.querySelector('[data-placement-builder]');
+							if(!builder) return;
+							builder.classList.add('is-enhanced');
 
 						var pageButtons = Array.prototype.slice.call(builder.querySelectorAll('[data-placement-page-button]'));
 						var pagePanels = Array.prototype.slice.call(builder.querySelectorAll('[data-placement-page]'));
@@ -2180,18 +2364,63 @@ $renderPlacementChecklist = static function(string $fieldName, PageArray $items,
 							});
 						});
 
-						pagePanels.forEach(function(panel) {
-							var blockButtons = Array.prototype.slice.call(panel.querySelectorAll('[data-placement-block-button]'));
-							blockButtons.forEach(function(button) {
-								button.addEventListener('click', function() {
-									activateBlock(panel, button.getAttribute('data-placement-block-button') || '');
+							pagePanels.forEach(function(panel) {
+								var blockButtons = Array.prototype.slice.call(panel.querySelectorAll('[data-placement-block-button]'));
+								blockButtons.forEach(function(button) {
+									button.addEventListener('click', function() {
+										activateBlock(panel, button.getAttribute('data-placement-block-button') || '');
+									});
 								});
 							});
-						});
 
-						activatePage('home');
-					})();
-				</script>
+							var initRegionCardsEditor = function() {
+								var editor = builder.querySelector('[data-region-cards-editor]');
+								if(!editor) return;
+
+								var list = editor.querySelector('[data-region-cards-list]');
+								var addButton = editor.querySelector('[data-region-card-add]');
+								var rowTemplate = editor.querySelector('#region-card-row-template');
+								if(!list || !addButton || !rowTemplate) return;
+
+								var buildName = function(index, field) {
+									if(field === 'image') return 'region_card_image_upload[' + index + '][]';
+									return 'region_cards[' + index + '][' + field + ']';
+								};
+
+								var syncRows = function() {
+									var rows = Array.prototype.slice.call(list.querySelectorAll('[data-region-card-row]'));
+									rows.forEach(function(row, index) {
+										var fields = Array.prototype.slice.call(row.querySelectorAll('[data-region-card-field]'));
+										fields.forEach(function(field) {
+											var fieldType = field.getAttribute('data-region-card-field') || '';
+											field.name = buildName(index, fieldType);
+										});
+									});
+								};
+
+								addButton.addEventListener('click', function() {
+									var fragment = rowTemplate.content.cloneNode(true);
+									list.appendChild(fragment);
+									syncRows();
+								});
+
+								list.addEventListener('click', function(event) {
+									var button = event.target && event.target.closest ? event.target.closest('[data-region-card-remove]') : null;
+									if(!button) return;
+									var row = button.closest('[data-region-card-row]');
+									if(row) {
+										row.remove();
+										syncRows();
+									}
+								});
+
+								syncRows();
+							};
+
+							initRegionCardsEditor();
+							activatePage('home');
+						})();
+					</script>
 				<?php endif; ?>
 		</div>
 	</section>

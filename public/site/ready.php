@@ -201,6 +201,17 @@ $regionArticleImageField = $ensureField('region_article_image', 'FieldtypeImage'
 ]);
 $regionArticleFreshField = $ensureField('region_article_is_fresh', 'FieldtypeCheckbox', 'Регион: статья (плашка "Свежая статья")');
 $regionArticlesCardsField = $ensureField('region_articles_cards', 'FieldtypeRepeater', 'Регион: блок "Интересное о регионе"');
+$regionMediaTitleField = $ensureField('region_media_title', 'FieldtypeText', 'Регион: медиа (заголовок)');
+$regionMediaDescriptionField = $ensureField('region_media_description', 'FieldtypeTextarea', 'Регион: медиа (описание)');
+$regionMediaImageField = $ensureField('region_media_image', 'FieldtypeImage', 'Регион: медиа (фото)', [
+	'maxFiles' => 1,
+	'extensions' => 'jpg jpeg png gif webp',
+]);
+$regionMediaVideoField = $ensureField('region_media_video', 'FieldtypeFile', 'Регион: медиа (видео)', [
+	'maxFiles' => 1,
+	'extensions' => 'mp4 webm ogv mov m4v',
+]);
+$regionMediaGalleryField = $ensureField('region_media_gallery', 'FieldtypeRepeater', 'Регион: медиа галерея');
 
 $tourRegionField = $ensureField('tour_region', 'FieldtypeText', 'Регион тура');
 $tourTitleField = $ensureField('tour_title', 'FieldtypeText', 'Заголовок тура');
@@ -405,6 +416,46 @@ if($regionArticleImageField && $regionArticleImageField->id) {
 	if($regionArticleImageChanged) {
 		$fields->save($regionArticleImageField);
 		$log->save('actual-cards-setup', "Updated field 'region_article_image' settings.");
+	}
+}
+
+if($regionMediaImageField && $regionMediaImageField->id) {
+	$regionMediaImageChanged = false;
+
+	if((int) $regionMediaImageField->get('maxFiles') !== 1) {
+		$regionMediaImageField->set('maxFiles', 1);
+		$regionMediaImageChanged = true;
+	}
+
+	$regionMediaImageExtensions = trim((string) $regionMediaImageField->get('extensions'));
+	if($regionMediaImageExtensions === '') {
+		$regionMediaImageField->set('extensions', 'jpg jpeg png gif webp');
+		$regionMediaImageChanged = true;
+	}
+
+	if($regionMediaImageChanged) {
+		$fields->save($regionMediaImageField);
+		$log->save('actual-cards-setup', "Updated field 'region_media_image' settings.");
+	}
+}
+
+if($regionMediaVideoField && $regionMediaVideoField->id) {
+	$regionMediaVideoChanged = false;
+
+	if((int) $regionMediaVideoField->get('maxFiles') !== 1) {
+		$regionMediaVideoField->set('maxFiles', 1);
+		$regionMediaVideoChanged = true;
+	}
+
+	$regionMediaVideoExtensions = trim((string) $regionMediaVideoField->get('extensions'));
+	if($regionMediaVideoExtensions === '') {
+		$regionMediaVideoField->set('extensions', 'mp4 webm ogv mov m4v');
+		$regionMediaVideoChanged = true;
+	}
+
+	if($regionMediaVideoChanged) {
+		$fields->save($regionMediaVideoField);
+		$log->save('actual-cards-setup', "Updated field 'region_media_video' settings.");
 	}
 }
 
@@ -757,6 +808,33 @@ if($regionArticlesCardsField && $regionArticlesCardsField->id) {
 	}
 }
 
+if($regionMediaGalleryField && $regionMediaGalleryField->id) {
+	$regionMediaRepeaterTemplate = $repeaterType->_getRepeaterTemplate($regionMediaGalleryField);
+	if($regionMediaRepeaterTemplate && $regionMediaRepeaterTemplate->id) {
+		$regionMediaFieldgroup = $regionMediaRepeaterTemplate->fieldgroup;
+		$regionMediaRepeaterFields = [
+			$regionMediaTitleField,
+			$regionMediaDescriptionField,
+			$regionMediaImageField,
+			$regionMediaVideoField,
+		];
+		$regionMediaChanged = false;
+
+		foreach($regionMediaRepeaterFields as $field) {
+			if(!$field || !$field->id) continue;
+			if(!$regionMediaFieldgroup->has($field)) {
+				$regionMediaFieldgroup->add($field);
+				$regionMediaChanged = true;
+			}
+		}
+
+		if($regionMediaChanged) {
+			$regionMediaFieldgroup->save();
+			$log->save('actual-cards-setup', "Updated repeater fieldgroup '{$regionMediaFieldgroup->name}'.");
+		}
+	}
+}
+
 if($tourDaysField && $tourDaysField->id) {
 	$tourDaysRepeaterTemplate = $repeaterType->_getRepeaterTemplate($tourDaysField);
 	if($tourDaysRepeaterTemplate && $tourDaysRepeaterTemplate->id) {
@@ -1065,6 +1143,10 @@ if(!$regionDetailTemplate || !$regionDetailTemplate->id) {
 if($regionDetailTemplate && $regionDetailTemplate->id) {
 	$regionFieldgroup = $regionDetailTemplate->fieldgroup;
 	$regionTemplateFields = [
+		$regionCardTitleField,
+		$regionCardDescriptionField,
+		$regionCardImageField,
+		$regionMediaGalleryField,
 		$regionAdventuresCardsField,
 		$regionPlacesCardsField,
 		$regionArticlesHeadingField,

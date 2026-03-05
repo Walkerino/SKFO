@@ -650,6 +650,30 @@
 	gap: 0.55rem;
 }
 
+.placement-region-cards-editor {
+	display: grid;
+	gap: 0.7rem;
+}
+
+.placement-region-cards-list {
+	display: grid;
+	gap: 0.7rem;
+}
+
+.placement-region-card-editor {
+	display: grid;
+	gap: 0.62rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 12px;
+	padding: 0.7rem;
+	background: #fff;
+}
+
+.placement-region-card-editor-actions {
+	display: flex;
+	justify-content: flex-end;
+}
+
 [data-placement-builder].is-enhanced [data-placement-page] {
 	display: none;
 }
