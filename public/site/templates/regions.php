@@ -45,6 +45,15 @@ $defaultRegions = [
 	],
 ];
 
+$defaultRegionsBySlug = [];
+$defaultRegionOrder = [];
+foreach ($defaultRegions as $index => $item) {
+	$slug = (string) ($item['slug'] ?? '');
+	if ($slug === '') continue;
+	$defaultRegionsBySlug[$slug] = $item;
+	$defaultRegionOrder[$slug] = $index;
+}
+
 $regionUrlsBySlug = [];
 foreach ($defaultRegions as $item) {
 	$slug = (string) ($item['slug'] ?? '');
@@ -61,6 +70,185 @@ $normalizeRegionText = static function(string $value): string {
 	return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
 };
 
+$normalizeRegionMatch = static function(string $value): string {
+	$value = str_replace(["\r", "\n"], ' ', trim($value));
+	$value = function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+	$value = str_replace('ё', 'е', $value);
+	$value = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $value) ?? $value;
+	$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+	return trim($value);
+};
+
+$regionAliasesBySlug = [
+	'respublika-dagestan' => ['respublika-dagestan', 'республика дагестан', 'дагестан'],
+	'respublika-ingushetiya' => ['respublika-ingushetiya', 'республика ингушетия', 'ингушетия'],
+	'chechenskaya-respublika' => ['chechenskaya-respublika', 'чеченская республика', 'чечня'],
+	'kabardino-balkarskaya-respublika' => ['kabardino-balkarskaya-respublika', 'кабардино балкарская республика', 'кабардино балкария', 'кбр'],
+	'karachaevo-cherkesskaya-respublika' => ['karachaevo-cherkesskaya-respublika', 'карачаево черкесская республика', 'карачаево черкесия', 'кчр'],
+	'respublika-severnaya-osetiya' => ['respublika-severnaya-osetiya', 'республика северная осетия', 'северная осетия', 'осетия'],
+	'stavropolskiy-kray' => ['stavropolskiy-kray', 'ставропольский край', 'ставрополье'],
+];
+
+$extractImageUrl = static function($imageValue): string {
+	if ($imageValue instanceof Pageimage) return $imageValue->url;
+	if ($imageValue instanceof Pageimages && $imageValue->count()) return $imageValue->first()->url;
+	return '';
+};
+
+$extractImageUrls = static function($imageValue): array {
+	$urls = [];
+	if ($imageValue instanceof Pageimage) {
+		$urls[] = (string) $imageValue->url;
+	}
+	if ($imageValue instanceof Pageimages && $imageValue->count()) {
+		foreach ($imageValue as $image) {
+			if (!$image instanceof Pageimage) continue;
+			$urls[] = (string) $image->url;
+		}
+	}
+	return $urls;
+};
+
+$getFallbackImageUrlsFromPageFiles = static function(Page $contentPage) use ($config): array {
+	$pageId = (int) $contentPage->id;
+	if ($pageId <= 0) return [];
+
+	$dir = rtrim((string) $config->paths->files, '/');
+	if ($dir === '') return [];
+	$dir .= '/' . $pageId;
+	if (!is_dir($dir)) return [];
+
+	$entries = scandir($dir);
+	if (!is_array($entries)) return [];
+
+	$candidates = [];
+	foreach ($entries as $entry) {
+		$entry = trim((string) $entry);
+		if ($entry === '' || $entry === '.' || $entry === '..') continue;
+		if (preg_match('/\.\d+x\d+\./', $entry) === 1) continue;
+		if (preg_match('/\.(jpe?g|png|webp|gif|avif)$/i', $entry) !== 1) continue;
+		$path = $dir . '/' . $entry;
+		if (!is_file($path)) continue;
+		$candidates[] = $entry;
+	}
+	if (!count($candidates)) return [];
+
+	natcasesort($candidates);
+	$base = rtrim((string) $config->urls->files, '/') . '/' . $pageId . '/';
+	$urls = [];
+	foreach ($candidates as $filename) {
+		$urls[] = $base . rawurlencode((string) $filename);
+	}
+	return $urls;
+};
+
+$getFirstImageUrlFromPage = static function(Page $contentPage, array $fieldNames) use ($extractImageUrls, $getFallbackImageUrlsFromPageFiles): string {
+	foreach ($fieldNames as $fieldName) {
+		$fieldName = trim((string) $fieldName);
+		if ($fieldName === '' || !$contentPage->hasField($fieldName)) continue;
+		$urls = $extractImageUrls($contentPage->getUnformatted($fieldName));
+		if (count($urls)) return trim((string) $urls[0]);
+	}
+
+	$fallbackUrls = $getFallbackImageUrlsFromPageFiles($contentPage);
+	if (count($fallbackUrls)) return trim((string) $fallbackUrls[0]);
+
+	return '';
+};
+
+$getFirstRegionMediaCoverImage = static function(Page $regionPage) use ($extractImageUrl, $getFirstImageUrlFromPage, $pages, $normalizeRegionMatch, $regionAliasesBySlug): string {
+	if ($regionPage->hasField('region_media_gallery') && $regionPage->region_media_gallery->count()) {
+		foreach ($regionPage->region_media_gallery as $mediaCard) {
+			if (!$mediaCard->hasField('region_media_image')) continue;
+			$url = $extractImageUrl($mediaCard->getUnformatted('region_media_image'));
+			if ($url !== '') return $url;
+		}
+	}
+
+	if ($regionPage->hasField('region_places_cards') && $regionPage->region_places_cards->count()) {
+		foreach ($regionPage->region_places_cards as $card) {
+			if (!$card->hasField('region_place_image')) continue;
+			$url = $extractImageUrl($card->getUnformatted('region_place_image'));
+			if ($url !== '') return $url;
+		}
+	}
+
+	if ($regionPage->hasField('region_adventures_cards') && $regionPage->region_adventures_cards->count()) {
+		foreach ($regionPage->region_adventures_cards as $card) {
+			if (!$card->hasField('region_adventure_image')) continue;
+			$url = $extractImageUrl($card->getUnformatted('region_adventure_image'));
+			if ($url !== '') return $url;
+		}
+	}
+
+	if ($regionPage->hasField('region_articles_cards') && $regionPage->region_articles_cards->count()) {
+		foreach ($regionPage->region_articles_cards as $card) {
+			if (!$card->hasField('region_article_image')) continue;
+			$url = $extractImageUrl($card->getUnformatted('region_article_image'));
+			if ($url !== '') return $url;
+		}
+	}
+
+	if ($regionPage->hasField('region_featured_places') && $regionPage->region_featured_places->count()) {
+		foreach ($regionPage->region_featured_places as $placePage) {
+			if (!$placePage instanceof Page) continue;
+			$url = $getFirstImageUrlFromPage($placePage, ['place_image', 'images']);
+			if ($url !== '') return $url;
+		}
+	}
+
+	if ($regionPage->hasField('region_featured_tours') && $regionPage->region_featured_tours->count()) {
+		foreach ($regionPage->region_featured_tours as $tourPage) {
+			if (!$tourPage instanceof Page) continue;
+			$url = $getFirstImageUrlFromPage($tourPage, ['tour_cover_image', 'images']);
+			if ($url !== '') return $url;
+		}
+	}
+
+	if ($regionPage->hasField('region_featured_articles') && $regionPage->region_featured_articles->count()) {
+		foreach ($regionPage->region_featured_articles as $articlePage) {
+			if (!$articlePage instanceof Page) continue;
+			$url = $getFirstImageUrlFromPage($articlePage, ['article_cover_image', 'images']);
+			if ($url !== '') return $url;
+		}
+	}
+
+	$regionSlug = trim((string) $regionPage->name);
+	$aliasLookup = [];
+	$regionAliases = $regionAliasesBySlug[$regionSlug] ?? [$regionSlug, (string) $regionPage->title];
+	foreach ($regionAliases as $alias) {
+		$normalizedAlias = $normalizeRegionMatch((string) $alias);
+		if ($normalizedAlias !== '') $aliasLookup[$normalizedAlias] = true;
+	}
+	$matchesCurrentRegion = static function(string $value) use ($normalizeRegionMatch, $aliasLookup): bool {
+		$normalizedValue = $normalizeRegionMatch($value);
+		return $normalizedValue !== '' && isset($aliasLookup[$normalizedValue]);
+	};
+
+	$placePages = $pages->find('template=place, include=all, sort=title, limit=500');
+	foreach ($placePages as $placePage) {
+		if (!$placePage instanceof Page) continue;
+		$placeRegion = $placePage->hasField('place_region') ? trim((string) $placePage->getUnformatted('place_region')) : '';
+		if (!$matchesCurrentRegion($placeRegion)) continue;
+		$url = $getFirstImageUrlFromPage($placePage, ['place_image', 'images']);
+		if ($url !== '') return $url;
+	}
+
+	$tourPages = $pages->find('template=tour, include=all, sort=title, limit=500');
+	foreach ($tourPages as $tourPage) {
+		if (!$tourPage instanceof Page) continue;
+		$tourRegion = $tourPage->hasField('tour_region') ? trim((string) $tourPage->getUnformatted('tour_region')) : '';
+		if ($tourRegion === '' && $tourPage->hasField('region')) {
+			$tourRegion = trim((string) $tourPage->getUnformatted('region'));
+		}
+		if (!$matchesCurrentRegion($tourRegion)) continue;
+		$url = $getFirstImageUrlFromPage($tourPage, ['tour_cover_image', 'images']);
+		if ($url !== '') return $url;
+	}
+
+	return '';
+};
+
 $slugByTitle = [];
 $slugBySubtitle = [];
 foreach ($defaultRegions as $item) {
@@ -75,6 +263,7 @@ foreach ($defaultRegions as $item) {
 }
 
 $regions = [];
+$regionsBySlugFromCards = [];
 
 if ($page->hasField('region_cards') && $page->region_cards->count()) {
 	foreach ($page->region_cards as $index => $card) {
@@ -110,13 +299,85 @@ if ($page->hasField('region_cards') && $page->region_cards->count()) {
 
 		$url = $resolvedSlug !== '' && isset($regionUrlsBySlug[$resolvedSlug]) ? $regionUrlsBySlug[$resolvedSlug] : '/regions/';
 
-		$regions[] = [
+		if ($imageUrl === '' && $resolvedSlug !== '') {
+			$regionDetailPage = $pages->get('/regions/' . $resolvedSlug . '/');
+			if ($regionDetailPage instanceof Page && $regionDetailPage->id) {
+				$imageUrl = $getFirstRegionMediaCoverImage($regionDetailPage);
+			}
+		}
+
+		$regionData = [
+			'slug' => $resolvedSlug,
 			'title' => $title,
 			'subtitle' => $subtitle,
 			'image' => $imageUrl,
 			'url' => $url,
 		];
+		$regions[] = $regionData;
+		if ($resolvedSlug !== '') $regionsBySlugFromCards[$resolvedSlug] = $regionData;
 	}
+}
+
+$regionDetailPages = $page->children('template=region, include=all, sort=sort, limit=200');
+if ($regionDetailPages instanceof PageArray && $regionDetailPages->count()) {
+	$regions = [];
+	foreach ($regionDetailPages as $regionDetailPage) {
+		$slug = trim((string) $regionDetailPage->name);
+		$defaultItem = $slug !== '' && isset($defaultRegionsBySlug[$slug]) ? $defaultRegionsBySlug[$slug] : null;
+		$cardData = $slug !== '' && isset($regionsBySlugFromCards[$slug]) ? $regionsBySlugFromCards[$slug] : null;
+
+		$title = '';
+		if ($regionDetailPage->hasField('region_card_title')) {
+			$title = trim((string) $regionDetailPage->region_card_title);
+		}
+		if ($title === '' && is_array($cardData)) {
+			$title = trim((string) ($cardData['title'] ?? ''));
+		}
+		if ($title === '') $title = trim((string) $regionDetailPage->title);
+		if ($title === '' && is_array($defaultItem)) $title = (string) ($defaultItem['title'] ?? '');
+
+		$subtitle = '';
+		if ($regionDetailPage->hasField('region_card_description')) {
+			$subtitle = trim((string) $regionDetailPage->region_card_description);
+		}
+		if ($subtitle === '' && is_array($cardData)) {
+			$subtitle = trim((string) ($cardData['subtitle'] ?? ''));
+		}
+		if ($subtitle === '' && is_array($defaultItem)) $subtitle = (string) ($defaultItem['subtitle'] ?? '');
+
+		$image = '';
+		if ($regionDetailPage->hasField('region_card_image')) {
+			$image = $extractImageUrl($regionDetailPage->getUnformatted('region_card_image'));
+		}
+		if ($image === '' && is_array($cardData)) {
+			$image = trim((string) ($cardData['image'] ?? ''));
+		}
+		if ($image === '') {
+			$image = $getFirstRegionMediaCoverImage($regionDetailPage);
+		}
+		if ($image === '' && is_array($defaultItem)) $image = trim((string) ($defaultItem['image'] ?? ''));
+
+		if ($title === '' && $subtitle === '' && $image === '') continue;
+
+		$regions[] = [
+			'slug' => $slug,
+			'title' => $title,
+			'subtitle' => $subtitle,
+			'image' => $image,
+			'url' => (string) $regionDetailPage->url,
+		];
+	}
+
+	usort($regions, static function(array $a, array $b) use ($defaultRegionOrder): int {
+		$aSlug = (string) ($a['slug'] ?? '');
+		$bSlug = (string) ($b['slug'] ?? '');
+		$aOrder = isset($defaultRegionOrder[$aSlug]) ? (int) $defaultRegionOrder[$aSlug] : 9999;
+		$bOrder = isset($defaultRegionOrder[$bSlug]) ? (int) $defaultRegionOrder[$bSlug] : 9999;
+		if ($aOrder === $bOrder) {
+			return strcmp((string) ($a['title'] ?? ''), (string) ($b['title'] ?? ''));
+		}
+		return $aOrder <=> $bOrder;
+	});
 }
 
 if (!count($regions)) {
@@ -124,6 +385,7 @@ if (!count($regions)) {
 		$slug = (string) ($item['slug'] ?? '');
 		$url = $slug !== '' && isset($regionUrlsBySlug[$slug]) ? $regionUrlsBySlug[$slug] : '/regions/';
 		$regions[] = [
+			'slug' => $slug,
 			'title' => (string) ($item['title'] ?? ''),
 			'subtitle' => (string) ($item['subtitle'] ?? ''),
 			'image' => (string) ($item['image'] ?? ''),
