@@ -940,29 +940,258 @@ const initDagestanSlider = () => {
   update();
 };
 
-const initHotelMediaGallery = () => {
-  const gallery = document.querySelector("[data-hotel-gallery]");
-  const modal = document.querySelector("[data-hotel-gallery-modal]");
+const initRegionActualSlider = () => {
+  const section = document.querySelector(".region-page .section--actual[data-actual-slider]");
+  if (!section) return;
+
+  const grid = section.querySelector(".actual-grid");
+  const track = section.querySelector(".actual-track");
+  const progress = section.querySelector("[data-actual-progress]");
+  const progressTrack = section.querySelector("[data-actual-progress-track]");
+  const progressFill = section.querySelector("[data-actual-progress-fill]");
+  if (!grid || !track) return;
+
+  const cards = Array.from(track.querySelectorAll(".actual-card"));
+  if (!cards.length) {
+    if (progress) progress.hidden = true;
+    return;
+  }
+
+  const getVisibleCount = () => (window.innerWidth <= 760 ? 1 : 2);
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let startIndex = 0;
+  let maxStart = 0;
+
+  const syncProgress = (hasOverflow, visibleCount) => {
+    if (!progress || !progressTrack || !progressFill) return;
+    progress.hidden = !hasOverflow;
+
+    if (!hasOverflow) {
+      progressTrack.setAttribute("aria-valuemax", "0");
+      progressTrack.setAttribute("aria-valuenow", "0");
+      progressTrack.tabIndex = -1;
+      progressFill.style.width = "100%";
+      return;
+    }
+
+    const now = Math.max(0, Math.min(maxStart, startIndex));
+    const range = maxStart || 1;
+    const progressByPosition = now / range;
+    const minViewportFill = Math.max(visibleCount / cards.length, 0);
+    const fill = Math.max(minViewportFill, progressByPosition);
+    progressTrack.setAttribute("aria-valuemax", String(maxStart));
+    progressTrack.setAttribute("aria-valuenow", String(now));
+    progressTrack.tabIndex = 0;
+    progressFill.style.width = `${Math.min(100, Math.max(8, fill * 100))}%`;
+  };
+
+  const update = () => {
+    const visibleCount = Math.max(1, getVisibleCount());
+    const hasOverflow = cards.length > visibleCount;
+    maxStart = Math.max(0, cards.length - visibleCount);
+
+    if (!hasOverflow) {
+      startIndex = 0;
+      track.style.transform = "translateX(0px)";
+      track.style.transition = "";
+      grid.style.height = cards.length ? `${Math.ceil(cards[0].getBoundingClientRect().height)}px` : "";
+      syncProgress(false, visibleCount);
+      return;
+    }
+
+    startIndex = Math.min(startIndex, maxStart);
+    const cardWidth = cards[0].getBoundingClientRect().width;
+    const styles = window.getComputedStyle(track);
+    const gap = parseFloat(styles.columnGap || styles.gap || "0");
+    const offset = (cardWidth + gap) * startIndex;
+
+    track.style.transform = `translateX(-${offset}px)`;
+    track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
+    grid.style.height = `${Math.ceil(cards[0].getBoundingClientRect().height)}px`;
+    syncProgress(true, visibleCount);
+  };
+
+  const setIndexByPointer = (clientX) => {
+    if (!progressTrack || maxStart <= 0) return;
+    const rect = progressTrack.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    startIndex = Math.round(ratio * maxStart);
+    update();
+  };
+
+  if (progressTrack) {
+    let draggingPointerId = null;
+
+    progressTrack.addEventListener("pointerdown", (event) => {
+      if (maxStart <= 0) return;
+      draggingPointerId = event.pointerId;
+      progressTrack.setPointerCapture(event.pointerId);
+      setIndexByPointer(event.clientX);
+    });
+
+    progressTrack.addEventListener("pointermove", (event) => {
+      if (draggingPointerId !== event.pointerId) return;
+      setIndexByPointer(event.clientX);
+    });
+
+    const stopDragging = (event) => {
+      if (draggingPointerId !== event.pointerId) return;
+      draggingPointerId = null;
+      if (progressTrack.hasPointerCapture(event.pointerId)) {
+        progressTrack.releasePointerCapture(event.pointerId);
+      }
+    };
+
+    progressTrack.addEventListener("pointerup", stopDragging);
+    progressTrack.addEventListener("pointercancel", stopDragging);
+
+    progressTrack.addEventListener("keydown", (event) => {
+      if (maxStart <= 0) return;
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        startIndex = Math.max(0, startIndex - 1);
+        update();
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        startIndex = Math.min(maxStart, startIndex + 1);
+        update();
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        startIndex = 0;
+        update();
+      } else if (event.key === "End") {
+        event.preventDefault();
+        startIndex = maxStart;
+        update();
+      }
+    });
+  }
+
+  window.addEventListener("resize", update);
+  window.addEventListener("load", update);
+  update();
+};
+
+const initRegionMediaPreview = () => {
+  const grid = document.querySelector("[data-region-media-grid]");
+  const moreBtn = document.querySelector("[data-region-media-more]");
+  if (!grid || !moreBtn) return;
+
+  const cards = Array.from(grid.querySelectorAll(".region-media-card"));
+  const limitRaw = Number(grid.dataset.regionMediaLimit || "8");
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.floor(limitRaw) : 8;
+  if (cards.length <= limit) {
+    moreBtn.hidden = true;
+    grid.style.maxHeight = "none";
+    return;
+  }
+
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (prefersReducedMotion) grid.style.transition = "none";
+  let visibleCount = Math.min(limit, cards.length);
+
+  const getHeightForVisibleCount = (count) => {
+    const safeCount = Math.max(1, Math.min(cards.length, count));
+    const lastVisibleCard = cards[safeCount - 1];
+    if (!(lastVisibleCard instanceof HTMLElement)) return 0;
+    const gridRect = grid.getBoundingClientRect();
+    const cardRect = lastVisibleCard.getBoundingClientRect();
+    return Math.max(0, Math.ceil(cardRect.bottom - gridRect.top));
+  };
+
+  const applyVisibleState = () => {
+    if (visibleCount >= cards.length) {
+      grid.classList.add("is-expanded");
+      grid.style.maxHeight = "none";
+      moreBtn.hidden = true;
+      moreBtn.setAttribute("aria-expanded", "true");
+      return;
+    }
+
+    grid.classList.remove("is-expanded");
+    const height = getHeightForVisibleCount(visibleCount);
+    if (height > 0) grid.style.maxHeight = `${height}px`;
+    moreBtn.hidden = false;
+    moreBtn.setAttribute("aria-expanded", "false");
+  };
+
+  const measureSoon = () => {
+    window.requestAnimationFrame(applyVisibleState);
+  };
+
+  const showNextBatch = () => {
+    visibleCount = Math.min(cards.length, visibleCount + limit);
+    applyVisibleState();
+  };
+
+  cards.forEach((card) => {
+    const media = card.querySelector("img, video");
+    if (!media) return;
+    media.addEventListener("load", measureSoon);
+    media.addEventListener("loadedmetadata", measureSoon);
+  });
+
+  applyVisibleState();
+  moreBtn.addEventListener("click", showNextBatch);
+  window.addEventListener("resize", measureSoon);
+  window.addEventListener("load", measureSoon);
+};
+
+const initMediaLightbox = (gallerySelector, itemSelector, modalSelector) => {
+  const gallery = document.querySelector(gallerySelector);
+  const modal = document.querySelector(modalSelector);
   if (!gallery || !modal) return;
 
-  const items = Array.from(gallery.querySelectorAll("[data-hotel-gallery-item]"));
+  const items = Array.from(gallery.querySelectorAll(itemSelector));
   const imageEl = modal.querySelector("[data-gallery-image]");
+  const videoEl = modal.querySelector("[data-gallery-video]");
   const counterEl = modal.querySelector("[data-gallery-counter]");
   const closeBtn = modal.querySelector('[data-gallery-close="button"]');
   const backdrop = modal.querySelector('[data-gallery-close="backdrop"]');
   const prevBtn = modal.querySelector('[data-gallery-nav="prev"]');
   const nextBtn = modal.querySelector('[data-gallery-nav="next"]');
-  if (!items.length || !imageEl || !counterEl || !closeBtn || !backdrop || !prevBtn || !nextBtn) return;
+  if (!items.length || (!imageEl && !videoEl) || !counterEl || !closeBtn || !backdrop || !prevBtn || !nextBtn) return;
 
   let activeIndex = 0;
+  const hasVideo = videoEl instanceof HTMLVideoElement;
+  const hasImage = imageEl instanceof HTMLImageElement;
+
+  const resetVideo = () => {
+    if (!hasVideo) return;
+    videoEl.pause();
+    videoEl.removeAttribute("src");
+    videoEl.load();
+    videoEl.hidden = true;
+  };
 
   const updateView = () => {
     const item = items[activeIndex];
     if (!(item instanceof HTMLElement)) return;
     const src = item.dataset.gallerySrc || "";
     const alt = item.dataset.galleryAlt || "";
-    imageEl.src = src;
-    imageEl.alt = alt;
+    const mediaType = item.dataset.galleryType === "video" ? "video" : "image";
+
+    if (mediaType === "video" && hasVideo) {
+      if (hasImage) {
+        imageEl.hidden = true;
+        imageEl.removeAttribute("src");
+        imageEl.alt = "";
+      }
+      videoEl.hidden = false;
+      videoEl.src = src;
+      videoEl.load();
+    } else if (hasImage) {
+      resetVideo();
+      imageEl.hidden = false;
+      imageEl.src = src;
+      imageEl.alt = alt;
+    } else if (hasVideo) {
+      videoEl.hidden = false;
+      videoEl.src = src;
+      videoEl.load();
+    }
+
     counterEl.textContent = `${activeIndex + 1} / ${items.length}`;
   };
 
@@ -981,6 +1210,7 @@ const initHotelMediaGallery = () => {
     window.setTimeout(() => {
       if (!modal.classList.contains("is-open")) modal.hidden = true;
     }, 160);
+    resetVideo();
     document.body.classList.remove("hotel-lightbox-open");
   };
 
@@ -1019,6 +1249,14 @@ const initHotelMediaGallery = () => {
       showNext();
     }
   });
+};
+
+const initHotelMediaGallery = () => {
+  initMediaLightbox("[data-hotel-gallery]", "[data-hotel-gallery-item]", "[data-hotel-gallery-modal]");
+};
+
+const initRegionMediaGallery = () => {
+  initMediaLightbox("[data-region-gallery]", "[data-region-gallery-item]", "[data-region-gallery-modal]");
 };
 
 const initTourDaysAccordion = () => {
@@ -1096,6 +1334,9 @@ document.addEventListener("DOMContentLoaded", () => {
   initJournalSlider();
   initDagestanSlider();
   initHotToursSlider();
+  initRegionActualSlider();
   initHotelMediaGallery();
+  initRegionMediaPreview();
+  initRegionMediaGallery();
   initTourDaysAccordion();
 });
