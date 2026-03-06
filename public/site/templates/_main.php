@@ -26,9 +26,8 @@ $home = $pages->get('/'); /** @var HomePage $home */
 
 	$templateName = $page->template ? $page->template->name : '';
 		$requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
-		$isContentAdminRequest = $requestPath === '/content-admin' || $requestPath === '/content-admin/';
 		$isProfileRequest = $requestPath === '/profile' || $requestPath === '/profile/';
-		$isContentAdminPage = $page->name === 'content-admin' || $page->path === '/content-admin/' || $isContentAdminRequest;
+		$isContentAdminPage = false;
 		$isProfilePage = $page->name === 'profile' || $page->path === '/profile/' || $isProfileRequest;
 		$isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
 		$isHotelsRequest = preg_match('#^/hotels(?:/|$)#', (string) $requestPath) === 1;
@@ -39,6 +38,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$isReviewsPage = $page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest;
 	$isRegionsPage = $page->name === 'regions' || $page->path === '/regions/' || in_array($templateName, ['regions', 'region', 'places', 'place'], true) || $isRegionsRequest || $isPlacesRequest;
 	$isArticlesPage = $page->name === 'articles' || $page->path === '/articles/' || $isArticlesRequest;
+	$isHomePage = $page->path === '/' || $templateName === 'home';
 	$isTourTemplate = in_array($templateName, ['tour', 'tours', 'hotel', 'reviews', 'regions', 'region', 'places', 'place', 'articles', 'article'], true) || $isReviewsPage || $isRegionsPage || $isArticlesPage;
 	$isTourNavActive = in_array($templateName, ['tour', 'tours'], true);
 	$isHotelsNavActive = $templateName === 'hotel' || $isHotelsPage;
@@ -64,7 +64,6 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		'articles' => 'Статьи',
 		'article' => 'Статья',
 		'profile' => 'Профиль',
-		'content-admin' => 'Контент-центр',
 	];
 	$headTitleOverrides = [
 		'home' => 'Главная',
@@ -80,8 +79,6 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		'articles' => 'Статьи',
 		'article' => 'Статья',
 		'profile' => 'Профиль',
-		'content admin' => 'Контент-центр',
-		'content-admin' => 'Контент-центр',
 	];
 	$pageTitleForHead = trim((string) $page->title);
 	$pageTitleKey = $normalizeHeadTitleKey($pageTitleForHead);
@@ -213,7 +210,10 @@ $home = $pages->get('/'); /** @var HomePage $home */
 							<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/profile.svg" alt="" aria-hidden="true" />
 							<span><?php echo $sanitizer->entities($profileButtonLabel); ?></span>
 						</a>
-						<a class="logo" href="<?php echo $home->url; ?>" aria-label="SKFO.RU">
+						<a class="logo<?php echo $isHomePage ? ' logo--home' : ''; ?>" href="<?php echo $home->url; ?>" aria-label="SKFO.RU">
+							<?php if($isHomePage): ?>
+								<img class="logo-eagle-img" src="<?php echo $config->urls->templates; ?>assets/icons/logo-eagle.svg" alt="" aria-hidden="true" />
+							<?php endif; ?>
 							<img class="logo-img" src="<?php echo $config->urls->templates; ?>assets/icons/logo.svg" alt="SKFO.RU" />
 						</a>
 						<a class="icon-btn" href="/contacts/" aria-label="Контакты" data-contacts-open>
