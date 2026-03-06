@@ -61,6 +61,47 @@ $normalizeTopic = static function(string $value): string {
 	return trim($value);
 };
 
+$sanitizeArticleHref = static function(string $href): string {
+	$href = trim(html_entity_decode($href, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+	if ($href === '') return '';
+	if (preg_match('~^(https?://|mailto:|tel:|/|#)~iu', $href)) return $href;
+	return '';
+};
+
+$sanitizeArticleHtml = static function(string $value) use ($sanitizeArticleHref): string {
+	$value = str_replace("\0", '', trim($value));
+	if ($value === '') return '';
+
+	$value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+	$value = preg_replace('#<\s*/?\s*(script|style|iframe|object|embed|form|input|button|textarea|select|meta|link)[^>]*>#iu', '', $value) ?? $value;
+	$value = strip_tags($value, '<p><br><strong><b><em><i><u><s><strike><h1><h2><h3><h4><h5><h6><ul><ol><li><blockquote><a>');
+	$value = preg_replace('/<(\/?)(p|br|strong|b|em|i|u|s|strike|h1|h2|h3|h4|h5|h6|ul|ol|li|blockquote)\b[^>]*>/iu', '<$1$2>', $value) ?? $value;
+	$value = preg_replace_callback('/<a\b([^>]*)>/iu', static function(array $matches) use ($sanitizeArticleHref): string {
+		$attrs = (string) ($matches[1] ?? '');
+		$hrefRaw = '';
+
+		if (preg_match('/\bhref\s*=\s*(["\'])(.*?)\1/iu', $attrs, $hrefMatch)) {
+			$hrefRaw = (string) ($hrefMatch[2] ?? '');
+		} elseif (preg_match('/\bhref\s*=\s*([^\s"\'>]+)/iu', $attrs, $hrefMatch)) {
+			$hrefRaw = (string) ($hrefMatch[1] ?? '');
+		}
+
+		$href = $sanitizeArticleHref($hrefRaw);
+		$targetBlank = preg_match('/\btarget\s*=\s*(["\'])?_blank\1?/iu', $attrs) === 1;
+
+		$tag = '<a';
+		if ($href !== '') {
+			$tag .= ' href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '"';
+			if ($targetBlank) $tag .= ' target="_blank" rel="noopener noreferrer"';
+		}
+		$tag .= '>';
+		return $tag;
+	}, $value) ?? $value;
+	$value = preg_replace('/<a>\s*<\/a>/iu', '', $value) ?? $value;
+
+	return trim($value);
+};
+
 $splitToParagraphs = static function(string $value): array {
 	$value = trim(str_replace("\r", '', $value));
 	if ($value === '') return [];
@@ -219,7 +260,7 @@ $defaultArticleParagraphs = [
 	'Сайт СКФО.РУ поможет вам выбрать направление и спланировать поездку с учетом ваших интересов, бюджета и желаемого уровня активности.'
 ];
 
-$normalizeArticles = static function(array $articles) use ($buildArticleUrl, $extractArticleSlugFromUrl, $slugify, $splitToParagraphs, $defaultCoverUrl): array {
+$normalizeArticles = static function(array $articles) use ($buildArticleUrl, $extractArticleSlugFromUrl, $slugify, $splitToParagraphs, $defaultCoverUrl, $sanitizeArticleHtml): array {
 	$normalized = [];
 	foreach ($articles as $article) {
 		$title = trim((string) ($article['title'] ?? ''));
@@ -229,14 +270,24 @@ $normalizeArticles = static function(array $articles) use ($buildArticleUrl, $ex
 		$slug = $extractArticleSlugFromUrl($url);
 		if ($slug === '') $slug = $slugify($title);
 
+		$content = trim((string) ($article['content'] ?? ''));
+		$contentDecoded = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+		$contentHasHtml = $contentDecoded !== '' && preg_match('/<[^>]+>/', $contentDecoded) === 1;
+		$contentHtml = trim((string) ($article['content_html'] ?? ''));
+		if ($contentHtml === '' && $contentHasHtml) {
+			$contentHtml = $sanitizeArticleHtml($contentDecoded);
+		} elseif ($contentHtml !== '') {
+			$contentHtml = $sanitizeArticleHtml($contentHtml);
+		}
+
 		$paragraphs = [];
 		if (!empty($article['paragraphs']) && is_array($article['paragraphs'])) {
 			foreach ((array) $article['paragraphs'] as $paragraph) {
 				$line = trim((string) $paragraph);
 				if ($line !== '') $paragraphs[] = $line;
 			}
-		} elseif (!empty($article['content'])) {
-			$paragraphs = $splitToParagraphs((string) $article['content']);
+		} elseif (!$contentHasHtml && $content !== '') {
+			$paragraphs = $splitToParagraphs($content);
 		}
 
 		$normalized[] = [
@@ -248,6 +299,7 @@ $normalizeArticles = static function(array $articles) use ($buildArticleUrl, $ex
 			'image' => trim((string) ($article['image'] ?? '')) !== '' ? trim((string) $article['image']) : $defaultCoverUrl,
 			'url' => $url,
 			'paragraphs' => $paragraphs,
+			'content_html' => $contentHtml,
 		];
 	}
 	return $normalized;
@@ -591,6 +643,9 @@ foreach (array_merge($regionCatalogArticles, $catalogArticles) as $article) {
 	if (!count((array) ($existing['paragraphs'] ?? [])) && count((array) ($article['paragraphs'] ?? []))) {
 		$existing['paragraphs'] = $article['paragraphs'];
 	}
+	if (trim((string) ($existing['content_html'] ?? '')) === '' && trim((string) ($article['content_html'] ?? '')) !== '') {
+		$existing['content_html'] = $article['content_html'];
+	}
 	if (trim((string) ($existing['url'] ?? '')) === '/articles/' && trim((string) ($article['url'] ?? '')) !== '') {
 		$existing['url'] = $article['url'];
 	}
@@ -615,10 +670,15 @@ if ($selectedArticleSlug !== '' && $selectedArticle === null) {
 		'image' => $defaultCoverUrl,
 		'url' => '/articles/?article=' . rawurlencode($selectedArticleSlug),
 		'paragraphs' => $defaultArticleParagraphs,
+		'content_html' => '',
 	];
 }
 
-if ($selectedArticle && !count((array) ($selectedArticle['paragraphs'] ?? []))) {
+if (
+	$selectedArticle
+	&& trim((string) ($selectedArticle['content_html'] ?? '')) === ''
+	&& !count((array) ($selectedArticle['paragraphs'] ?? []))
+) {
 	$selectedArticle['paragraphs'] = $defaultArticleParagraphs;
 }
 
@@ -737,24 +797,31 @@ $forumExternalUrl = 'https://club.skfo.ru';
 				<?php endif; ?>
 
 				<?php
-				$articleParagraphs = (array) ($selectedArticle['paragraphs'] ?? []);
-				if (!count($articleParagraphs)) $articleParagraphs = $defaultArticleParagraphs;
-				$middle = (int) ceil(count($articleParagraphs) / 2);
-				$leftParagraphs = array_slice($articleParagraphs, 0, $middle);
-				$rightParagraphs = array_slice($articleParagraphs, $middle);
+				$articleHtml = trim((string) ($selectedArticle['content_html'] ?? ''));
 				?>
-				<div class="article-detail-columns">
-					<div class="article-detail-column">
-						<?php foreach ($leftParagraphs as $paragraph): ?>
-							<p><?php echo $sanitizer->entities((string) $paragraph); ?></p>
-						<?php endforeach; ?>
+				<?php if ($articleHtml !== ''): ?>
+					<div class="article-detail-richtext"><?php echo $articleHtml; ?></div>
+				<?php else: ?>
+					<?php
+					$articleParagraphs = (array) ($selectedArticle['paragraphs'] ?? []);
+					if (!count($articleParagraphs)) $articleParagraphs = $defaultArticleParagraphs;
+					$middle = (int) ceil(count($articleParagraphs) / 2);
+					$leftParagraphs = array_slice($articleParagraphs, 0, $middle);
+					$rightParagraphs = array_slice($articleParagraphs, $middle);
+					?>
+					<div class="article-detail-columns">
+						<div class="article-detail-column">
+							<?php foreach ($leftParagraphs as $paragraph): ?>
+								<p><?php echo $sanitizer->entities((string) $paragraph); ?></p>
+							<?php endforeach; ?>
+						</div>
+						<div class="article-detail-column">
+							<?php foreach ($rightParagraphs as $paragraph): ?>
+								<p><?php echo $sanitizer->entities((string) $paragraph); ?></p>
+							<?php endforeach; ?>
+						</div>
 					</div>
-					<div class="article-detail-column">
-						<?php foreach ($rightParagraphs as $paragraph): ?>
-							<p><?php echo $sanitizer->entities((string) $paragraph); ?></p>
-						<?php endforeach; ?>
-					</div>
-				</div>
+				<?php endif; ?>
 			</div>
 		</section>
 	<?php else: ?>
@@ -795,7 +862,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 			<section class="section section--region-articles section--articles-read">
 				<div class="container">
 					<h2 class="region-articles-title">Читают сегодня</h2>
-					<div class="region-articles-card">
+					<div class="region-articles-card<?php echo count($todayArticles) < 4 ? ' region-articles-card--compact' : ''; ?>">
 						<a class="region-article region-article--lead" href="<?php echo $sanitizer->entities($withArticleContext((string) $leadArticle['url'], $listSource, $articlesListUrl)); ?>">
 							<div class="region-article-media" style="background-image: url('<?php echo htmlspecialchars((string) $leadArticle['image'], ENT_QUOTES, 'UTF-8'); ?>');"></div>
 							<div class="region-article-content">
