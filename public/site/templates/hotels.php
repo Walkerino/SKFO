@@ -570,7 +570,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					<img class="hero-tab-external" src="<?php echo $config->urls->templates; ?>assets/icons/external_site.svg" alt="" aria-hidden="true" />
 				</a>
 			</div>
-			<form class="hero-search hotels-search" action="<?php echo $sanitizer->entities($page->url); ?>" method="get">
+			<form class="hero-search hotels-search hero-search--compact" action="<?php echo $sanitizer->entities($page->url); ?>" method="get">
 				<input type="hidden" name="apply_filters" value="1" />
 				<div class="hero-search-fields hotels-search-fields">
 					<label class="hero-field<?php echo $regionFieldClass; ?>">
@@ -610,7 +610,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
 					</label>
 				</div>
-				<button class="search-btn" type="submit">Применить фильтры</button>
+				<button class="search-btn" type="submit">Применить</button>
 			</form>
 		</div>
 	</section>
