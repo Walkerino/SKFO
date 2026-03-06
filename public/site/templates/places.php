@@ -108,6 +108,31 @@ $buildPageUrl = static function(int $pageNumber) use ($page, $searchQuery, $sear
 	$query = http_build_query($params, '', '&', PHP_QUERY_RFC3986);
 	return $page->url . ($query !== '' ? '?' . $query : '');
 };
+
+$appendLocalQueryParams = static function(string $url, array $params): string {
+	$url = trim($url);
+	if ($url === '') return '';
+
+	$parts = parse_url($url);
+	if ($parts === false) return $url;
+	if (!empty($parts['scheme']) || !empty($parts['host'])) return $url;
+
+	$query = [];
+	if (!empty($parts['query'])) parse_str((string) $parts['query'], $query);
+	foreach ($params as $key => $value) {
+		$key = trim((string) $key);
+		$value = trim((string) $value);
+		if ($key === '' || $value === '') continue;
+		$query[$key] = $value;
+	}
+
+	$path = (string) ($parts['path'] ?? '/');
+	if ($path === '') $path = '/';
+	if ($path[0] !== '/') $path = '/' . ltrim($path, '/');
+	$queryString = count($query) ? '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986) : '';
+	$fragment = isset($parts['fragment']) && $parts['fragment'] !== '' ? '#' . (string) $parts['fragment'] : '';
+	return $path . $queryString . $fragment;
+};
 ?>
 
 <div id="content" class="places-page">
@@ -146,6 +171,11 @@ $buildPageUrl = static function(int $pageNumber) use ($page, $searchQuery, $sear
 						$imageUrl = trim((string) ($place['image'] ?? ''));
 						$placeUrl = trim((string) ($place['url'] ?? ''));
 						if ($placeUrl === '') $placeUrl = $page->url;
+						$placeUrl = $appendLocalQueryParams($placeUrl, [
+							'from' => 'places',
+							'back' => $buildPageUrl($currentPage),
+							'cover' => $imageUrl,
+						]);
 						?>
 						<article class="hotel-card">
 							<div class="hotel-card-media"<?php echo $imageUrl !== '' ? " style=\"background-image: url('" . htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8') . "');\"" : ''; ?>></div>
