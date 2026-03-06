@@ -519,6 +519,102 @@ foreach($catalogImageFields as $fieldName => $field) {
 	}
 }
 
+$ensureRichTextEditorModule = static function(array $moduleNames) use ($modules, $log): string {
+	foreach($moduleNames as $moduleName) {
+		$moduleName = trim((string) $moduleName);
+		if($moduleName === '') continue;
+		if($modules->isInstalled($moduleName)) return $moduleName;
+
+		try {
+			$isInstallable = method_exists($modules, 'isInstallable') ? (bool) $modules->isInstallable($moduleName) : true;
+			if(!$isInstallable) continue;
+			$modules->install($moduleName);
+			if($modules->isInstalled($moduleName)) {
+				$log->save('actual-cards-setup', "Installed module '{$moduleName}' for rich text article editing.");
+				return $moduleName;
+			}
+		} catch(\Throwable $e) {
+			$log->save('actual-cards-setup', "Cannot install module '{$moduleName}': " . $e->getMessage());
+		}
+	}
+
+	return '';
+};
+
+$syncRichTextField = static function(?Field $field, string $editorInputfieldClass, array $settings = []) use ($fields, $log): void {
+	if(!$field || !$field->id) return;
+
+	$changed = false;
+	$editorInputfieldClass = ltrim(trim($editorInputfieldClass), '_');
+	if($editorInputfieldClass !== '') {
+		$currentInputfieldClass = ltrim((string) $field->get('inputfieldClass'), '_');
+		$currentInputfield = ltrim((string) $field->get('inputfield'), '_');
+		if($currentInputfieldClass !== $editorInputfieldClass) {
+			$field->set('inputfieldClass', $editorInputfieldClass);
+			$changed = true;
+		}
+		if($currentInputfield !== $editorInputfieldClass) {
+			$field->set('inputfield', $editorInputfieldClass);
+			$changed = true;
+		}
+	}
+
+	$desiredContentType = defined('\ProcessWire\FieldtypeTextarea::contentTypeHTML')
+		? (int) FieldtypeTextarea::contentTypeHTML
+		: 1;
+	if((int) $field->get('contentType') !== $desiredContentType) {
+		$field->set('contentType', $desiredContentType);
+		$changed = true;
+	}
+
+	$textformatters = $field->get('textformatters');
+	$formatterList = [];
+	if($textformatters instanceof WireArray) {
+		foreach($textformatters as $formatter) {
+			$name = $formatter instanceof Module ? $formatter->className() : trim((string) $formatter);
+			if($name !== '') $formatterList[] = $name;
+		}
+	} elseif(is_array($textformatters)) {
+		foreach($textformatters as $formatter) {
+			$name = trim((string) $formatter);
+			if($name !== '') $formatterList[] = $name;
+		}
+	} elseif(is_string($textformatters) && trim($textformatters) !== '') {
+		$formatterList[] = trim($textformatters);
+	}
+	$filteredFormatters = array_values(array_filter($formatterList, static function(string $name): bool {
+		$normalized = ltrim(trim($name), '_');
+		return $normalized !== '' && $normalized !== 'TextformatterEntities';
+	}));
+	if($filteredFormatters !== $formatterList) {
+		$field->set('textformatters', $filteredFormatters);
+		$changed = true;
+	}
+
+	foreach($settings as $settingName => $settingValue) {
+		if($field->get((string) $settingName) === $settingValue) continue;
+		$field->set((string) $settingName, $settingValue);
+		$changed = true;
+	}
+
+	if($changed) {
+		$fields->save($field);
+		$log->save('actual-cards-setup', "Updated field '{$field->name}' for ProcessWire rich text editor.");
+	}
+};
+
+$articleEditorInputfield = $ensureRichTextEditorModule(['InputfieldTinyMCE', 'InputfieldCKEditor']);
+$articleEditorSettings = [];
+if($articleEditorInputfield === 'InputfieldTinyMCE') {
+	$articleEditorSettings = [
+		'toolbar' => 'styles bold italic underline strikethrough pwlink unlink pwimage blockquote hr bullist numlist table anchor code removeformat',
+		'plugins' => 'anchor code link lists pwimage pwlink table',
+		'menubar' => 1,
+	];
+}
+$syncRichTextField($articleExcerptField, $articleEditorInputfield, $articleEditorSettings);
+$syncRichTextField($articleContentField, $articleEditorInputfield, $articleEditorSettings);
+
 $syncPageReferenceField = static function(?Field $field, string $selector) use ($fields, $log): void {
 	if(!$field || !$field->id) return;
 	$changed = false;
@@ -1447,7 +1543,30 @@ if($contentRoot && $contentRoot->id) {
 	$ensureCatalogSection($contentRoot, 'hotels', 'Каталог отелей', $basicPageTemplate);
 }
 
-// Deprecated: custom /content-admin/ page is no longer auto-created.
+// Remove legacy custom /content-admin/ frontend editor.
+$legacyContentAdminPage = $pages->get('/content-admin/');
+if($legacyContentAdminPage && $legacyContentAdminPage->id) {
+	try {
+		$legacyContentAdminPage->of(false);
+		$pages->delete($legacyContentAdminPage, true);
+		$log->save('actual-cards-setup', "Removed legacy page '/content-admin/'.");
+	} catch(\Throwable $e) {
+		$log->save('actual-cards-setup', "Cannot remove page '/content-admin/': " . $e->getMessage());
+	}
+}
+
+$legacyContentAdminTemplate = $templates->get('content-admin');
+if($legacyContentAdminTemplate && $legacyContentAdminTemplate->id) {
+	$legacyTemplateUsageCount = (int) $pages->count('template=content-admin, include=all');
+	if($legacyTemplateUsageCount < 1) {
+		try {
+			$templates->delete($legacyContentAdminTemplate);
+			$log->save('actual-cards-setup', "Removed legacy template 'content-admin'.");
+		} catch(\Throwable $e) {
+			$log->save('actual-cards-setup', "Cannot remove template 'content-admin': " . $e->getMessage());
+		}
+	}
+}
 
 $reviewsTemplate = $templates->get('reviews');
 if(!$reviewsTemplate || !$reviewsTemplate->id) {
