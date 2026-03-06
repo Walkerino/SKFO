@@ -57,6 +57,18 @@ $toLower = static function(string $value): string {
 	return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
 };
 
+$normalizeDisplayText = static function(string $value): string {
+	$decoded = $value;
+	for ($i = 0; $i < 3; $i++) {
+		$next = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+		if ($next === $decoded) break;
+		$decoded = $next;
+	}
+	$value = trim(str_replace(["\r", "\n"], ' ', $decoded));
+	$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+	return $value;
+};
+
 $formatDaysLabel = static function(int $days): string {
 	$days = max(0, $days);
 	$mod10 = $days % 10;
@@ -107,22 +119,91 @@ $getImageUrlFromValue = static function($imageValue): string {
 	return '';
 };
 
-$getFirstTextFromPage = static function(Page $item, array $fieldNames): string {
+$getImageUrlsFromValue = static function($imageValue): array {
+	$urls = [];
+	if ($imageValue instanceof Pageimage) {
+		$urls[] = (string) $imageValue->url;
+	}
+	if ($imageValue instanceof Pageimages && $imageValue->count()) {
+		foreach ($imageValue as $image) {
+			if (!$image instanceof Pageimage) continue;
+			$urls[] = (string) $image->url;
+		}
+	}
+	return $urls;
+};
+
+$getFallbackImageUrlsFromPageFiles = static function(Page $contentPage) use ($config): array {
+	$pageId = (int) $contentPage->id;
+	if ($pageId <= 0) return [];
+
+	$dir = rtrim((string) $config->paths->files, '/');
+	if ($dir === '') return [];
+	$dir .= '/' . $pageId;
+	if (!is_dir($dir)) return [];
+
+	$entries = scandir($dir);
+	if (!is_array($entries)) return [];
+
+	$candidates = [];
+	foreach ($entries as $entry) {
+		$entry = trim((string) $entry);
+		if ($entry === '' || $entry === '.' || $entry === '..') continue;
+		if (preg_match('/\.\d+x\d+\./', $entry) === 1) continue;
+		if (preg_match('/\.(jpe?g|png|webp|gif|avif)$/i', $entry) !== 1) continue;
+		$path = $dir . '/' . $entry;
+		if (!is_file($path)) continue;
+		$candidates[] = $entry;
+	}
+	if (!count($candidates)) return [];
+
+	natcasesort($candidates);
+	$base = rtrim((string) $config->urls->files, '/') . '/' . $pageId . '/';
+	$urls = [];
+	foreach ($candidates as $filename) {
+		$urls[] = $base . rawurlencode((string) $filename);
+	}
+	return $urls;
+};
+
+$getImageUrlsFromPage = static function(Page $contentPage, array $fieldNames) use ($getImageUrlsFromValue, $getFallbackImageUrlsFromPageFiles): array {
+	$urls = [];
+	$seen = [];
+	foreach ($fieldNames as $fieldName) {
+		$fieldName = trim((string) $fieldName);
+		if ($fieldName === '' || !$contentPage->hasField($fieldName)) continue;
+		$items = $getImageUrlsFromValue($contentPage->getUnformatted($fieldName));
+		foreach ($items as $itemUrl) {
+			$itemUrl = trim((string) $itemUrl);
+			if ($itemUrl === '' || isset($seen[$itemUrl])) continue;
+			$seen[$itemUrl] = true;
+			$urls[] = $itemUrl;
+		}
+	}
+
+	if (count($urls)) return $urls;
+
+	foreach ($getFallbackImageUrlsFromPageFiles($contentPage) as $itemUrl) {
+		$itemUrl = trim((string) $itemUrl);
+		if ($itemUrl === '' || isset($seen[$itemUrl])) continue;
+		$seen[$itemUrl] = true;
+		$urls[] = $itemUrl;
+	}
+	return $urls;
+};
+
+$getFirstTextFromPage = static function(Page $item, array $fieldNames) use ($normalizeDisplayText): string {
 	foreach ($fieldNames as $fieldName) {
 		if (!$item->hasField($fieldName)) continue;
-		$value = trim((string) $item->$fieldName);
+		$value = $normalizeDisplayText((string) $item->$fieldName);
 		if ($value !== '') return $value;
 	}
 	return '';
 };
 
-$getFirstImageUrlFromPage = static function(Page $item, array $fieldNames) use ($getImageUrlFromValue): string {
-	foreach ($fieldNames as $fieldName) {
-		if (!$item->hasField($fieldName)) continue;
-		$imageUrl = $getImageUrlFromValue($item->getUnformatted($fieldName));
-		if ($imageUrl !== '') return $imageUrl;
-	}
-	return '';
+$getFirstImageUrlFromPage = static function(Page $item, array $fieldNames) use ($getImageUrlsFromPage): string {
+	$urls = $getImageUrlsFromPage($item, $fieldNames);
+	return count($urls) ? (string) $urls[0] : '';
 };
 
 $truncateText = static function(string $value, int $length = 180): string {
@@ -179,10 +260,129 @@ $loadLegacyTitlesByIds = static function(array $pageIds) use ($database): array 
 
 $defaultCardImage = $config->urls->templates . 'assets/image1.png';
 
-$searchRegion = trim((string) $input->get('where'));
-$searchTripDate = trim((string) $input->get('when'));
-$searchCompanion = trim((string) $input->get('with'));
-if ($searchCompanion === '') $searchCompanion = '1 человек';
+$tourTypeOptions = [
+	'group' => 'Групповой',
+	'individual' => 'Индивидуальный',
+];
+
+$seasonalityOptions = [
+	'year-round' => 'Круглый год',
+	'spring' => 'Весна',
+	'summer' => 'Лето',
+	'autumn' => 'Осень',
+	'winter' => 'Зима',
+];
+
+$difficultyOptions = ['Базовая', 'Средняя', 'Высокая'];
+$difficultyOptionKeys = [];
+foreach ($difficultyOptions as $difficultyLabel) {
+	$difficultyOptionKeys[$toLower($difficultyLabel)] = true;
+}
+
+$addDifficultyOption = static function(string $value) use (&$difficultyOptions, &$difficultyOptionKeys, $normalizeDisplayText, $toLower): void {
+	$value = $normalizeDisplayText($value);
+	if ($value === '') return;
+
+	$key = $toLower($value);
+	if (isset($difficultyOptionKeys[$key])) return;
+
+	$difficultyOptionKeys[$key] = true;
+	$difficultyOptions[] = $value;
+};
+
+$normalizeTourTypeKey = static function(string $value) use ($normalizeDisplayText, $toLower): string {
+	$value = $normalizeDisplayText($value);
+	if ($value === '') return '';
+
+	$needle = str_replace('ё', 'е', $toLower($value));
+	if (
+		strpos($needle, 'индив') !== false ||
+		strpos($needle, 'персон') !== false ||
+		strpos($needle, 'private') !== false
+	) {
+		return 'individual';
+	}
+
+	if (
+		strpos($needle, 'групп') !== false ||
+		strpos($needle, 'мини-групп') !== false ||
+		strpos($needle, 'чел') !== false ||
+		preg_match('/\d+\s*[-–—]\s*\d+/u', $needle) === 1
+	) {
+		return 'group';
+	}
+
+	return '';
+};
+
+$extractTourDifficultyLabel = static function(Page $tourPage) use ($normalizeDisplayText): string {
+	$difficulty = '';
+	if ($tourPage->hasField('tour_difficulty_level')) {
+		$value = $tourPage->getUnformatted('tour_difficulty_level');
+		if ($value instanceof SelectableOptionArray && $value->count()) {
+			$selected = $value->first();
+			if ($selected instanceof SelectableOption) $difficulty = trim((string) $selected->title);
+		} elseif ($value instanceof SelectableOption) {
+			$difficulty = trim((string) $value->title);
+		}
+	}
+
+	if ($difficulty === '' && $tourPage->hasField('tour_difficulty')) {
+		$difficulty = trim((string) $tourPage->getUnformatted('tour_difficulty'));
+	}
+
+	return $normalizeDisplayText($difficulty);
+};
+
+$extractSeasonalityKeys = static function(string $value) use ($toLower): array {
+	$value = str_replace('ё', 'е', $toLower(trim($value)));
+	if ($value === '') return [];
+
+	$keys = [];
+	$contains = static function(string $needle) use ($value): bool {
+		return strpos($value, $needle) !== false;
+	};
+
+	if (
+		$contains('круглогод') ||
+		$contains('круглый год') ||
+		$contains('весь год') ||
+		$contains('все сез') ||
+		$contains('всесезон')
+	) {
+		$keys[] = 'year-round';
+		$keys[] = 'spring';
+		$keys[] = 'summer';
+		$keys[] = 'autumn';
+		$keys[] = 'winter';
+	}
+
+	if ($contains('весн') || $contains('март') || $contains('апрел') || $contains('май')) {
+		$keys[] = 'spring';
+	}
+
+	if ($contains('лет') || $contains('июн') || $contains('июл') || $contains('август')) {
+		$keys[] = 'summer';
+	}
+
+	if ($contains('осен') || $contains('сентябр') || $contains('октябр') || $contains('ноябр')) {
+		$keys[] = 'autumn';
+	}
+
+	if ($contains('зим') || $contains('декабр') || $contains('январ') || $contains('феврал')) {
+		$keys[] = 'winter';
+	}
+
+	return array_values(array_unique($keys));
+};
+
+$searchRegion = $normalizeDisplayText((string) $input->get('where'));
+$searchTourType = trim((string) $input->get('tour_type'));
+$searchDifficulty = $normalizeDisplayText((string) $input->get('difficulty'));
+$searchSeasonality = trim((string) $input->get('seasonality'));
+
+if ($searchTourType !== '' && !isset($tourTypeOptions[$searchTourType])) $searchTourType = '';
+if ($searchSeasonality !== '' && !isset($seasonalityOptions[$searchSeasonality])) $searchSeasonality = '';
 
 $homeDisplayPage = $page;
 if (isset($pages) && $pages instanceof Pages && !$homeDisplayPage->hasField('home_featured_tours')) {
@@ -193,9 +393,6 @@ if (isset($pages) && $pages instanceof Pages && !$homeDisplayPage->hasField('hom
 }
 
 $isTourSearchSubmitted = trim((string) $input->get('search_tours')) === '1';
-$regionFieldClass = $searchRegion !== '' ? ' is-filled' : '';
-$tripDateFieldClass = $searchTripDate !== '' ? ' is-filled' : '';
-$companionFieldClass = $isTourSearchSubmitted ? ' is-filled' : '';
 
 $toursCatalog = [];
 
@@ -216,17 +413,25 @@ if (isset($pages) && $pages instanceof Pages) {
 		if ($title === '') $title = $titleFromName((string) $tourPage->name);
 		if ($title === '') continue;
 
-		$imageUrl = $getFirstImageUrlFromPage($tourPage, ['tour_cover_image', 'images']);
-		if ($imageUrl === '') $imageUrl = $defaultCardImage;
+			$imageUrl = $getFirstImageUrlFromPage($tourPage, ['tour_cover_image', 'images']);
+			if ($imageUrl === '') $imageUrl = $defaultCardImage;
+			$tourTypeKey = $normalizeTourTypeKey($getFirstTextFromPage($tourPage, ['tour_type', 'tour_format', 'tour_group_type', 'tour_group']));
+			$tourDifficulty = $extractTourDifficultyLabel($tourPage);
+			$tourSeasonalityKeys = $extractSeasonalityKeys($getFirstTextFromPage($tourPage, ['tour_season']));
+			if ($tourDifficulty !== '') $addDifficultyOption($tourDifficulty);
 
-		$toursCatalog[] = [
-			'title' => $title,
-			'region' => $getFirstTextFromPage($tourPage, ['tour_region', 'region']),
-			'price' => $tourPage->hasField('tour_price') ? $normalizeTourPrice((string) $tourPage->getUnformatted('tour_price')) : '',
-			'duration' => $tourPage->hasField('tour_duration') ? $normalizeTourDuration((string) $tourPage->tour_duration) : '',
-			'image' => $imageUrl,
-			'url' => (string) $tourPage->url,
-		];
+			$toursCatalog[] = [
+				'title' => $title,
+				'region' => $getFirstTextFromPage($tourPage, ['tour_region', 'region']),
+				'type_key' => $tourTypeKey,
+				'type_label' => $tourTypeOptions[$tourTypeKey] ?? '',
+				'difficulty' => $tourDifficulty,
+				'seasonality_keys' => $tourSeasonalityKeys,
+				'price' => $tourPage->hasField('tour_price') ? $normalizeTourPrice((string) $tourPage->getUnformatted('tour_price')) : '',
+				'duration' => $tourPage->hasField('tour_duration') ? $normalizeTourDuration((string) $tourPage->tour_duration) : '',
+				'image' => $imageUrl,
+				'url' => (string) $tourPage->url,
+			];
 	}
 }
 
@@ -245,17 +450,25 @@ if (!count($toursCatalog) && $homeDisplayPage->hasField('home_featured_tours') &
 		if ($title === '') $title = $titleFromName((string) $tourPage->name);
 		if ($title === '') continue;
 
-		$imageUrl = $getFirstImageUrlFromPage($tourPage, ['tour_cover_image', 'images']);
-		if ($imageUrl === '') $imageUrl = $defaultCardImage;
+			$imageUrl = $getFirstImageUrlFromPage($tourPage, ['tour_cover_image', 'images']);
+			if ($imageUrl === '') $imageUrl = $defaultCardImage;
+			$tourTypeKey = $normalizeTourTypeKey($getFirstTextFromPage($tourPage, ['tour_type', 'tour_format', 'tour_group_type', 'tour_group']));
+			$tourDifficulty = $extractTourDifficultyLabel($tourPage);
+			$tourSeasonalityKeys = $extractSeasonalityKeys($getFirstTextFromPage($tourPage, ['tour_season']));
+			if ($tourDifficulty !== '') $addDifficultyOption($tourDifficulty);
 
-		$toursCatalog[] = [
-			'title' => $title,
-			'region' => $getFirstTextFromPage($tourPage, ['tour_region', 'region']),
-			'price' => $tourPage->hasField('tour_price') ? $normalizeTourPrice((string) $tourPage->getUnformatted('tour_price')) : '',
-			'duration' => $tourPage->hasField('tour_duration') ? $normalizeTourDuration((string) $tourPage->tour_duration) : '',
-			'image' => $imageUrl,
-			'url' => (string) $tourPage->url,
-		];
+			$toursCatalog[] = [
+				'title' => $title,
+				'region' => $getFirstTextFromPage($tourPage, ['tour_region', 'region']),
+				'type_key' => $tourTypeKey,
+				'type_label' => $tourTypeOptions[$tourTypeKey] ?? '',
+				'difficulty' => $tourDifficulty,
+				'seasonality_keys' => $tourSeasonalityKeys,
+				'price' => $tourPage->hasField('tour_price') ? $normalizeTourPrice((string) $tourPage->getUnformatted('tour_price')) : '',
+				'duration' => $tourPage->hasField('tour_duration') ? $normalizeTourDuration((string) $tourPage->tour_duration) : '',
+				'image' => $imageUrl,
+				'url' => (string) $tourPage->url,
+			];
 	}
 }
 
@@ -283,6 +496,40 @@ if (isset($pages) && $pages instanceof Pages) {
 		if ($region !== '') $addRegionOption($region);
 	}
 }
+
+$placeUrlByTitle = [];
+foreach ($placesCatalog as $placeCard) {
+	$placeTitle = trim((string) ($placeCard['title'] ?? ''));
+	$placeUrl = trim((string) ($placeCard['url'] ?? ''));
+	if ($placeTitle === '' || $placeUrl === '') continue;
+	$placeUrlByTitle[$toLower($placeTitle)] = $placeUrl;
+}
+
+$appendLocalQueryParams = static function(string $url, array $params): string {
+	$url = trim($url);
+	if ($url === '') return '';
+
+	$parts = parse_url($url);
+	if ($parts === false) return $url;
+	if (!empty($parts['scheme']) || !empty($parts['host'])) return $url;
+
+	$query = [];
+	if (!empty($parts['query'])) parse_str((string) $parts['query'], $query);
+
+	foreach ($params as $key => $value) {
+		$key = trim((string) $key);
+		$value = trim((string) $value);
+		if ($key === '' || $value === '') continue;
+		$query[$key] = $value;
+	}
+
+	$path = (string) ($parts['path'] ?? '/');
+	if ($path === '') $path = '/';
+	if ($path[0] !== '/') $path = '/' . ltrim($path, '/');
+	$queryString = count($query) ? '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986) : '';
+	$fragment = isset($parts['fragment']) && $parts['fragment'] !== '' ? '#' . (string) $parts['fragment'] : '';
+	return $path . $queryString . $fragment;
+};
 
 $articlesCatalog = [];
 if (isset($pages) && $pages instanceof Pages) {
@@ -314,13 +561,49 @@ foreach ($toursCatalog as $tourItem) {
 	if ($tourRegion !== '') $addRegionOption($tourRegion);
 }
 
+$knownRegionOptions = array_flip($regionOptions);
+if ($searchRegion !== '' && !isset($knownRegionOptions[$searchRegion])) {
+	$searchRegion = '';
+}
+
+if ($searchDifficulty !== '' && !isset($difficultyOptionKeys[$toLower($searchDifficulty)])) {
+	$searchDifficulty = '';
+}
+
+$regionFieldClass = $searchRegion !== '' ? ' is-filled' : '';
+$tourTypeFieldClass = $searchTourType !== '' ? ' is-filled' : '';
+$difficultyFieldClass = $searchDifficulty !== '' ? ' is-filled' : '';
+$seasonalityFieldClass = $searchSeasonality !== '' ? ' is-filled' : '';
+
 $filteredTours = [];
 if ($isTourSearchSubmitted) {
 	$regionNeedle = $toLower($searchRegion);
-	$filteredTours = array_values(array_filter($toursCatalog, static function(array $tour) use ($regionNeedle, $toLower): bool {
-		if ($regionNeedle === '') return true;
-		$region = $toLower(trim((string) ($tour['region'] ?? '')));
-		return strpos($region, $regionNeedle) !== false;
+	$typeNeedle = trim($searchTourType);
+	$difficultyNeedle = $toLower($searchDifficulty);
+	$seasonalityNeedle = trim($searchSeasonality);
+
+	$filteredTours = array_values(array_filter($toursCatalog, static function(array $tour) use ($regionNeedle, $typeNeedle, $difficultyNeedle, $seasonalityNeedle, $toLower): bool {
+		if ($regionNeedle !== '') {
+			$region = $toLower(trim((string) ($tour['region'] ?? '')));
+			if (strpos($region, $regionNeedle) === false) return false;
+		}
+
+		if ($typeNeedle !== '') {
+			$typeKey = trim((string) ($tour['type_key'] ?? ''));
+			if ($typeKey !== $typeNeedle) return false;
+		}
+
+		if ($difficultyNeedle !== '') {
+			$tourDifficulty = $toLower(trim((string) ($tour['difficulty'] ?? '')));
+			if ($tourDifficulty === '' || $tourDifficulty !== $difficultyNeedle) return false;
+		}
+
+		if ($seasonalityNeedle !== '') {
+			$tourSeasonality = $tour['seasonality_keys'] ?? [];
+			if (!is_array($tourSeasonality) || !in_array($seasonalityNeedle, $tourSeasonality, true)) return false;
+		}
+
+		return true;
 	}));
 }
 
@@ -366,38 +649,59 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					<img class="hero-tab-external" src="<?php echo $config->urls->templates; ?>assets/icons/external_site.svg" alt="" aria-hidden="true" />
 				</a>
 			</div>
-			<form class="hero-search" action="<?php echo $sanitizer->entities($page->url); ?>" method="get">
+			<form class="hero-search hero-search--compact" action="<?php echo $sanitizer->entities($page->url); ?>" method="get">
 				<input type="hidden" name="search_tours" value="1" />
 				<div class="hero-search-fields">
 					<label class="hero-field hero-field-where<?php echo $regionFieldClass; ?>">
-						<span class="sr-only">Куда</span>
-						<input type="text" name="where" placeholder="Регион" list="city-list" value="<?php echo $sanitizer->entities($searchRegion); ?>" />
+						<span class="sr-only">Регион</span>
+						<select name="where">
+							<option value="">Регион</option>
+							<?php foreach ($regionOptions as $regionOption): ?>
+								<option value="<?php echo $sanitizer->entities($regionOption); ?>"<?php echo $searchRegion === $regionOption ? ' selected' : ''; ?>>
+									<?php echo $sanitizer->entities($regionOption); ?>
+								</option>
+							<?php endforeach; ?>
+						</select>
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 					</label>
-					<label class="hero-field<?php echo $tripDateFieldClass; ?>">
-						<span class="sr-only">Дата поездки</span>
-						<input type="text" name="when" placeholder="Дата поездки" data-date-input value="<?php echo $sanitizer->entities($searchTripDate); ?>" />
+					<label class="hero-field<?php echo $tourTypeFieldClass; ?>">
+						<span class="sr-only">Тип тура</span>
+						<select name="tour_type">
+							<option value="">Тип тура</option>
+							<?php foreach ($tourTypeOptions as $tourTypeKey => $tourTypeLabel): ?>
+								<option value="<?php echo $sanitizer->entities($tourTypeKey); ?>"<?php echo $searchTourType === $tourTypeKey ? ' selected' : ''; ?>>
+									<?php echo $sanitizer->entities($tourTypeLabel); ?>
+								</option>
+							<?php endforeach; ?>
+						</select>
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/human.svg" alt="" aria-hidden="true" />
+					</label>
+					<label class="hero-field<?php echo $difficultyFieldClass; ?>">
+						<span class="sr-only">Сложность</span>
+						<select name="difficulty">
+							<option value="">Сложность</option>
+							<?php foreach ($difficultyOptions as $difficultyOption): ?>
+								<option value="<?php echo $sanitizer->entities($difficultyOption); ?>"<?php echo $searchDifficulty === $difficultyOption ? ' selected' : ''; ?>>
+									<?php echo $sanitizer->entities($difficultyOption); ?>
+								</option>
+							<?php endforeach; ?>
+						</select>
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
+					</label>
+					<label class="hero-field<?php echo $seasonalityFieldClass; ?>">
+						<span class="sr-only">Сезонность</span>
+						<select name="seasonality">
+							<option value="">Сезонность</option>
+							<?php foreach ($seasonalityOptions as $seasonalityKey => $seasonalityLabel): ?>
+								<option value="<?php echo $sanitizer->entities($seasonalityKey); ?>"<?php echo $searchSeasonality === $seasonalityKey ? ' selected' : ''; ?>>
+									<?php echo $sanitizer->entities($seasonalityLabel); ?>
+								</option>
+							<?php endforeach; ?>
+						</select>
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/when.svg" alt="" aria-hidden="true" />
 					</label>
-					<label class="hero-field hero-field-people<?php echo $companionFieldClass; ?>">
-						<span class="sr-only">С кем</span>
-						<input type="text" name="with" placeholder="С кем" value="<?php echo $sanitizer->entities($searchCompanion); ?>" readonly />
-						<img src="<?php echo $config->urls->templates; ?>assets/icons/human.svg" alt="" aria-hidden="true" />
-						<div class="people-popover" aria-hidden="true">
-							<div class="people-row">
-								<button class="people-btn" type="button" data-action="minus" aria-label="Уменьшить количество">−</button>
-								<span class="people-count" aria-live="polite">1</span>
-								<button class="people-btn" type="button" data-action="plus" aria-label="Увеличить количество">+</button>
-							</div>
-						</div>
-					</label>
 				</div>
-				<datalist id="city-list">
-					<?php foreach ($regionOptions as $regionOption): ?>
-						<option value="<?php echo $sanitizer->entities($regionOption); ?>"></option>
-					<?php endforeach; ?>
-				</datalist>
-				<button class="search-btn" type="submit">Найти туры</button>
+				<button class="search-btn" type="submit">Применить</button>
 			</form>
 		</div>
 	</section>
@@ -443,11 +747,11 @@ $forumExternalUrl = 'https://club.skfo.ru';
 							</article>
 						<?php endforeach; ?>
 					</div>
-				<?php else: ?>
-					<div class="hotels-empty">
-						По вашему запросу туры не найдены. Измените регион и попробуйте снова.
-					</div>
-				<?php endif; ?>
+					<?php else: ?>
+						<div class="hotels-empty">
+							По выбранным фильтрам туры не найдены. Измените параметры и попробуйте снова.
+						</div>
+					<?php endif; ?>
 			</div>
 		</section>
 	<?php endif; ?>
@@ -456,7 +760,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		<?php
 		$tourUrlByTitle = [];
 		foreach ($toursCatalog as $tourItem) {
-			$tourTitleForLink = trim((string) ($tourItem['title'] ?? ''));
+			$tourTitleForLink = $normalizeDisplayText((string) ($tourItem['title'] ?? ''));
 			$tourUrlForLink = trim((string) ($tourItem['url'] ?? ''));
 			if ($tourTitleForLink === '' || $tourUrlForLink === '') continue;
 			$tourUrlByTitle[$toLower($tourTitleForLink)] = $tourUrlForLink;
@@ -469,8 +773,8 @@ $forumExternalUrl = 'https://club.skfo.ru';
 				if (!$tourPage instanceof Page) continue;
 				$imageUrl = $getFirstImageUrlFromPage($tourPage, ['tour_cover_image', 'images']);
 				if ($imageUrl === '') $imageUrl = $defaultCardImage;
-				$title = $tourPage->hasField('tour_title') ? trim((string) $tourPage->getUnformatted('tour_title')) : '';
-				if ($title === '') $title = trim((string) $tourPage->title);
+				$title = $tourPage->hasField('tour_title') ? $normalizeDisplayText((string) $tourPage->getUnformatted('tour_title')) : '';
+				if ($title === '') $title = $normalizeDisplayText((string) $tourPage->title);
 				$region = $getFirstTextFromPage($tourPage, ['tour_region', 'region']);
 				$price = $tourPage->hasField('tour_price') ? $normalizeTourPrice((string) $tourPage->getUnformatted('tour_price')) : '';
 				if ($title === '' && $region === '' && $price === '' && $imageUrl === '') continue;
@@ -500,8 +804,8 @@ $forumExternalUrl = 'https://club.skfo.ru';
 				}
 				if ($imageUrl === '') $imageUrl = $defaultCardImage;
 				$hotToursCards[] = [
-					'title' => $card->hasField('hot_tour_title') ? trim((string) $card->hot_tour_title) : '',
-					'region' => $card->hasField('hot_tour_region') ? trim((string) $card->hot_tour_region) : '',
+					'title' => $card->hasField('hot_tour_title') ? $normalizeDisplayText((string) $card->hot_tour_title) : '',
+					'region' => $card->hasField('hot_tour_region') ? $normalizeDisplayText((string) $card->hot_tour_region) : '',
 					'price' => $card->hasField('hot_tour_price') ? $normalizeTourPrice((string) $card->getUnformatted('hot_tour_price')) : 'Цена уточняется',
 					'image' => $imageUrl,
 					'url' => '',
@@ -563,83 +867,124 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		</div>
 	</section>
 
-	<section class="section section--actual">
 		<?php
 		$actualCards = [];
+		$actualCardKeys = [];
+
+		$addActualCard = static function(array $card) use (&$actualCards, &$actualCardKeys, $toLower, $defaultCardImage, $normalizeDisplayText): void {
+			$title = $normalizeDisplayText((string) ($card['title'] ?? ''));
+			$text = $normalizeDisplayText((string) ($card['text'] ?? ''));
+			$region = $normalizeDisplayText((string) ($card['region'] ?? ''));
+			$image = trim((string) ($card['image'] ?? ''));
+			$url = trim((string) ($card['url'] ?? ''));
+
+			if ($image === '' || $image === $defaultCardImage) return;
+			if ($title === '' && $text === '') return;
+			if ($region === '') $region = 'Северный Кавказ';
+
+			$key = $toLower($title . '|' . $region . '|' . $image);
+			if (isset($actualCardKeys[$key])) return;
+			$actualCardKeys[$key] = true;
+
+			$actualCards[] = [
+				'title' => $title,
+				'text' => $text,
+				'region' => $region,
+				'image' => $image,
+				'url' => $url,
+			];
+		};
 
 		if ($homeDisplayPage->hasField('home_actual_places') && $homeDisplayPage->home_actual_places->count()) {
 			foreach ($homeDisplayPage->home_actual_places as $placePage) {
 				if (!$placePage instanceof Page) continue;
 				$imageUrl = $getFirstImageUrlFromPage($placePage, ['place_image', 'place_cover_image', 'images']);
-				if ($imageUrl === '') $imageUrl = $defaultCardImage;
-
-				$title = trim((string) $placePage->title);
-				$text = $truncateText($getFirstTextFromPage($placePage, ['place_summary', 'summary', 'content']), 180);
-				$region = $getFirstTextFromPage($placePage, ['place_region', 'region']);
-				if ($title === '' && $text === '') continue;
-
-				$actualCards[] = [
-					'title' => $title,
-					'text' => $text,
-					'region' => $region,
+				$addActualCard([
+					'title' => trim((string) $placePage->title),
+					'text' => $truncateText($getFirstTextFromPage($placePage, ['place_summary', 'summary', 'content']), 180),
+					'region' => $getFirstTextFromPage($placePage, ['place_region', 'region']),
 					'image' => $imageUrl,
 					'url' => (string) $placePage->url,
-				];
+				]);
 			}
 		}
 
-		if (!count($actualCards) && count($placesCatalog)) {
-			foreach (array_slice($placesCatalog, 0, 2) as $placeCard) {
-				$actualCards[] = [
+		if (count($placesCatalog)) {
+			foreach ($placesCatalog as $placeCard) {
+				$imageUrl = trim((string) ($placeCard['image'] ?? ''));
+				$addActualCard([
 					'title' => trim((string) ($placeCard['title'] ?? '')),
 					'text' => trim((string) ($placeCard['summary'] ?? '')),
 					'region' => trim((string) ($placeCard['region'] ?? '')),
-					'image' => trim((string) ($placeCard['image'] ?? '')),
+					'image' => $imageUrl,
 					'url' => trim((string) ($placeCard['url'] ?? '')),
-				];
+				]);
 			}
 		}
 
-		if (!count($actualCards) && $homeDisplayPage->hasField('actual_cards') && $homeDisplayPage->actual_cards->count()) {
+		if ($homeDisplayPage->hasField('actual_cards') && $homeDisplayPage->actual_cards->count()) {
 			foreach ($homeDisplayPage->actual_cards as $card) {
 				$imageUrl = '';
 				if ($card->hasField('card_image')) {
 					$imageUrl = $getImageUrlFromValue($card->getUnformatted('card_image'));
 				}
-				if ($imageUrl === '') $imageUrl = $defaultCardImage;
-
-				$actualCards[] = [
+				$addActualCard([
 					'title' => $card->hasField('card_title') ? trim((string) $card->card_title) : '',
 					'text' => $card->hasField('card_text') ? trim((string) $card->card_text) : '',
 					'region' => $card->hasField('card_region') ? trim((string) $card->card_region) : '',
 					'image' => $imageUrl,
 					'url' => '',
-				];
+				]);
 			}
 		}
-		?>
-		<div class="container actual-grid">
-			<?php foreach ($actualCards as $card): ?>
-				<?php
-				$backgroundStyle = '';
-				if (!empty($card['image'])) {
-					$image = htmlspecialchars($card['image'], ENT_QUOTES, 'UTF-8');
-					$backgroundStyle = " style=\"background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.25), rgba(17, 24, 39, 0.15)), url('{$image}');\"";
-				}
-				?>
-				<article class="actual-card">
-					<div class="actual-card-image"<?php echo $backgroundStyle; ?>></div>
-					<div class="actual-card-body">
-						<h3 class="actual-card-title"><?php echo $sanitizer->entities($card['title']); ?></h3>
-						<p class="actual-card-text"><?php echo $sanitizer->entities($card['text']); ?></p>
-						<div class="actual-card-footer">
-							<span class="tag-location"><?php echo $sanitizer->entities($card['region']); ?></span>
-						</div>
-					</div>
-				</article>
-			<?php endforeach; ?>
+
+			if (count($actualCards) > 24) {
+				$actualCards = array_slice($actualCards, 0, 24);
+			}
+	?>
+	<?php if (count($actualCards)): ?>
+	<section class="section section--actual section--actual-slider" data-actual-slider>
+		<div class="container">
+			<div class="actual-grid">
+				<div class="actual-track">
+					<?php foreach ($actualCards as $card): ?>
+						<?php
+						$backgroundStyle = '';
+						if (!empty($card['image'])) {
+							$image = htmlspecialchars((string) $card['image'], ENT_QUOTES, 'UTF-8');
+							$backgroundStyle = " style=\"background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.25), rgba(17, 24, 39, 0.15)), url('{$image}');\"";
+						}
+						?>
+						<article class="actual-card">
+							<div class="actual-card-image"<?php echo $backgroundStyle; ?>></div>
+							<div class="actual-card-body">
+								<h3 class="actual-card-title"><?php echo $sanitizer->entities((string) $card['title']); ?></h3>
+								<p class="actual-card-text"><?php echo $sanitizer->entities((string) $card['text']); ?></p>
+								<div class="actual-card-footer">
+									<span class="tag-location"><?php echo $sanitizer->entities((string) $card['region']); ?></span>
+								</div>
+							</div>
+						</article>
+					<?php endforeach; ?>
+				</div>
+			</div>
+			<div class="actual-slider-progress" data-actual-progress<?php echo count($actualCards) > 2 ? '' : ' hidden'; ?>>
+				<div
+					class="actual-slider-progress-track"
+					data-actual-progress-track
+					role="slider"
+					tabindex="0"
+					aria-label="Слайд интересных мест"
+					aria-valuemin="0"
+					aria-valuemax="0"
+					aria-valuenow="0"
+				>
+					<span class="actual-slider-progress-fill" data-actual-progress-fill></span>
+				</div>
+			</div>
 		</div>
 	</section>
+	<?php endif; ?>
 
 	<section class="section section--journal">
 		<?php
@@ -797,13 +1142,26 @@ $forumExternalUrl = 'https://club.skfo.ru';
 						$imageUrl = $getImageUrlFromValue($card->getUnformatted('dagestan_place_image'));
 					}
 					if ($imageUrl === '') $imageUrl = $defaultCardImage;
+					$title = $card->hasField('dagestan_place_title') ? trim((string) $card->dagestan_place_title) : '';
+					$titleKey = $toLower($title);
 
 					$dagestanPlacesCards[] = [
-						'title' => $card->hasField('dagestan_place_title') ? trim((string) $card->dagestan_place_title) : '',
+						'title' => $title,
 						'image' => $imageUrl,
-						'url' => '',
+						'url' => $titleKey !== '' ? trim((string) ($placeUrlByTitle[$titleKey] ?? '')) : '',
 					];
 				}
+			}
+
+			$dagestanPlacesWithPhoto = array_values(array_filter(
+				$dagestanPlacesCards,
+				static function(array $card) use ($defaultCardImage): bool {
+					$imageUrl = trim((string) ($card['image'] ?? ''));
+					return $imageUrl !== '' && $imageUrl !== $defaultCardImage;
+				}
+			));
+			if (count($dagestanPlacesWithPhoto)) {
+				$dagestanPlacesCards = $dagestanPlacesWithPhoto;
 			}
 
 			$dagestanHasSlider = count($dagestanPlacesCards) > 5;
@@ -822,7 +1180,22 @@ $forumExternalUrl = 'https://club.skfo.ru';
 							<?php foreach ($dagestanPlacesCards as $card): ?>
 								<?php
 								$backgroundStyle = '';
+								$cardTitle = trim((string) ($card['title'] ?? ''));
 								$cardUrl = trim((string) ($card['url'] ?? ''));
+								if ($cardUrl === '' && $cardTitle !== '') {
+									$cardTitleKey = $toLower($cardTitle);
+									if (isset($placeUrlByTitle[$cardTitleKey])) {
+										$cardUrl = trim((string) $placeUrlByTitle[$cardTitleKey]);
+									}
+								}
+								if ($cardUrl === '' && $cardTitle !== '') {
+									$cardUrl = '/places/?q=' . rawurlencode($cardTitle);
+								}
+								$cardUrl = $appendLocalQueryParams($cardUrl, [
+									'from' => 'home',
+									'back' => '/',
+									'cover' => trim((string) ($card['image'] ?? '')),
+								]);
 								$isCardLink = $cardUrl !== '';
 								if (!empty($card['image'])) {
 									$image = htmlspecialchars($card['image'], ENT_QUOTES, 'UTF-8');
