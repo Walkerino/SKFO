@@ -1,5 +1,8 @@
 <?php namespace ProcessWire;
 
+$reviewTable = 'tour_reviews';
+require_once __DIR__ . '/_reviews_moderation.php';
+
 $toLower = static function(string $value): string {
 	$value = trim($value);
 	return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
@@ -37,6 +40,11 @@ $measureTextLength = static function(string $value): int {
 	$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
 	if($value === '') return 0;
 	return function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
+};
+$firstLetter = static function(string $value): string {
+	$value = trim($value);
+	if ($value === '') return '?';
+	return function_exists('mb_substr') ? mb_strtoupper(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8') : strtoupper(substr($value, 0, 1));
 };
 
 $extractTourPriceAmount = static function(string $raw): int {
@@ -176,6 +184,32 @@ if (!count($tourDays)) {
 	];
 }
 
+$avatarColorKeys = ['blue', 'yellow', 'gray'];
+$avatarClassMap = [
+	'blue' => 'is-blue',
+	'yellow' => 'is-yellow',
+	'gray' => 'is-gray',
+];
+$tourReviews = [];
+try {
+	skfoReviewsEnsureTable($database, $reviewTable);
+	skfoReviewsBackfillHashes($database, $reviewTable, 50);
+
+	$selectTourReviews = $database->prepare(
+		"SELECT `author`, `review_text`, `rating`, `avatar_color`
+		FROM `$reviewTable`
+		WHERE `page_id`=:page_id
+		AND `moderation_status`='approved'
+		ORDER BY `created_at` DESC, `id` DESC
+		LIMIT 200"
+	);
+	$selectTourReviews->bindValue(':page_id', (int) $page->id, \PDO::PARAM_INT);
+	$selectTourReviews->execute();
+	$tourReviews = $selectTourReviews->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+} catch (\Throwable $e) {
+	$log->save('errors', "tour page reviews read error: " . $e->getMessage());
+}
+
 ?>
 
 <div id="content" class="tour-page">
@@ -272,6 +306,46 @@ if (!count($tourDays)) {
 						</div>
 					</article>
 				<?php endforeach; ?>
+			</div>
+		</div>
+	</section>
+
+	<section class="tour-reviews">
+		<div class="container">
+			<div class="tour-reviews-card">
+				<h2 class="tour-section-title">Отзывы о туре</h2>
+				<?php if (count($tourReviews)): ?>
+					<div class="tour-reviews-list">
+						<?php foreach ($tourReviews as $review): ?>
+							<?php
+							$rating = max(1, min(5, (int) ($review['rating'] ?? 5)));
+							$stars = str_repeat('★', $rating) . str_repeat('☆', 5 - $rating);
+							$author = (string) ($review['author'] ?? 'Гость');
+							$avatarColorKey = (string) ($review['avatar_color'] ?? '');
+							if (!isset($avatarClassMap[$avatarColorKey])) {
+								$index = abs(crc32($author)) % count($avatarColorKeys);
+								$avatarColorKey = $avatarColorKeys[$index];
+							}
+							$avatarClass = $avatarClassMap[$avatarColorKey];
+							?>
+							<article class="review-item">
+								<div class="review-top">
+									<span class="review-avatar <?php echo $avatarClass; ?>" aria-hidden="true"><?php echo $sanitizer->entities($firstLetter($author)); ?></span>
+									<div class="review-meta">
+										<h3 class="review-author"><?php echo $sanitizer->entities($author); ?></h3>
+										<span class="review-stars" aria-label="Оценка <?php echo $rating; ?> из 5"><?php echo $stars; ?></span>
+									</div>
+								</div>
+								<p class="review-text"><?php echo nl2br($sanitizer->entities((string) ($review['review_text'] ?? ''))); ?></p>
+							</article>
+						<?php endforeach; ?>
+					</div>
+				<?php else: ?>
+					<p class="tour-reviews-empty">
+						Пока нет отзывов об этом туре.
+						<a href="/reviews/#reviews-form">Оставить первый отзыв</a>
+					</p>
+				<?php endif; ?>
 			</div>
 		</div>
 	</section>

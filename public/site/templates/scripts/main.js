@@ -651,6 +651,76 @@ const initContactsModal = () => {
   });
 };
 
+const initHomeMobileMenu = () => {
+  const toggle = document.querySelector("[data-home-menu-toggle]");
+  const menu = document.querySelector("[data-home-menu]");
+  if (!toggle || !menu) return;
+
+  const setMenuState = (isOpen) => {
+    toggle.classList.toggle("is-open", isOpen);
+    toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    toggle.setAttribute("aria-label", isOpen ? "Закрыть меню" : "Открыть меню");
+
+    if (isOpen) {
+      menu.hidden = false;
+      window.requestAnimationFrame(() => {
+        menu.classList.add("is-open");
+      });
+      return;
+    }
+
+    menu.classList.remove("is-open");
+    window.setTimeout(() => {
+      if (!menu.classList.contains("is-open")) {
+        menu.hidden = true;
+      }
+    }, 160);
+  };
+
+  const closeMenu = () => setMenuState(false);
+
+  toggle.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const isOpen = toggle.getAttribute("aria-expanded") === "true";
+    setMenuState(!isOpen);
+  });
+
+  menu.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest("a, button")) {
+      closeMenu();
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!(event.target instanceof Node)) return;
+    if (!toggle.contains(event.target) && !menu.contains(event.target)) {
+      closeMenu();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeMenu();
+    }
+  });
+
+  const desktopMedia = window.matchMedia("(min-width: 721px)");
+  const handleDesktopViewport = () => {
+    if (desktopMedia.matches) {
+      closeMenu();
+    }
+  };
+
+  if (typeof desktopMedia.addEventListener === "function") {
+    desktopMedia.addEventListener("change", handleDesktopViewport);
+  } else if (typeof desktopMedia.addListener === "function") {
+    desktopMedia.addListener(handleDesktopViewport);
+  }
+  handleDesktopViewport();
+};
+
 const initAuthLogout = () => {
   const button = document.querySelector("[data-auth-logout]");
   if (!button) return;
@@ -1333,6 +1403,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initWhereFieldAutoGrow();
   initAuthModal();
   initContactsModal();
+  initHomeMobileMenu();
   initAuthLogout();
   initJournalSlider();
   initDagestanSlider();

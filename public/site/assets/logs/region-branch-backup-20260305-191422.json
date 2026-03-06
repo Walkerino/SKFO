@@ -1,0 +1,97 @@
+{
+    "created_at": "2026-03-05T19:14:22+03:00",
+    "legacy_root": {
+        "id": 1083,
+        "path": "/region/"
+    },
+    "actual_root": {
+        "id": 1786,
+        "path": "/regions/"
+    },
+    "children": [
+        {
+            "legacy_id": 1215,
+            "legacy_path": "/region/dagestan/",
+            "legacy_slug": "dagestan",
+            "target_slug": "respublika-dagestan",
+            "target_id": 1806,
+            "target_path": "/regions/respublika-dagestan/",
+            "legacy_card_title": "",
+            "legacy_card_description": "",
+            "legacy_card_image_count": 0,
+            "migrated_fields": []
+        },
+        {
+            "legacy_id": 1216,
+            "legacy_path": "/region/ingushetya/",
+            "legacy_slug": "ingushetya",
+            "target_slug": "respublika-ingushetiya",
+            "target_id": 1813,
+            "target_path": "/regions/respublika-ingushetiya/",
+            "legacy_card_title": "",
+            "legacy_card_description": "",
+            "legacy_card_image_count": 0,
+            "migrated_fields": []
+        },
+        {
+            "legacy_id": 1217,
+            "legacy_path": "/region/kbr/",
+            "legacy_slug": "kbr",
+            "target_slug": "kabardino-balkarskaya-respublika",
+            "target_id": 1789,
+            "target_path": "/regions/kabardino-balkarskaya-respublika/",
+            "legacy_card_title": "",
+            "legacy_card_description": "",
+            "legacy_card_image_count": 0,
+            "migrated_fields": []
+        },
+        {
+            "legacy_id": 1218,
+            "legacy_path": "/region/kchr/",
+            "legacy_slug": "kchr",
+            "target_slug": "karachaevo-cherkesskaya-respublika",
+            "target_id": 1799,
+            "target_path": "/regions/karachaevo-cherkesskaya-respublika/",
+            "legacy_card_title": "",
+            "legacy_card_description": "",
+            "legacy_card_image_count": 0,
+            "migrated_fields": []
+        },
+        {
+            "legacy_id": 1219,
+            "legacy_path": "/region/ossetia/",
+            "legacy_slug": "ossetia",
+            "target_slug": "respublika-severnaya-osetiya",
+            "target_id": 1820,
+            "target_path": "/regions/respublika-severnaya-osetiya/",
+            "legacy_card_title": "",
+            "legacy_card_description": "",
+            "legacy_card_image_count": 0,
+            "migrated_fields": []
+        },
+        {
+            "legacy_id": 1220,
+            "legacy_path": "/region/chechnya/",
+            "legacy_slug": "chechnya",
+            "target_slug": "chechenskaya-respublika",
+            "target_id": 1834,
+            "target_path": "/regions/chechenskaya-respublika/",
+            "legacy_card_title": "",
+            "legacy_card_description": "",
+            "legacy_card_image_count": 0,
+            "migrated_fields": []
+        },
+        {
+            "legacy_id": 1221,
+            "legacy_path": "/region/stavropolye/",
+            "legacy_slug": "stavropolye",
+            "target_slug": "stavropolskiy-kray",
+            "target_id": 1827,
+            "target_path": "/regions/stavropolskiy-kray/",
+            "legacy_card_title": "",
+            "legacy_card_description": "",
+            "legacy_card_image_count": 0,
+            "migrated_fields": []
+        }
+    ]
+}
