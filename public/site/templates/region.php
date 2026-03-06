@@ -1,6 +1,18 @@
 <?php namespace ProcessWire;
 
-$regionTitle = trim((string) $page->title);
+$normalizeDisplayText = static function(string $value): string {
+	$decoded = $value;
+	for ($i = 0; $i < 3; $i++) {
+		$next = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+		if ($next === $decoded) break;
+		$decoded = $next;
+	}
+	$value = trim(str_replace(["\r", "\n"], ' ', $decoded));
+	$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+	return $value;
+};
+
+$regionTitle = $normalizeDisplayText((string) $page->title);
 $hasGenericRegionTitle = ($regionTitle === '' || $regionTitle === 'Регион');
 
 $toLower = static function(string $value): string {
@@ -410,7 +422,8 @@ if (!$regionProfile) {
 	];
 }
 
-$regionLabel = trim((string) ($regionProfile['label'] ?? '')) !== '' ? (string) $regionProfile['label'] : $regionTitle;
+$regionLabelRaw = $normalizeDisplayText((string) ($regionProfile['label'] ?? ''));
+$regionLabel = $regionLabelRaw !== '' ? $regionLabelRaw : $regionTitle;
 if ($hasGenericRegionTitle && $regionLabel !== '') {
 	$regionTitle = $regionLabel;
 }
@@ -574,6 +587,25 @@ $matchesCurrentRegion = static function(string $value) use ($normalizeRegion, $r
 	return $normalizedValue !== '' && isset($regionAliasLookup[$normalizedValue]);
 };
 
+$regionTextNeedlesMap = [];
+foreach (array_merge((array) ($regionProfile['aliases'] ?? []), [$regionLabel, $regionTitle, $page->name]) as $alias) {
+	$normalizedAlias = $normalizeRegion(str_replace('-', ' ', (string) $alias));
+	if ($normalizedAlias === '') continue;
+	$aliasLength = function_exists('mb_strlen') ? mb_strlen($normalizedAlias, 'UTF-8') : strlen($normalizedAlias);
+	if ($aliasLength < 3) continue;
+	$regionTextNeedlesMap[$normalizedAlias] = true;
+}
+$regionTextNeedles = array_keys($regionTextNeedlesMap);
+
+$textMentionsCurrentRegion = static function(string $value) use ($normalizeRegion, $regionTextNeedles): bool {
+	$normalizedText = $normalizeRegion($value);
+	if ($normalizedText === '' || !count($regionTextNeedles)) return false;
+	foreach ($regionTextNeedles as $needle) {
+		if ($needle !== '' && strpos($normalizedText, $needle) !== false) return true;
+	}
+	return false;
+};
+
 $homePage = $pages->get('/');
 $tourUrlByTitle = [];
 $tourPagesForLinks = $pages->find('template=tour, include=all, sort=title, limit=500');
@@ -662,7 +694,7 @@ if (!count($adventureCards) && $homePage && $homePage->id && $homePage->hasField
 			$imageUrl = $getImageUrlFromValue($card->getUnformatted('hot_tour_image'));
 		}
 
-		$title = $card->hasField('hot_tour_title') ? trim((string) $card->hot_tour_title) : '';
+		$title = $card->hasField('hot_tour_title') ? $normalizeDisplayText((string) $card->hot_tour_title) : '';
 		$price = $card->hasField('hot_tour_price') ? $normalizeTourPrice((string) $card->getUnformatted('hot_tour_price')) : '';
 		if ($title === '' && $price === '' && $imageUrl === '') continue;
 
@@ -693,8 +725,8 @@ if ($page->hasField('region_featured_places') && $page->region_featured_places->
 	foreach ($page->region_featured_places as $placePage) {
 		if (!$placePage instanceof Page) continue;
 		$imageUrl = $getFirstImageUrlFromPage($placePage, ['place_image', 'images']);
-		$title = trim((string) $placePage->title);
-		$text = $placePage->hasField('place_summary') ? trim((string) $placePage->place_summary) : '';
+		$title = $normalizeDisplayText((string) $placePage->title);
+		$text = $placePage->hasField('place_summary') ? $normalizeDisplayText((string) $placePage->place_summary) : '';
 		if ($title === '' && $text === '' && $imageUrl === '') continue;
 
 		$interestingPlaces[] = [
@@ -712,8 +744,8 @@ if (!count($interestingPlaces) && $page->hasField('region_places_cards') && $pag
 			$imageUrl = $getImageUrlFromValue($card->getUnformatted('region_place_image'));
 		}
 
-		$title = $card->hasField('region_place_title') ? trim((string) $card->region_place_title) : '';
-		$text = $card->hasField('region_place_text') ? trim((string) $card->region_place_text) : '';
+		$title = $card->hasField('region_place_title') ? $normalizeDisplayText((string) $card->region_place_title) : '';
+		$text = $card->hasField('region_place_text') ? $normalizeDisplayText((string) $card->region_place_text) : '';
 		if ($text === '' && $imageUrl === '') continue;
 		if ($title === '' && $text === '' && $imageUrl === '') continue;
 
@@ -741,8 +773,8 @@ if (count($interestingPlaces) < 2) {
 
 		$imageUrl = $getFirstImageUrlFromPage($placePage, ['place_image', 'images']);
 
-		$title = trim((string) $placePage->title);
-		$text = $placePage->hasField('place_summary') ? trim((string) $placePage->place_summary) : '';
+		$title = $normalizeDisplayText((string) $placePage->title);
+		$text = $placePage->hasField('place_summary') ? $normalizeDisplayText((string) $placePage->place_summary) : '';
 		if ($title === '' && $text === '' && $imageUrl === '') continue;
 		$placeKey = $title !== '' ? $toLower($title) : '';
 		if ($placeKey !== '' && isset($existingPlaceKeys[$placeKey])) continue;
@@ -766,8 +798,8 @@ if (!count($interestingPlaces) && $homePage && $homePage->id && $homePage->hasFi
 			$imageUrl = $getImageUrlFromValue($card->getUnformatted('card_image'));
 		}
 
-		$title = $card->hasField('card_title') ? trim((string) $card->card_title) : '';
-		$text = $card->hasField('card_text') ? trim((string) $card->card_text) : '';
+		$title = $card->hasField('card_title') ? $normalizeDisplayText((string) $card->card_title) : '';
+		$text = $card->hasField('card_text') ? $normalizeDisplayText((string) $card->card_text) : '';
 		if ($title === '' && $text === '' && $imageUrl === '') continue;
 
 		$interestingPlaces[] = [
@@ -791,103 +823,70 @@ if (count($interestingPlaces) % 2 !== 0 && count($interestingPlaces) > 1) {
 	array_pop($interestingPlaces);
 }
 
+$defaultRegionPlaceholderImage = $config->urls->templates . 'assets/image1.png';
 $regionArticles = [];
+$regionArticlePageIds = [];
+
+$articleMatchesCurrentRegion = static function(Page $articlePage) use ($matchesCurrentRegion, $textMentionsCurrentRegion): bool {
+	if ($articlePage->hasField('article_region')) {
+		$articleRegion = trim((string) $articlePage->getUnformatted('article_region'));
+		if ($articleRegion !== '' && $matchesCurrentRegion($articleRegion)) return true;
+	}
+
+	$title = trim((string) $articlePage->title);
+	$topic = $articlePage->hasField('article_topic') ? trim((string) $articlePage->getUnformatted('article_topic')) : '';
+	$excerpt = $articlePage->hasField('article_excerpt') ? trim((string) $articlePage->getUnformatted('article_excerpt')) : '';
+	$content = $articlePage->hasField('article_content') ? trim(strip_tags((string) $articlePage->getUnformatted('article_content'))) : '';
+	return $textMentionsCurrentRegion("{$title} {$topic} {$excerpt} {$content}");
+};
+
+$addRegionArticleFromPage = static function(Page $articlePage) use (
+	&$regionArticles,
+	&$regionArticlePageIds,
+	$articleMatchesCurrentRegion,
+	$getFirstImageUrlFromPage,
+	$formatRussianDate,
+	$normalizeDisplayText,
+	$buildArticleUrl,
+	$page,
+	$defaultRegionPlaceholderImage
+): void {
+	$pageId = (int) $articlePage->id;
+	if ($pageId <= 0 || isset($regionArticlePageIds[$pageId])) return;
+	if (!$articleMatchesCurrentRegion($articlePage)) return;
+
+	$imageUrl = $getFirstImageUrlFromPage($articlePage, ['article_cover_image', 'images']);
+	$timestamp = $articlePage->hasField('article_publish_date') ? (int) $articlePage->getUnformatted('article_publish_date') : 0;
+	$title = $normalizeDisplayText((string) $articlePage->title);
+	$topic = $articlePage->hasField('article_topic') ? $normalizeDisplayText((string) $articlePage->getUnformatted('article_topic')) : '';
+	if ($title === '' && $topic === '' && $imageUrl === '' && $timestamp <= 0) return;
+
+	$regionArticlePageIds[$pageId] = true;
+	$regionArticles[] = [
+		'title' => $title,
+		'date' => $timestamp > 0 ? $formatRussianDate($timestamp) : '',
+		'datetime' => $timestamp > 0 ? date('Y-m-d', $timestamp) : '',
+		'topic' => $topic,
+		'image' => $imageUrl !== '' ? $imageUrl : $defaultRegionPlaceholderImage,
+		'url' => $buildArticleUrl($title, '/articles/?article=' . rawurlencode((string) $articlePage->name), 'region', (string) $page->url),
+		'is_fresh' => false,
+	];
+};
+
 if ($page->hasField('region_featured_articles') && $page->region_featured_articles->count()) {
 	foreach ($page->region_featured_articles as $articlePage) {
 		if (!$articlePage instanceof Page) continue;
-		$imageUrl = $articlePage->hasField('article_cover_image') ? $getImageUrlFromValue($articlePage->getUnformatted('article_cover_image')) : '';
-		$timestamp = $articlePage->hasField('article_publish_date') ? (int) $articlePage->getUnformatted('article_publish_date') : 0;
-		$title = trim((string) $articlePage->title);
-		$topic = $articlePage->hasField('article_topic') ? trim((string) $articlePage->article_topic) : '';
-		if ($title === '' && $topic === '' && $imageUrl === '' && $timestamp <= 0) continue;
-
-		$regionArticles[] = [
-			'title' => $title,
-			'date' => $timestamp > 0 ? $formatRussianDate($timestamp) : '',
-			'datetime' => $timestamp > 0 ? date('Y-m-d', $timestamp) : '',
-			'topic' => $topic,
-			'image' => $imageUrl,
-			'url' => $buildArticleUrl($title, '/articles/?article=' . rawurlencode((string) $articlePage->name), 'region', (string) $page->url),
-			'is_fresh' => false,
-		];
+		$addRegionArticleFromPage($articlePage);
 	}
 }
 
-if (!count($regionArticles) && $page->hasField('region_articles_cards') && $page->region_articles_cards->count()) {
-	foreach ($page->region_articles_cards as $card) {
-		$imageUrl = '';
-		if ($card->hasField('region_article_image')) {
-			$imageUrl = $getImageUrlFromValue($card->getUnformatted('region_article_image'));
-		}
-
-		$timestamp = 0;
-		if ($card->hasField('region_article_date')) {
-			$dateRaw = $card->getUnformatted('region_article_date');
-			if (is_numeric($dateRaw)) {
-				$timestamp = (int) $dateRaw;
-			} elseif (is_string($dateRaw)) {
-				$timestamp = strtotime($dateRaw) ?: 0;
-			}
-		}
-
-		$title = $card->hasField('region_article_title') ? trim((string) $card->region_article_title) : '';
-		$topic = $card->hasField('region_article_topic') ? trim((string) $card->region_article_topic) : '';
-		$url = $card->hasField('region_article_url') ? trim((string) $card->region_article_url) : '';
-		$isFresh = $card->hasField('region_article_is_fresh') ? (bool) $card->region_article_is_fresh : false;
-
-		if ($title === '' && $topic === '' && $imageUrl === '' && $timestamp <= 0) continue;
-
-		$regionArticles[] = [
-			'title' => $title,
-			'date' => $timestamp > 0 ? $formatRussianDate($timestamp) : '',
-			'datetime' => $timestamp > 0 ? date('Y-m-d', $timestamp) : '',
-			'topic' => $topic,
-			'image' => $imageUrl,
-			'url' => $buildArticleUrl($title, $url, 'region', (string) $page->url),
-			'is_fresh' => $isFresh,
-		];
+if (count($regionArticles) < 4) {
+	$catalogArticlePages = $pages->find('template=article, include=all, sort=-article_publish_date, limit=500');
+	foreach ($catalogArticlePages as $articlePage) {
+		if (!$articlePage instanceof Page) continue;
+		$addRegionArticleFromPage($articlePage);
+		if (count($regionArticles) >= 4) break;
 	}
-}
-
-if (!count($regionArticles)) {
-	$regionArticles = [
-		[
-			'title' => "Как подготовиться к первому путешествию в {$regionLabel}",
-			'date' => '1 февраля 2026',
-			'datetime' => '2026-02-01',
-			'topic' => 'Советы туристам',
-			'image' => $config->urls->templates . 'assets/image1.png',
-			'url' => $buildArticleUrl("Как подготовиться к первому путешествию в {$regionLabel}", '', 'region', (string) $page->url),
-			'is_fresh' => true,
-		],
-		[
-			'title' => 'Душа Кавказа в поэзии и традициях',
-			'date' => '22 декабря 2025',
-			'datetime' => '2025-12-22',
-			'topic' => 'Культура и традиции',
-			'image' => $config->urls->templates . 'assets/image1.png',
-			'url' => $buildArticleUrl('Душа Кавказа в поэзии и традициях', '', 'region', (string) $page->url),
-			'is_fresh' => false,
-		],
-		[
-			'title' => 'Горнолыжный сезон: советы и лайфхаки',
-			'date' => '16 декабря 2025',
-			'datetime' => '2025-12-16',
-			'topic' => 'Советы туристам',
-			'image' => $config->urls->templates . 'assets/image1.png',
-			'url' => $buildArticleUrl('Горнолыжный сезон: советы и лайфхаки', '', 'region', (string) $page->url),
-			'is_fresh' => false,
-		],
-		[
-			'title' => 'Что взять с собой в поездку по региону',
-			'date' => '8 декабря 2025',
-			'datetime' => '2025-12-08',
-			'topic' => 'Полезные подборки',
-			'image' => $config->urls->templates . 'assets/image1.png',
-			'url' => $buildArticleUrl('Что взять с собой в поездку по региону', '', 'region', (string) $page->url),
-			'is_fresh' => false,
-		],
-	];
 }
 
 $regionArticles = array_slice($regionArticles, 0, 4);
@@ -904,7 +903,6 @@ $sideArticles = array_slice($regionArticles, 1, 3);
 
 $regionMediaItems = [];
 $regionMediaKeys = [];
-$defaultRegionPlaceholderImage = $config->urls->templates . 'assets/image1.png';
 $addRegionMediaItem = static function(string $imageUrl, string $title, string $source = 'Фото') use (&$regionMediaItems, &$regionMediaKeys, $defaultRegionPlaceholderImage): void {
 	$imageUrl = trim($imageUrl);
 	$title = trim($title);
@@ -941,28 +939,12 @@ $addRegionMediaFromPage = static function(Page $contentPage, array $fieldNames, 
 	}
 };
 
-$addRegionMediaFileFromValue = static function($fileValue, string $title, string $source = 'Видео') use ($addRegionMediaItem): void {
-	if ($fileValue instanceof Pagefile) {
-		$addRegionMediaItem((string) $fileValue->url, $title, $source);
-		return;
-	}
-	if ($fileValue instanceof Pagefiles && $fileValue->count()) {
-		foreach ($fileValue as $file) {
-			if (!$file instanceof Pagefile) continue;
-			$addRegionMediaItem((string) $file->url, $title, $source);
-		}
-	}
-};
-
 if ($page->hasField('region_media_gallery') && $page->region_media_gallery->count()) {
 	foreach ($page->region_media_gallery as $mediaCard) {
 		$mediaTitle = $mediaCard->hasField('region_media_title') ? trim((string) $mediaCard->region_media_title) : '';
 		if ($mediaTitle === '') $mediaTitle = $regionTitle;
 		if ($mediaCard->hasField('region_media_image')) {
 			$addRegionMediaFromValue($mediaCard->getUnformatted('region_media_image'), $mediaTitle, 'Фото');
-		}
-		if ($mediaCard->hasField('region_media_video')) {
-			$addRegionMediaFileFromValue($mediaCard->getUnformatted('region_media_video'), $mediaTitle, 'Видео');
 		}
 	}
 }
@@ -974,7 +956,7 @@ if (!count($regionMediaItems)) {
 
 	if ($page->hasField('region_places_cards') && $page->region_places_cards->count()) {
 		foreach ($page->region_places_cards as $card) {
-			$mediaTitle = $card->hasField('region_place_title') ? trim((string) $card->region_place_title) : '';
+			$mediaTitle = $card->hasField('region_place_title') ? $normalizeDisplayText((string) $card->region_place_title) : '';
 			if ($mediaTitle === '') $mediaTitle = $regionTitle;
 			if ($card->hasField('region_place_image')) {
 				$addRegionMediaFromValue($card->getUnformatted('region_place_image'), $mediaTitle, 'Место');
@@ -1138,11 +1120,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 							$mediaImage = htmlspecialchars($mediaUrl, ENT_QUOTES, 'UTF-8');
 							$mediaTitle = trim((string) ($mediaItem['title'] ?? ''));
 							$mediaAlt = $mediaTitle !== '' ? $mediaTitle : ('Медиа региона ' . ((int) $index + 1));
-							$mediaPath = parse_url($mediaUrl, PHP_URL_PATH);
-							$mediaExt = strtolower((string) pathinfo((string) $mediaPath, PATHINFO_EXTENSION));
-							$isVideoMedia = in_array($mediaExt, ['mp4', 'webm', 'ogv', 'ogg', 'mov', 'm4v'], true);
-							$mediaType = $isVideoMedia ? 'video' : 'image';
-							$mediaLabel = $isVideoMedia ? 'видео' : 'фото';
+							$mediaLabel = 'фото';
 						?>
 						<article class="region-media-card">
 							<button
@@ -1151,17 +1129,11 @@ $forumExternalUrl = 'https://club.skfo.ru';
 								data-region-gallery-item
 								data-gallery-index="<?php echo (int) $index; ?>"
 								data-gallery-src="<?php echo $mediaImage; ?>"
-								data-gallery-type="<?php echo $mediaType; ?>"
 								data-gallery-alt="<?php echo $sanitizer->entities($mediaAlt); ?>"
 								aria-label="<?php echo $sanitizer->entities('Открыть ' . $mediaLabel . ' ' . ((int) $index + 1)); ?>"
 							>
 								<div class="region-media-thumb">
-									<?php if ($isVideoMedia): ?>
-										<video class="region-media-thumb-media" src="<?php echo $mediaImage; ?>" muted playsinline preload="metadata"></video>
-										<span class="region-media-video-badge">Видео</span>
-									<?php else: ?>
-										<img class="region-media-thumb-media" src="<?php echo $mediaImage; ?>" alt="<?php echo $sanitizer->entities($mediaAlt); ?>" loading="lazy" />
-									<?php endif; ?>
+									<img class="region-media-thumb-media" src="<?php echo $mediaImage; ?>" alt="<?php echo $sanitizer->entities($mediaAlt); ?>" loading="lazy" />
 								</div>
 							</button>
 						</article>
@@ -1173,7 +1145,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					</div>
 				<?php endif; ?>
 			<?php else: ?>
-				<div class="region-media-empty">Для этого региона пока нет загруженных фото и видео.</div>
+				<div class="region-media-empty">Для этого региона пока нет загруженных фото.</div>
 			<?php endif; ?>
 		</div>
 	</section>
@@ -1185,7 +1157,6 @@ $forumExternalUrl = 'https://club.skfo.ru';
 				<button class="hotel-gallery-nav hotel-gallery-nav--prev" type="button" data-gallery-nav="prev" aria-label="Предыдущее фото"></button>
 				<figure class="hotel-gallery-stage">
 					<img src="" alt="" data-gallery-image />
-					<video src="" controls playsinline data-gallery-video hidden></video>
 				</figure>
 				<button class="hotel-gallery-nav hotel-gallery-nav--next" type="button" data-gallery-nav="next" aria-label="Следующее фото"></button>
 				<div class="hotel-gallery-counter" data-gallery-counter></div>
@@ -1290,37 +1261,41 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		<section class="section section--region-articles">
 			<div class="container">
 				<h2 class="region-articles-title"><?php echo $sanitizer->entities($regionAboutTitle); ?></h2>
-				<div class="region-articles-card">
-					<a class="region-article region-article--lead" href="<?php echo $sanitizer->entities((string) $leadArticle['url']); ?>">
-						<div class="region-article-media" style="background-image: url('<?php echo htmlspecialchars((string) $leadArticle['image'], ENT_QUOTES, 'UTF-8'); ?>');">
-							<?php if (!empty($leadArticle['is_fresh'])): ?>
-								<span class="region-article-badge">Свежая статья</span>
-							<?php endif; ?>
-							</div>
-							<div class="region-article-content">
-								<time class="region-article-date" datetime="<?php echo $sanitizer->entities((string) ($leadArticle['datetime'] ?? '')); ?>">
-									<?php echo $sanitizer->entities((string) $leadArticle['date']); ?>
-								</time>
-								<h3 class="region-article-title"><?php echo $sanitizer->entities((string) $leadArticle['title']); ?></h3>
-								<p class="region-article-topic"><?php echo $sanitizer->entities((string) $leadArticle['topic']); ?></p>
-							</div>
-						</a>
-
-						<div class="region-article-list">
-							<?php foreach ($sideArticles as $article): ?>
-								<a class="region-article region-article--side" href="<?php echo $sanitizer->entities((string) $article['url']); ?>">
-									<div class="region-article-content">
-										<time class="region-article-date" datetime="<?php echo $sanitizer->entities((string) ($article['datetime'] ?? '')); ?>">
-											<?php echo $sanitizer->entities((string) $article['date']); ?>
-										</time>
-										<h3 class="region-article-title"><?php echo $sanitizer->entities((string) $article['title']); ?></h3>
-									<p class="region-article-topic"><?php echo $sanitizer->entities((string) $article['topic']); ?></p>
+				<?php if (count($regionArticles)): ?>
+					<div class="region-articles-card<?php echo count($regionArticles) < 4 ? ' region-articles-card--compact' : ''; ?>">
+						<a class="region-article region-article--lead" href="<?php echo $sanitizer->entities((string) $leadArticle['url']); ?>">
+							<div class="region-article-media" style="background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.25), rgba(17, 24, 39, 0.15)), url('<?php echo htmlspecialchars((string) $leadArticle['image'], ENT_QUOTES, 'UTF-8'); ?>');">
+								<?php if (!empty($leadArticle['is_fresh'])): ?>
+									<span class="region-article-badge">Свежая статья</span>
+								<?php endif; ?>
 								</div>
-								<div class="region-article-side-thumb" style="background-image: url('<?php echo htmlspecialchars((string) $article['image'], ENT_QUOTES, 'UTF-8'); ?>');"></div>
+								<div class="region-article-content">
+									<time class="region-article-date" datetime="<?php echo $sanitizer->entities((string) ($leadArticle['datetime'] ?? '')); ?>">
+										<?php echo $sanitizer->entities((string) $leadArticle['date']); ?>
+									</time>
+									<h3 class="region-article-title"><?php echo $sanitizer->entities((string) $leadArticle['title']); ?></h3>
+									<p class="region-article-topic"><?php echo $sanitizer->entities((string) $leadArticle['topic']); ?></p>
+								</div>
 							</a>
-						<?php endforeach; ?>
+
+							<div class="region-article-list">
+								<?php foreach ($sideArticles as $article): ?>
+									<a class="region-article region-article--side" href="<?php echo $sanitizer->entities((string) $article['url']); ?>">
+										<div class="region-article-content">
+											<time class="region-article-date" datetime="<?php echo $sanitizer->entities((string) ($article['datetime'] ?? '')); ?>">
+												<?php echo $sanitizer->entities((string) $article['date']); ?>
+											</time>
+											<h3 class="region-article-title"><?php echo $sanitizer->entities((string) $article['title']); ?></h3>
+										<p class="region-article-topic"><?php echo $sanitizer->entities((string) $article['topic']); ?></p>
+									</div>
+									<div class="region-article-side-thumb" style="background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.25), rgba(17, 24, 39, 0.15)), url('<?php echo htmlspecialchars((string) $article['image'], ENT_QUOTES, 'UTF-8'); ?>');"></div>
+								</a>
+							<?php endforeach; ?>
+						</div>
 					</div>
-				</div>
+				<?php else: ?>
+					<div class="region-media-empty">Для этого региона пока нет статей в базе.</div>
+				<?php endif; ?>
 			</div>
 		</section>
 
