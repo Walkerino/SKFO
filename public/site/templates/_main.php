@@ -144,7 +144,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 <html lang="ru">
 	<head id="html-head">
 		<meta http-equiv="content-type" content="text/html; charset=utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title><?php echo $sanitizer->entities($pageTitleForHead); ?> | <?php echo $brandTitleForHead; ?></title>
 		<link rel="icon" type="image/svg+xml" href="<?php echo $faviconUrl; ?>" />
 		<link rel="shortcut icon" href="<?php echo $faviconUrl; ?>" />
@@ -204,23 +204,52 @@ $home = $pages->get('/'); /** @var HomePage $home */
 					</div>
 				</header>
 			<?php else: ?>
-				<header class="site-header site-header--overlay" id="site-header">
-					<div class="container header-row">
-						<a class="icon-btn" href="/profile/" aria-label="<?php echo $sanitizer->entities($profileAriaLabel); ?>"<?php echo $profileLinkAttrs; ?>>
+				<header class="site-header site-header--overlay<?php echo $isHomePage ? ' site-header--home' : ''; ?>" id="site-header">
+					<div class="container header-row<?php echo $isHomePage ? ' header-row--home' : ''; ?>">
+						<a class="icon-btn<?php echo $isHomePage ? ' home-header-profile' : ''; ?>" href="/profile/" aria-label="<?php echo $sanitizer->entities($profileAriaLabel); ?>"<?php echo $profileLinkAttrs; ?>>
 							<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/profile.svg" alt="" aria-hidden="true" />
 							<span><?php echo $sanitizer->entities($profileButtonLabel); ?></span>
 						</a>
-						<a class="logo<?php echo $isHomePage ? ' logo--home' : ''; ?>" href="<?php echo $home->url; ?>" aria-label="SKFO.RU">
+						<a class="logo<?php echo $isHomePage ? ' logo--home home-header-logo' : ''; ?>" href="<?php echo $home->url; ?>" aria-label="SKFO.RU">
 							<?php if($isHomePage): ?>
 								<img class="logo-eagle-img" src="<?php echo $config->urls->templates; ?>assets/icons/logo-eagle.svg" alt="" aria-hidden="true" />
 							<?php endif; ?>
 							<img class="logo-img" src="<?php echo $config->urls->templates; ?>assets/icons/logo.svg" alt="SKFO.RU" />
 						</a>
-						<a class="icon-btn" href="/contacts/" aria-label="Контакты" data-contacts-open>
+						<a class="icon-btn<?php echo $isHomePage ? ' home-header-contacts' : ''; ?>" href="/contacts/" aria-label="Контакты" data-contacts-open>
 							<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/contacts.svg" alt="" aria-hidden="true" />
 							<span>Контакты</span>
 						</a>
+						<?php if($isHomePage): ?>
+							<button class="icon-btn home-burger-toggle" type="button" aria-label="Открыть меню" aria-expanded="false" aria-controls="home-mobile-menu" data-home-menu-toggle>
+								<span class="home-burger-icon" aria-hidden="true"></span>
+							</button>
+						<?php endif; ?>
 					</div>
+					<?php if($isHomePage): ?>
+						<div class="container home-mobile-menu-wrap">
+							<div class="home-mobile-menu" id="home-mobile-menu" hidden data-home-menu>
+								<nav class="home-mobile-menu-nav" aria-label="Навигация по сайту">
+									<a class="home-mobile-menu-link" href="<?php echo $home->url; ?>">Туры</a>
+									<a class="home-mobile-menu-link" href="/hotels/">Отели</a>
+									<a class="home-mobile-menu-link" href="/reviews/">Отзывы</a>
+									<a class="home-mobile-menu-link" href="/regions/">Регионы</a>
+									<a class="home-mobile-menu-link" href="/articles/">Статьи</a>
+									<a class="home-mobile-menu-link" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">Форум</a>
+								</nav>
+								<div class="home-mobile-menu-actions">
+									<a class="home-mobile-menu-action" href="/profile/" aria-label="<?php echo $sanitizer->entities($profileAriaLabel); ?>"<?php echo $profileLinkAttrs; ?>>
+										<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/profile.svg" alt="" aria-hidden="true" />
+										<span><?php echo $sanitizer->entities($profileButtonLabel); ?></span>
+									</a>
+									<a class="home-mobile-menu-action" href="/contacts/" aria-label="Контакты" data-contacts-open>
+										<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/contacts.svg" alt="" aria-hidden="true" />
+										<span>Контакты</span>
+									</a>
+								</div>
+							</div>
+						</div>
+					<?php endif; ?>
 					</header>
 				<?php endif; ?>
 				<?php endif; ?>
