@@ -14,3 +14,19 @@ if (skfoAuthIsApiRequest($input)) {
 }
 
 $skfoAuthUser = skfoAuthGetCurrentUser($session, $database);
+
+if (!function_exists('skfoNormalizeEscapedQuotes')) {
+	function skfoNormalizeEscapedQuotes(string $html): string {
+		$normalized = $html;
+		do {
+			$prev = $normalized;
+			$normalized = preg_replace('/&(?:amp;|#0?38;)+(quot;|#0*34;)/i', '&$1', $normalized) ?? $normalized;
+		} while ($normalized !== $prev);
+		return $normalized;
+	}
+}
+
+ob_start(static function ($buffer) {
+	if (!is_string($buffer) || $buffer === '') return $buffer;
+	return skfoNormalizeEscapedQuotes($buffer);
+});
