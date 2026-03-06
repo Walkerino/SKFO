@@ -941,136 +941,139 @@ const initDagestanSlider = () => {
 };
 
 const initRegionActualSlider = () => {
-  const section = document.querySelector(".region-page .section--actual[data-actual-slider]");
-  if (!section) return;
+  const sections = Array.from(document.querySelectorAll(".section--actual[data-actual-slider]"));
+  if (!sections.length) return;
 
-  const grid = section.querySelector(".actual-grid");
-  const track = section.querySelector(".actual-track");
-  const progress = section.querySelector("[data-actual-progress]");
-  const progressTrack = section.querySelector("[data-actual-progress-track]");
-  const progressFill = section.querySelector("[data-actual-progress-fill]");
-  if (!grid || !track) return;
-
-  const cards = Array.from(track.querySelectorAll(".actual-card"));
-  if (!cards.length) {
-    if (progress) progress.hidden = true;
-    return;
-  }
-
-  const getVisibleCount = () => (window.innerWidth <= 760 ? 1 : 2);
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let startIndex = 0;
-  let maxStart = 0;
 
-  const syncProgress = (hasOverflow, visibleCount) => {
-    if (!progress || !progressTrack || !progressFill) return;
-    progress.hidden = !hasOverflow;
+  sections.forEach((section) => {
+    const grid = section.querySelector(".actual-grid");
+    const track = section.querySelector(".actual-track");
+    const progress = section.querySelector("[data-actual-progress]");
+    const progressTrack = section.querySelector("[data-actual-progress-track]");
+    const progressFill = section.querySelector("[data-actual-progress-fill]");
+    if (!grid || !track) return;
 
-    if (!hasOverflow) {
-      progressTrack.setAttribute("aria-valuemax", "0");
-      progressTrack.setAttribute("aria-valuenow", "0");
-      progressTrack.tabIndex = -1;
-      progressFill.style.width = "100%";
+    const cards = Array.from(track.querySelectorAll(".actual-card"));
+    if (!cards.length) {
+      if (progress) progress.hidden = true;
       return;
     }
 
-    const now = Math.max(0, Math.min(maxStart, startIndex));
-    const range = maxStart || 1;
-    const progressByPosition = now / range;
-    const minViewportFill = Math.max(visibleCount / cards.length, 0);
-    const fill = Math.max(minViewportFill, progressByPosition);
-    progressTrack.setAttribute("aria-valuemax", String(maxStart));
-    progressTrack.setAttribute("aria-valuenow", String(now));
-    progressTrack.tabIndex = 0;
-    progressFill.style.width = `${Math.min(100, Math.max(8, fill * 100))}%`;
-  };
+    const getVisibleCount = () => (window.innerWidth <= 760 ? 1 : 2);
+    let startIndex = 0;
+    let maxStart = 0;
 
-  const update = () => {
-    const visibleCount = Math.max(1, getVisibleCount());
-    const hasOverflow = cards.length > visibleCount;
-    maxStart = Math.max(0, cards.length - visibleCount);
+    const syncProgress = (hasOverflow, visibleCount) => {
+      if (!progress || !progressTrack || !progressFill) return;
+      progress.hidden = !hasOverflow;
 
-    if (!hasOverflow) {
-      startIndex = 0;
-      track.style.transform = "translateX(0px)";
-      track.style.transition = "";
-      grid.style.height = cards.length ? `${Math.ceil(cards[0].getBoundingClientRect().height)}px` : "";
-      syncProgress(false, visibleCount);
-      return;
-    }
-
-    startIndex = Math.min(startIndex, maxStart);
-    const cardWidth = cards[0].getBoundingClientRect().width;
-    const styles = window.getComputedStyle(track);
-    const gap = parseFloat(styles.columnGap || styles.gap || "0");
-    const offset = (cardWidth + gap) * startIndex;
-
-    track.style.transform = `translateX(-${offset}px)`;
-    track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
-    grid.style.height = `${Math.ceil(cards[0].getBoundingClientRect().height)}px`;
-    syncProgress(true, visibleCount);
-  };
-
-  const setIndexByPointer = (clientX) => {
-    if (!progressTrack || maxStart <= 0) return;
-    const rect = progressTrack.getBoundingClientRect();
-    if (rect.width <= 0) return;
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    startIndex = Math.round(ratio * maxStart);
-    update();
-  };
-
-  if (progressTrack) {
-    let draggingPointerId = null;
-
-    progressTrack.addEventListener("pointerdown", (event) => {
-      if (maxStart <= 0) return;
-      draggingPointerId = event.pointerId;
-      progressTrack.setPointerCapture(event.pointerId);
-      setIndexByPointer(event.clientX);
-    });
-
-    progressTrack.addEventListener("pointermove", (event) => {
-      if (draggingPointerId !== event.pointerId) return;
-      setIndexByPointer(event.clientX);
-    });
-
-    const stopDragging = (event) => {
-      if (draggingPointerId !== event.pointerId) return;
-      draggingPointerId = null;
-      if (progressTrack.hasPointerCapture(event.pointerId)) {
-        progressTrack.releasePointerCapture(event.pointerId);
+      if (!hasOverflow) {
+        progressTrack.setAttribute("aria-valuemax", "0");
+        progressTrack.setAttribute("aria-valuenow", "0");
+        progressTrack.tabIndex = -1;
+        progressFill.style.width = "100%";
+        return;
       }
+
+      const now = Math.max(0, Math.min(maxStart, startIndex));
+      const range = maxStart || 1;
+      const progressByPosition = now / range;
+      const minViewportFill = Math.max(visibleCount / cards.length, 0);
+      const fill = Math.max(minViewportFill, progressByPosition);
+      progressTrack.setAttribute("aria-valuemax", String(maxStart));
+      progressTrack.setAttribute("aria-valuenow", String(now));
+      progressTrack.tabIndex = 0;
+      progressFill.style.width = `${Math.min(100, Math.max(8, fill * 100))}%`;
     };
 
-    progressTrack.addEventListener("pointerup", stopDragging);
-    progressTrack.addEventListener("pointercancel", stopDragging);
+    const update = () => {
+      const visibleCount = Math.max(1, getVisibleCount());
+      const hasOverflow = cards.length > visibleCount;
+      maxStart = Math.max(0, cards.length - visibleCount);
 
-    progressTrack.addEventListener("keydown", (event) => {
-      if (maxStart <= 0) return;
-      if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        startIndex = Math.max(0, startIndex - 1);
-        update();
-      } else if (event.key === "ArrowRight") {
-        event.preventDefault();
-        startIndex = Math.min(maxStart, startIndex + 1);
-        update();
-      } else if (event.key === "Home") {
-        event.preventDefault();
+      if (!hasOverflow) {
         startIndex = 0;
-        update();
-      } else if (event.key === "End") {
-        event.preventDefault();
-        startIndex = maxStart;
-        update();
+        track.style.transform = "translateX(0px)";
+        track.style.transition = "";
+        grid.style.height = cards.length ? `${Math.ceil(cards[0].getBoundingClientRect().height)}px` : "";
+        syncProgress(false, visibleCount);
+        return;
       }
-    });
-  }
 
-  window.addEventListener("resize", update);
-  window.addEventListener("load", update);
-  update();
+      startIndex = Math.min(startIndex, maxStart);
+      const cardWidth = cards[0].getBoundingClientRect().width;
+      const styles = window.getComputedStyle(track);
+      const gap = parseFloat(styles.columnGap || styles.gap || "0");
+      const offset = (cardWidth + gap) * startIndex;
+
+      track.style.transform = `translateX(-${offset}px)`;
+      track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
+      grid.style.height = `${Math.ceil(cards[0].getBoundingClientRect().height)}px`;
+      syncProgress(true, visibleCount);
+    };
+
+    const setIndexByPointer = (clientX) => {
+      if (!progressTrack || maxStart <= 0) return;
+      const rect = progressTrack.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      startIndex = Math.round(ratio * maxStart);
+      update();
+    };
+
+    if (progressTrack) {
+      let draggingPointerId = null;
+
+      progressTrack.addEventListener("pointerdown", (event) => {
+        if (maxStart <= 0) return;
+        draggingPointerId = event.pointerId;
+        progressTrack.setPointerCapture(event.pointerId);
+        setIndexByPointer(event.clientX);
+      });
+
+      progressTrack.addEventListener("pointermove", (event) => {
+        if (draggingPointerId !== event.pointerId) return;
+        setIndexByPointer(event.clientX);
+      });
+
+      const stopDragging = (event) => {
+        if (draggingPointerId !== event.pointerId) return;
+        draggingPointerId = null;
+        if (progressTrack.hasPointerCapture(event.pointerId)) {
+          progressTrack.releasePointerCapture(event.pointerId);
+        }
+      };
+
+      progressTrack.addEventListener("pointerup", stopDragging);
+      progressTrack.addEventListener("pointercancel", stopDragging);
+
+      progressTrack.addEventListener("keydown", (event) => {
+        if (maxStart <= 0) return;
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          startIndex = Math.max(0, startIndex - 1);
+          update();
+        } else if (event.key === "ArrowRight") {
+          event.preventDefault();
+          startIndex = Math.min(maxStart, startIndex + 1);
+          update();
+        } else if (event.key === "Home") {
+          event.preventDefault();
+          startIndex = 0;
+          update();
+        } else if (event.key === "End") {
+          event.preventDefault();
+          startIndex = maxStart;
+          update();
+        }
+      });
+    }
+
+    window.addEventListener("resize", update);
+    window.addEventListener("load", update);
+    update();
+  });
 };
 
 const initRegionMediaPreview = () => {
