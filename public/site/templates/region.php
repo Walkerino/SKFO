@@ -890,16 +890,6 @@ if (count($regionArticles) < 4) {
 }
 
 $regionArticles = array_slice($regionArticles, 0, 4);
-$leadArticle = $regionArticles[0] ?? [
-	'title' => '',
-	'date' => '',
-	'datetime' => '',
-	'topic' => '',
-	'image' => '',
-	'url' => '/articles/',
-	'is_fresh' => false,
-];
-$sideArticles = array_slice($regionArticles, 1, 3);
 
 $regionMediaItems = [];
 $regionMediaKeys = [];
@@ -1262,33 +1252,25 @@ $forumExternalUrl = 'https://club.skfo.ru';
 			<div class="container">
 				<h2 class="region-articles-title"><?php echo $sanitizer->entities($regionAboutTitle); ?></h2>
 				<?php if (count($regionArticles)): ?>
-					<div class="region-articles-card<?php echo count($regionArticles) < 4 ? ' region-articles-card--compact' : ''; ?>">
-						<a class="region-article region-article--lead" href="<?php echo $sanitizer->entities((string) $leadArticle['url']); ?>">
-							<div class="region-article-media" style="background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.25), rgba(17, 24, 39, 0.15)), url('<?php echo htmlspecialchars((string) $leadArticle['image'], ENT_QUOTES, 'UTF-8'); ?>');">
-								<?php if (!empty($leadArticle['is_fresh'])): ?>
-									<span class="region-article-badge">Свежая статья</span>
-								<?php endif; ?>
-								</div>
-								<div class="region-article-content">
-									<time class="region-article-date" datetime="<?php echo $sanitizer->entities((string) ($leadArticle['datetime'] ?? '')); ?>">
-										<?php echo $sanitizer->entities((string) $leadArticle['date']); ?>
-									</time>
-									<h3 class="region-article-title"><?php echo $sanitizer->entities((string) $leadArticle['title']); ?></h3>
-									<p class="region-article-topic"><?php echo $sanitizer->entities((string) $leadArticle['topic']); ?></p>
-								</div>
-							</a>
-
-							<div class="region-article-list">
-								<?php foreach ($sideArticles as $article): ?>
-									<a class="region-article region-article--side" href="<?php echo $sanitizer->entities((string) $article['url']); ?>">
-										<div class="region-article-content">
+					<div class="region-articles-card">
+						<div class="region-article-list region-article-list--stack">
+							<?php foreach ($regionArticles as $article): ?>
+								<a class="region-article region-article--stack" href="<?php echo $sanitizer->entities((string) $article['url']); ?>">
+									<div class="region-article-side-thumb" style="background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.25), rgba(17, 24, 39, 0.15)), url('<?php echo htmlspecialchars((string) $article['image'], ENT_QUOTES, 'UTF-8'); ?>');"></div>
+									<div class="region-article-content">
+										<?php if (!empty($article['is_fresh'])): ?>
+											<span class="region-article-badge region-article-badge--inline">Свежая статья</span>
+										<?php endif; ?>
+										<?php if ((string) ($article['date'] ?? '') !== ''): ?>
 											<time class="region-article-date" datetime="<?php echo $sanitizer->entities((string) ($article['datetime'] ?? '')); ?>">
 												<?php echo $sanitizer->entities((string) $article['date']); ?>
 											</time>
-											<h3 class="region-article-title"><?php echo $sanitizer->entities((string) $article['title']); ?></h3>
-										<p class="region-article-topic"><?php echo $sanitizer->entities((string) $article['topic']); ?></p>
+										<?php endif; ?>
+										<h3 class="region-article-title"><?php echo $sanitizer->entities((string) $article['title']); ?></h3>
+										<?php if ((string) ($article['topic'] ?? '') !== ''): ?>
+											<p class="region-article-topic"><?php echo $sanitizer->entities((string) $article['topic']); ?></p>
+										<?php endif; ?>
 									</div>
-									<div class="region-article-side-thumb" style="background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.25), rgba(17, 24, 39, 0.15)), url('<?php echo htmlspecialchars((string) $article['image'], ENT_QUOTES, 'UTF-8'); ?>');"></div>
 								</a>
 							<?php endforeach; ?>
 						</div>
