@@ -324,6 +324,9 @@ class WireWall extends WireData implements Module, ConfigurableModule {
         
         // Skip for CLI
         if ($config->cli) return;
+
+        // Skip all firewall checks for local development environments.
+        if ($this->isLocalDevelopmentRequest()) return;
         
         // === PRIORITY 0.5: ALLOW TRUSTED PROCESSWIRE MODULE AJAX REQUESTS ===
         // Check before any other security checks (unless AJAX protection is disabled)
@@ -1826,6 +1829,38 @@ class WireWall extends WireData implements Module, ConfigurableModule {
             return preg_match($regex, $text) === 1;
         }
         
+        return false;
+    }
+
+    /**
+     * Detect local development requests (DDEV/localhost/private dev hosts)
+     */
+    protected function isLocalDevelopmentRequest() {
+        if (!empty(getenv('DDEV_PRIMARY_URL'))) {
+            return true;
+        }
+
+        $host = (string)($_SERVER['HTTP_HOST'] ?? $this->wire('config')->httpHost ?? '');
+        $host = strtolower(trim($host));
+
+        if ($host === '') return false;
+
+        // Drop port if present (for localhost:8080 etc.)
+        if (strpos($host, ':') !== false) {
+            $host = explode(':', $host, 2)[0];
+        }
+
+        if (
+            $host === 'localhost' ||
+            $host === '127.0.0.1' ||
+            $host === '::1' ||
+            str_ends_with($host, '.ddev.site') ||
+            str_ends_with($host, '.local') ||
+            str_ends_with($host, '.localhost')
+        ) {
+            return true;
+        }
+
         return false;
     }
 
