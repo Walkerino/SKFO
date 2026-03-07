@@ -292,27 +292,125 @@ wire()->addHookAfter('Dashboard::getPanels', function ($event) use ($reviewTable
         wire('log')->save('errors', 'admin dashboard reviews stats error: ' . $e->getMessage());
     }
 
-    // Define regions with their IDs
-    $regions = [
-        '1215' => 'Республика Дагестан',
-        '1216' => 'Республика Ингушетия',
-        '1217' => 'Кабардино-Балкарская Республика',
-        '1218' => 'Карачаево-Черкесская Республика',
-        '1219' => 'Республика Северная Осетия — Алания',
-        '1220' => 'Чеченская Республика',
-        '1221' => 'Ставропольский край'
+    $normalizeRegionText = static function (string $value): string {
+        $value = trim(str_replace(["\r", "\n"], ' ', $value));
+        if ($value === '') return '';
+        $value = function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+        $value = str_replace('ё', 'е', $value);
+        $value = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $value) ?? $value;
+        $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+        return trim($value);
+    };
+
+    // Build region map dynamically from actual region pages
+    $regions = [];
+    $regionAliases = [];
+    $regionPages = wire('pages')->find('template=region, include=all, check_access=0, sort=sort, limit=200');
+    foreach ($regionPages as $regionPage) {
+        $regionId = (string) (int) $regionPage->id;
+        $regionTitle = trim((string) $regionPage->title);
+        if ($regionId === '0' || $regionTitle === '') continue;
+
+        $regions[$regionId] = $regionTitle;
+
+        $normalizedTitle = $normalizeRegionText($regionTitle);
+        if ($normalizedTitle !== '') $regionAliases[$normalizedTitle] = $regionId;
+
+        $normalizedSlug = $normalizeRegionText(str_replace('-', ' ', (string) $regionPage->name));
+        if ($normalizedSlug !== '') $regionAliases[$normalizedSlug] = $regionId;
+    }
+
+    // Fallback if region pages are missing
+    if (!count($regions)) {
+        $regions = [
+            'dagestan' => 'Республика Дагестан',
+            'ingushetia' => 'Республика Ингушетия',
+            'kabardino-balkaria' => 'Кабардино-Балкарская Республика',
+            'karachay-cherkessia' => 'Карачаево-Черкесская Республика',
+            'north-ossetia' => 'Республика Северная Осетия — Алания',
+            'chechnya' => 'Чеченская Республика',
+            'stavropol' => 'Ставропольский край',
+        ];
+        foreach ($regions as $regionId => $regionTitle) {
+            $normalizedTitle = $normalizeRegionText($regionTitle);
+            if ($normalizedTitle !== '') $regionAliases[$normalizedTitle] = (string) $regionId;
+        }
+    }
+
+    $resolveRegionId = static function ($value) use ($regions, $regionAliases, $normalizeRegionText): ?string {
+        if ($value instanceof Page) {
+            $id = (string) (int) $value->id;
+            if ($id !== '0' && isset($regions[$id])) return $id;
+            $value = (string) $value->title;
+        }
+
+        $raw = trim((string) $value);
+        if ($raw === '') return null;
+
+        if (ctype_digit($raw) && isset($regions[$raw])) {
+            return $raw;
+        }
+
+        $normalized = $normalizeRegionText($raw);
+        if ($normalized === '') return null;
+        if (isset($regionAliases[$normalized])) return (string) $regionAliases[$normalized];
+
+        foreach ($regionAliases as $alias => $regionId) {
+            if ($alias === '') continue;
+            if (strpos($normalized, $alias) !== false || strpos($alias, $normalized) !== false) {
+                return (string) $regionId;
+            }
+        }
+
+        return null;
+    };
+
+    // Define templates and their region fields
+    $templates = ['article', 'place', 'hotel', 'tour', 'car', 'guide'];
+    $regionFieldsByTemplate = [
+        'article' => ['article_region', 'region'],
+        'place' => ['place_region', 'region'],
+        'hotel' => ['hotel_region', 'region'],
+        'tour' => ['tour_region', 'region'],
+        'car' => ['car_region', 'region'],
+        'guide' => ['guide_region', 'region'],
     ];
 
-    // Define templates to track
-    $templates = ['article', 'place', 'hotel', 'tour', 'car', 'guide'];
-
-    // Build statistics array
+    // Build statistics from real content fields
     $stats = [];
     foreach ($templates as $template) {
         $stats[$template] = [];
-        foreach (array_keys($regions) as $region_id) {
-            $count = wire('pages')->count("template=$template, region=$region_id");
-            $stats[$template][$region_id] = $count;
+        foreach (array_keys($regions) as $regionId) {
+            $stats[$template][(string) $regionId] = 0;
+        }
+
+        $items = wire('pages')->find("template={$template}, include=all, check_access=0, limit=2000");
+        if (!$items->count()) continue;
+
+        $regionFields = $regionFieldsByTemplate[$template] ?? ['region'];
+        foreach ($items as $item) {
+            $matchedRegionId = null;
+
+            foreach ($regionFields as $fieldName) {
+                if (!$item->hasField($fieldName)) continue;
+
+                $fieldValue = $item->getUnformatted($fieldName);
+
+                if ($fieldValue instanceof PageArray) {
+                    foreach ($fieldValue as $valuePage) {
+                        $matchedRegionId = $resolveRegionId($valuePage);
+                        if ($matchedRegionId !== null) break;
+                    }
+                } else {
+                    $matchedRegionId = $resolveRegionId($fieldValue);
+                }
+
+                if ($matchedRegionId !== null) break;
+            }
+
+            if ($matchedRegionId !== null && isset($stats[$template][$matchedRegionId])) {
+                $stats[$template][$matchedRegionId]++;
+            }
         }
     }
 
