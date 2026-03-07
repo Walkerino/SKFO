@@ -676,11 +676,28 @@ $forumExternalUrl = 'https://club.skfo.ru';
 
 				<?php if ($totalPages > 1): ?>
 					<nav class="hotels-pagination" aria-label="Страницы отелей">
-						<?php for ($i = 1; $i <= $totalPages; $i++): ?>
-							<a class="hotels-pagination-link<?php echo $i === $currentPage ? ' is-active' : ''; ?>" href="<?php echo $sanitizer->entities($buildPageUrl($i)); ?>">
+						<?php
+						$paginationWindowStart = max(1, min($currentPage, $totalPages - 2));
+						$paginationWindowEnd = min($totalPages, $paginationWindowStart + 2);
+						?>
+						<?php for ($i = $paginationWindowStart; $i <= $paginationWindowEnd; $i++): ?>
+							<a class="hotels-pagination-link<?php echo $i === $currentPage ? ' is-active' : ''; ?>" href="<?php echo $sanitizer->entities($buildPageUrl($i)); ?>"<?php echo $i === $currentPage ? ' aria-current="page"' : ''; ?>>
 								<?php echo $i; ?>
 							</a>
 						<?php endfor; ?>
+						<?php if ($paginationWindowEnd < $totalPages - 1): ?>
+							<span class="hotels-pagination-ellipsis" aria-hidden="true">...</span>
+						<?php endif; ?>
+						<?php if ($paginationWindowEnd < $totalPages): ?>
+							<a class="hotels-pagination-link" href="<?php echo $sanitizer->entities($buildPageUrl($totalPages)); ?>">
+								<?php echo $totalPages; ?>
+							</a>
+						<?php endif; ?>
+						<?php if ($currentPage < $totalPages): ?>
+							<a class="hotels-pagination-link hotels-pagination-next" href="<?php echo $sanitizer->entities($buildPageUrl($currentPage + 1)); ?>" aria-label="Следующая страница">
+								Далее
+							</a>
+						<?php endif; ?>
 					</nav>
 				<?php endif; ?>
 			<?php else: ?>
