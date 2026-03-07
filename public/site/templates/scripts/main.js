@@ -819,17 +819,47 @@ const initHotToursSlider = () => {
   const actions = section.querySelector(".hot-tours-actions");
   if (!grid || !track || !prevBtn || !nextBtn) return;
 
+  let progress = section.querySelector(".hot-tours-progress");
+  if (!progress) {
+    progress = document.createElement("div");
+    progress.className = "hot-tours-progress";
+    progress.innerHTML = '<div class="hot-tours-progress-track"><span class="hot-tours-progress-fill"></span></div>';
+    if (footer && footer.parentNode) {
+      footer.parentNode.insertBefore(progress, footer);
+    } else if (grid.parentNode) {
+      grid.parentNode.appendChild(progress);
+    }
+  }
+  progress.hidden = true;
+  const progressFill = progress ? progress.querySelector(".hot-tours-progress-fill") : null;
+
   const cards = Array.from(track.querySelectorAll(".hot-tour-card"));
   if (cards.length === 0) return;
 
-  const getVisibleCount = () => (window.innerWidth <= 720 ? 2 : 5);
+  const isMobileLayout = () => window.matchMedia("(max-width: 768px)").matches;
+  const getVisibleCount = () => (isMobileLayout() ? 1 : 5);
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   let startIndex = 0;
   let isExpanded = false;
 
+  const goPrev = () => {
+    if (isExpanded) return;
+    startIndex = Math.max(0, startIndex - 1);
+    update();
+  };
+
+  const goNext = () => {
+    if (isExpanded) return;
+    const visibleCount = Math.max(1, getVisibleCount());
+    const maxStart = Math.max(0, cards.length - visibleCount);
+    startIndex = Math.min(maxStart, startIndex + 1);
+    update();
+  };
+
   const update = () => {
     const visibleCount = Math.max(1, getVisibleCount());
+    const isMobile = isMobileLayout();
     const hasOverflow = cards.length > visibleCount;
 
     if (!hasOverflow) isExpanded = false;
@@ -837,13 +867,15 @@ const initHotToursSlider = () => {
 
     if (footer) footer.hidden = !hasOverflow;
     if (moreBtn) moreBtn.hidden = !hasOverflow || isExpanded;
-    if (actions) actions.hidden = !hasOverflow || isExpanded;
+    if (actions) actions.hidden = isMobile || !hasOverflow || isExpanded;
+    if (progress) progress.hidden = !isMobile || !hasOverflow || isExpanded;
 
     if (!hasOverflow) {
       startIndex = 0;
       track.style.transform = "";
       track.style.transition = "";
       grid.style.height = "";
+      if (progressFill) progressFill.style.width = "100%";
       prevBtn.disabled = true;
       nextBtn.disabled = true;
       prevBtn.classList.add("is-disabled");
@@ -873,6 +905,10 @@ const initHotToursSlider = () => {
     track.style.transform = `translateX(-${offset}px)`;
     track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
     grid.style.height = `${cardHeight}px`;
+    if (progressFill) {
+      const ratio = maxStart > 0 ? (startIndex + visibleCount) / cards.length : 1;
+      progressFill.style.width = `${Math.max(0, Math.min(1, ratio)) * 100}%`;
+    }
 
     prevBtn.disabled = startIndex <= 0;
     nextBtn.disabled = startIndex >= maxStart;
@@ -880,19 +916,9 @@ const initHotToursSlider = () => {
     nextBtn.classList.toggle("is-disabled", nextBtn.disabled);
   };
 
-  prevBtn.addEventListener("click", () => {
-    if (isExpanded) return;
-    startIndex = Math.max(0, startIndex - 1);
-    update();
-  });
+  prevBtn.addEventListener("click", goPrev);
 
-  nextBtn.addEventListener("click", () => {
-    if (isExpanded) return;
-    const visibleCount = Math.max(1, getVisibleCount());
-    const maxStart = Math.max(0, cards.length - visibleCount);
-    startIndex = Math.min(maxStart, startIndex + 1);
-    update();
-  });
+  nextBtn.addEventListener("click", goNext);
 
   if (moreBtn) {
     moreBtn.addEventListener("click", () => {
@@ -901,6 +927,65 @@ const initHotToursSlider = () => {
       update();
     });
   }
+
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  grid.addEventListener(
+    "touchstart",
+    (event) => {
+      if (!isMobileLayout() || isExpanded) return;
+      const touch = event.changedTouches && event.changedTouches[0];
+      if (!touch) return;
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+    },
+    { passive: true }
+  );
+
+  grid.addEventListener(
+    "touchend",
+    (event) => {
+      if (!isMobileLayout() || isExpanded) return;
+      const touch = event.changedTouches && event.changedTouches[0];
+      if (!touch) return;
+
+      const deltaX = touch.clientX - touchStartX;
+      const deltaY = touch.clientY - touchStartY;
+      if (Math.abs(deltaX) < 42 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+
+      if (deltaX < 0) goNext();
+      else goPrev();
+    },
+    { passive: true }
+  );
+
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let isDragActive = false;
+
+  grid.addEventListener("mousedown", (event) => {
+    if (!isMobileLayout() || isExpanded || event.button !== 0) return;
+    isDragActive = true;
+    dragStartX = event.clientX;
+    dragStartY = event.clientY;
+  });
+
+  grid.addEventListener("mouseup", (event) => {
+    if (!isDragActive || !isMobileLayout() || isExpanded) return;
+    isDragActive = false;
+
+    const deltaX = event.clientX - dragStartX;
+    const deltaY = event.clientY - dragStartY;
+    if (Math.abs(deltaX) < 42 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+
+    if (deltaX < 0) goNext();
+    else goPrev();
+  });
+
+  grid.addEventListener("mouseleave", () => {
+    isDragActive = false;
+  });
 
   window.addEventListener("resize", update);
   window.addEventListener("load", update);
@@ -921,17 +1006,47 @@ const initDagestanSlider = () => {
   const actions = section.querySelector(".places-banner-actions");
   if (!banner || !grid || !track || !prevBtn || !nextBtn) return;
 
+  let progress = section.querySelector(".places-progress");
+  if (!progress) {
+    progress = document.createElement("div");
+    progress.className = "places-progress";
+    progress.innerHTML = '<div class="places-progress-track"><span class="places-progress-fill"></span></div>';
+    if (footer && footer.parentNode) {
+      footer.parentNode.insertBefore(progress, footer);
+    } else if (grid.parentNode) {
+      grid.parentNode.appendChild(progress);
+    }
+  }
+  progress.hidden = true;
+  const progressFill = progress ? progress.querySelector(".places-progress-fill") : null;
+
   const cards = Array.from(track.querySelectorAll(".place-card"));
   if (cards.length === 0) return;
 
-  const getVisibleCount = () => (window.innerWidth <= 720 ? 2 : 5);
+  const isMobileLayout = () => window.matchMedia("(max-width: 768px)").matches;
+  const getVisibleCount = () => (isMobileLayout() ? 1 : 5);
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   let startIndex = 0;
   let isExpanded = false;
 
+  const goPrev = () => {
+    if (isExpanded) return;
+    startIndex = Math.max(0, startIndex - 1);
+    update();
+  };
+
+  const goNext = () => {
+    if (isExpanded) return;
+    const visibleCount = Math.max(1, getVisibleCount());
+    const maxStart = Math.max(0, cards.length - visibleCount);
+    startIndex = Math.min(maxStart, startIndex + 1);
+    update();
+  };
+
   const update = () => {
     const visibleCount = Math.max(1, getVisibleCount());
+    const isMobile = isMobileLayout();
     const hasOverflow = cards.length > visibleCount;
     banner.classList.toggle("places-banner--slider", hasOverflow);
 
@@ -940,13 +1055,15 @@ const initDagestanSlider = () => {
 
     if (footer) footer.hidden = !hasOverflow;
     if (moreBtn) moreBtn.hidden = !hasOverflow || isExpanded;
-    if (actions) actions.hidden = !hasOverflow || isExpanded;
+    if (actions) actions.hidden = isMobile || !hasOverflow || isExpanded;
+    if (progress) progress.hidden = !isMobile || !hasOverflow || isExpanded;
 
     if (!hasOverflow) {
       startIndex = 0;
       track.style.transform = "";
       track.style.transition = "";
       grid.style.height = "";
+      if (progressFill) progressFill.style.width = "100%";
       prevBtn.disabled = true;
       nextBtn.disabled = true;
       prevBtn.classList.add("is-disabled");
@@ -976,6 +1093,10 @@ const initDagestanSlider = () => {
     track.style.transform = `translateX(-${offset}px)`;
     track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
     grid.style.height = `${cardHeight}px`;
+    if (progressFill) {
+      const ratio = maxStart > 0 ? (startIndex + visibleCount) / cards.length : 1;
+      progressFill.style.width = `${Math.max(0, Math.min(1, ratio)) * 100}%`;
+    }
 
     prevBtn.disabled = startIndex <= 0;
     nextBtn.disabled = startIndex >= maxStart;
@@ -983,19 +1104,9 @@ const initDagestanSlider = () => {
     nextBtn.classList.toggle("is-disabled", nextBtn.disabled);
   };
 
-  prevBtn.addEventListener("click", () => {
-    if (isExpanded) return;
-    startIndex = Math.max(0, startIndex - 1);
-    update();
-  });
+  prevBtn.addEventListener("click", goPrev);
 
-  nextBtn.addEventListener("click", () => {
-    if (isExpanded) return;
-    const visibleCount = Math.max(1, getVisibleCount());
-    const maxStart = Math.max(0, cards.length - visibleCount);
-    startIndex = Math.min(maxStart, startIndex + 1);
-    update();
-  });
+  nextBtn.addEventListener("click", goNext);
 
   if (moreBtn) {
     moreBtn.addEventListener("click", () => {
@@ -1004,6 +1115,65 @@ const initDagestanSlider = () => {
       update();
     });
   }
+
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  grid.addEventListener(
+    "touchstart",
+    (event) => {
+      if (!isMobileLayout() || isExpanded) return;
+      const touch = event.changedTouches && event.changedTouches[0];
+      if (!touch) return;
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+    },
+    { passive: true }
+  );
+
+  grid.addEventListener(
+    "touchend",
+    (event) => {
+      if (!isMobileLayout() || isExpanded) return;
+      const touch = event.changedTouches && event.changedTouches[0];
+      if (!touch) return;
+
+      const deltaX = touch.clientX - touchStartX;
+      const deltaY = touch.clientY - touchStartY;
+      if (Math.abs(deltaX) < 42 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+
+      if (deltaX < 0) goNext();
+      else goPrev();
+    },
+    { passive: true }
+  );
+
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let isDragActive = false;
+
+  grid.addEventListener("mousedown", (event) => {
+    if (!isMobileLayout() || isExpanded || event.button !== 0) return;
+    isDragActive = true;
+    dragStartX = event.clientX;
+    dragStartY = event.clientY;
+  });
+
+  grid.addEventListener("mouseup", (event) => {
+    if (!isDragActive || !isMobileLayout() || isExpanded) return;
+    isDragActive = false;
+
+    const deltaX = event.clientX - dragStartX;
+    const deltaY = event.clientY - dragStartY;
+    if (Math.abs(deltaX) < 42 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+
+    if (deltaX < 0) goNext();
+    else goPrev();
+  });
+
+  grid.addEventListener("mouseleave", () => {
+    isDragActive = false;
+  });
 
   window.addEventListener("resize", update);
   window.addEventListener("load", update);
@@ -1030,9 +1200,22 @@ const initRegionActualSlider = () => {
       return;
     }
 
-    const getVisibleCount = () => (window.innerWidth <= 760 ? 1 : 2);
+    const isMobileLayout = () => window.matchMedia("(max-width: 768px)").matches;
+    const getVisibleCount = () => (isMobileLayout() ? 1 : 2);
     let startIndex = 0;
     let maxStart = 0;
+
+    const goPrev = () => {
+      if (maxStart <= 0) return;
+      startIndex = Math.max(0, startIndex - 1);
+      update();
+    };
+
+    const goNext = () => {
+      if (maxStart <= 0) return;
+      startIndex = Math.min(maxStart, startIndex + 1);
+      update();
+    };
 
     const syncProgress = (hasOverflow, visibleCount) => {
       if (!progress || !progressTrack || !progressFill) return;
@@ -1122,12 +1305,10 @@ const initRegionActualSlider = () => {
         if (maxStart <= 0) return;
         if (event.key === "ArrowLeft") {
           event.preventDefault();
-          startIndex = Math.max(0, startIndex - 1);
-          update();
+          goPrev();
         } else if (event.key === "ArrowRight") {
           event.preventDefault();
-          startIndex = Math.min(maxStart, startIndex + 1);
-          update();
+          goNext();
         } else if (event.key === "Home") {
           event.preventDefault();
           startIndex = 0;
@@ -1139,6 +1320,61 @@ const initRegionActualSlider = () => {
         }
       });
     }
+
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    grid.addEventListener(
+      "touchstart",
+      (event) => {
+        if (!isMobileLayout() || maxStart <= 0) return;
+        const touch = event.changedTouches && event.changedTouches[0];
+        if (!touch) return;
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+      },
+      { passive: true }
+    );
+
+    grid.addEventListener(
+      "touchend",
+      (event) => {
+        if (!isMobileLayout() || maxStart <= 0) return;
+        const touch = event.changedTouches && event.changedTouches[0];
+        if (!touch) return;
+        const deltaX = touch.clientX - touchStartX;
+        const deltaY = touch.clientY - touchStartY;
+        if (Math.abs(deltaX) < 42 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+        if (deltaX < 0) goNext();
+        else goPrev();
+      },
+      { passive: true }
+    );
+
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let isDragActive = false;
+
+    grid.addEventListener("mousedown", (event) => {
+      if (!isMobileLayout() || maxStart <= 0 || event.button !== 0) return;
+      isDragActive = true;
+      dragStartX = event.clientX;
+      dragStartY = event.clientY;
+    });
+
+    grid.addEventListener("mouseup", (event) => {
+      if (!isDragActive || !isMobileLayout() || maxStart <= 0) return;
+      isDragActive = false;
+      const deltaX = event.clientX - dragStartX;
+      const deltaY = event.clientY - dragStartY;
+      if (Math.abs(deltaX) < 42 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+      if (deltaX < 0) goNext();
+      else goPrev();
+    });
+
+    grid.addEventListener("mouseleave", () => {
+      isDragActive = false;
+    });
 
     window.addEventListener("resize", update);
     window.addEventListener("load", update);
