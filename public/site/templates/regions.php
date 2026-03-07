@@ -397,8 +397,39 @@ if (!count($regions)) {
 
 <div id="content" class="regions-page">
 	<section class="reviews-hero">
-		<div class="container">
+		<div class="container hero-inner reviews-hero-inner">
 			<h1 class="reviews-title">РЕГИОНЫ<br />КАВКАЗА</h1>
+			<div class="hero-tabs" aria-label="Разделы">
+				<div class="hero-tabs-group" role="tablist">
+					<span class="tab-indicator" aria-hidden="true"></span>
+					<span class="tab-hover" aria-hidden="true"></span>
+					<a class="hero-tab" href="/" role="tab" aria-selected="false">
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
+						<span class="hero-tab-text">Туры</span>
+					</a>
+					<a class="hero-tab" href="/hotels/" role="tab" aria-selected="false">
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/hotel.svg" alt="" aria-hidden="true" />
+						<span class="hero-tab-text">Отели</span>
+					</a>
+					<a class="hero-tab" href="/reviews/" role="tab" aria-selected="false">
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
+						<span class="hero-tab-text">Отзывы</span>
+					</a>
+					<a class="hero-tab is-active" href="/regions/" role="tab" aria-selected="true">
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
+						<span class="hero-tab-text">Регионы</span>
+					</a>
+					<a class="hero-tab" href="/articles/" role="tab" aria-selected="false">
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/journal.svg" alt="" aria-hidden="true" />
+						<span class="hero-tab-text">Статьи</span>
+					</a>
+				</div>
+				<a class="hero-tab hero-tab-forum" href="https://club.skfo.ru" target="_blank" rel="noopener noreferrer" aria-label="Форум">
+					<img src="<?php echo $config->urls->templates; ?>assets/icons/forum.svg" alt="" aria-hidden="true" />
+					<span>Форум</span>
+					<img class="hero-tab-external" src="<?php echo $config->urls->templates; ?>assets/icons/external_site.svg" alt="" aria-hidden="true" />
+				</a>
+			</div>
 		</div>
 	</section>
 
