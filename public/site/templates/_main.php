@@ -35,7 +35,9 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		$isPlacesRequest = preg_match('#^/places(?:/|$)#', (string) $requestPath) === 1;
 		$isArticlesRequest = preg_match('#^/articles(?:/|$)#', (string) $requestPath) === 1;
 	$isHotelsPage = $page->name === 'hotels' || $page->path === '/hotels/' || in_array($templateName, ['hotels', 'hotel'], true) || $isHotelsRequest;
+	$isHotelsCatalogPage = $templateName === 'hotels' || $page->path === '/hotels/' || $requestPath === '/hotels' || $requestPath === '/hotels/';
 	$isReviewsPage = $page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest;
+	$isTourMobileHeaderPage = $isHotelsCatalogPage || $isReviewsPage;
 	$isRegionsPage = $page->name === 'regions' || $page->path === '/regions/' || in_array($templateName, ['regions', 'region', 'places', 'place'], true) || $isRegionsRequest || $isPlacesRequest;
 	$isArticlesPage = $page->name === 'articles' || $page->path === '/articles/' || $isArticlesRequest;
 	$isHomePage = $page->path === '/' || $templateName === 'home';
@@ -45,6 +47,14 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$isReviewsNavActive = $templateName === 'reviews' || $isReviewsPage;
 	$isRegionsNavActive = in_array($templateName, ['regions', 'region', 'places', 'place'], true) || $isRegionsPage;
 	$isArticlesNavActive = $templateName === 'articles' || $isArticlesPage;
+	$isToursMenuActive = $isHomePage || $isTourNavActive;
+	$isArticleDetailPage = $templateName === 'article';
+	if (!$isArticleDetailPage && $templateName === 'articles') {
+		$articleParam = trim((string) $input->get('article'));
+		$isArticleDetailPath = preg_match('#^/articles/[^/]+/?$#', (string) $requestPath) === 1;
+		$isArticleDetailPage = $articleParam !== '' || $isArticleDetailPath;
+	}
+	$isSecondaryCompactHeaderPage = in_array($templateName, ['tour', 'hotel', 'region', 'place'], true) || $isArticleDetailPage;
 	$normalizeHeadTitleKey = static function(string $value): string {
 		$value = trim($value);
 		$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
@@ -111,6 +121,8 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		: $config->urls->templates . 'assets/icons/logo2.svg';
 	$mainCssPath = $config->paths->templates . 'styles/main.css';
 	$mainCssVersion = is_file($mainCssPath) ? filemtime($mainCssPath) : null;
+	$mainJsPath = $config->paths->templates . 'scripts/main.js';
+	$mainJsVersion = is_file($mainJsPath) ? filemtime($mainJsPath) : null;
 	$authUser = isset($skfoAuthUser) && is_array($skfoAuthUser) ? $skfoAuthUser : null;
 	$isAuthLoggedIn = $authUser !== null;
 	$isCmsEditor = isset($user) && $user instanceof User && $user->isLoggedin() && ($user->isSuperuser() || $user->hasPermission('page-edit'));
@@ -139,6 +151,16 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$profileAriaLabel = $isAuthLoggedIn ? ('Профиль: ' . $profileButtonLabel) : 'Профиль';
 	$authCsrfTokenName = $session->CSRF->getTokenName();
 	$authCsrfTokenValue = $session->CSRF->getTokenValue();
+	$bodyClassNames = [];
+	if ($isProfilePage) $bodyClassNames[] = 'page-profile';
+	if ($templateName !== '') {
+		$templateClassName = preg_replace('/[^a-z0-9_-]+/i', '', $templateName) ?? '';
+		$templateClassName = strtolower($templateClassName);
+		if ($templateClassName !== '') $bodyClassNames[] = 'template-' . $templateClassName;
+	}
+	if ($isHotelsCatalogPage) $bodyClassNames[] = 'template-hotels-catalog';
+	if ($isTourMobileHeaderPage) $bodyClassNames[] = 'template-tour-mobile-header';
+	$bodyClassAttr = count($bodyClassNames) ? (' class="' . implode(' ', $bodyClassNames) . '"') : '';
 
 ?><!DOCTYPE html>
 <html lang="ru">
@@ -150,91 +172,65 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		<link rel="shortcut icon" href="<?php echo $faviconUrl; ?>" />
 		<link rel="stylesheet" type="text/css" href="<?php echo $config->urls->templates; ?>styles/main.css<?php echo $mainCssVersion ? '?v=' . (int) $mainCssVersion : ''; ?>" />
 	</head>
-			<body id="html-body"<?php echo $isProfilePage ? ' class="page-profile"' : ''; ?>>
+			<body id="html-body"<?php echo $bodyClassAttr; ?>>
 				<?php if(!$isContentAdminPage): ?>
-				<?php if($isTourTemplate): ?>
+				<?php if ($isSecondaryCompactHeaderPage): ?>
 					<header class="tour-header" id="site-header">
 						<div class="container tour-header-row">
-						<a class="logo tour-header-logo" href="<?php echo $home->url; ?>" aria-label="SKFO.RU">
-							<img class="logo-img" src="<?php echo $config->urls->templates; ?>assets/icons/logo.svg" alt="SKFO.RU" />
-						</a>
-						<nav class="tour-header-center tour-nav" aria-label="Основная навигация">
-							<div class="tour-header-nav tour-nav-group" role="tablist">
-								<span class="tour-nav-indicator" aria-hidden="true"></span>
-								<span class="tour-nav-hover" aria-hidden="true"></span>
-								<a class="tour-header-link tour-nav-link<?php echo $isTourNavActive ? ' is-active' : ''; ?>" href="<?php echo $home->url; ?>">
-									<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
-									<span class="tour-nav-text">Туры</span>
-								</a>
-								<a class="tour-header-link tour-nav-link<?php echo $isHotelsNavActive ? ' is-active' : ''; ?>" href="/hotels/">
-									<img src="<?php echo $config->urls->templates; ?>assets/icons/hotel.svg" alt="" aria-hidden="true" />
-									<span class="tour-nav-text">Отели</span>
-								</a>
-								<a class="tour-header-link tour-nav-link<?php echo $isReviewsNavActive ? ' is-active' : ''; ?>" href="/reviews/">
-									<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
-									<span class="tour-nav-text">Отзывы</span>
-								</a>
-								<a class="tour-header-link tour-nav-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/">
-									<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
-									<span class="tour-nav-text">Регионы</span>
-								</a>
-								<a class="tour-header-link tour-nav-link<?php echo $isArticlesNavActive ? ' is-active' : ''; ?>" href="/articles/">
-									<img src="<?php echo $config->urls->templates; ?>assets/icons/journal.svg" alt="" aria-hidden="true" />
-									<span class="tour-nav-text">Статьи</span>
-								</a>
-							</div>
-							<a class="tour-header-link tour-nav-link tour-nav-link--forum" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">
-								<img src="<?php echo $config->urls->templates; ?>assets/icons/forum.svg" alt="" aria-hidden="true" />
-								<span class="tour-nav-text">Форум</span>
+							<a class="logo tour-header-logo" href="<?php echo $home->url; ?>" aria-label="SKFO.RU">
+								<img class="logo-img" src="<?php echo $config->urls->templates; ?>assets/icons/logo.svg" alt="SKFO.RU" />
 							</a>
-						</nav>
-							<div class="tour-header-actions">
-								<?php if($isCmsEditor): ?>
-									<a class="icon-btn tour-header-action" href="<?php echo $sanitizer->entities((string) $config->urls->admin); ?>" aria-label="Админка ProcessWire">
-										<span>CMS</span>
+							<nav class="tour-header-center tour-nav" aria-label="Основная навигация">
+								<div class="tour-header-nav tour-nav-group" role="tablist">
+									<span class="tour-nav-indicator" aria-hidden="true"></span>
+									<span class="tour-nav-hover" aria-hidden="true"></span>
+									<a class="tour-header-link tour-nav-link<?php echo $isToursMenuActive ? ' is-active' : ''; ?>" href="<?php echo $home->url; ?>">
+										<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
+										<span class="tour-nav-text">Туры</span>
 									</a>
-								<?php endif; ?>
+									<a class="tour-header-link tour-nav-link<?php echo $isHotelsNavActive ? ' is-active' : ''; ?>" href="/hotels/">
+										<img src="<?php echo $config->urls->templates; ?>assets/icons/hotel.svg" alt="" aria-hidden="true" />
+										<span class="tour-nav-text">Отели</span>
+									</a>
+									<a class="tour-header-link tour-nav-link<?php echo $isReviewsNavActive ? ' is-active' : ''; ?>" href="/reviews/">
+										<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
+										<span class="tour-nav-text">Отзывы</span>
+									</a>
+									<a class="tour-header-link tour-nav-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/">
+										<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
+										<span class="tour-nav-text">Регионы</span>
+									</a>
+									<a class="tour-header-link tour-nav-link<?php echo $isArticlesNavActive ? ' is-active' : ''; ?>" href="/articles/">
+										<img src="<?php echo $config->urls->templates; ?>assets/icons/journal.svg" alt="" aria-hidden="true" />
+										<span class="tour-nav-text">Статьи</span>
+									</a>
+								</div>
+								<a class="tour-header-link tour-nav-link tour-nav-link--forum" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">
+									<img src="<?php echo $config->urls->templates; ?>assets/icons/forum.svg" alt="" aria-hidden="true" />
+									<span class="tour-nav-text">Форум</span>
+									<img class="tour-header-link-external" src="<?php echo $config->urls->templates; ?>assets/icons/external_site.svg" alt="" aria-hidden="true" />
+								</a>
+							</nav>
+							<div class="tour-header-actions">
 								<a class="icon-btn tour-header-action" href="/profile/" aria-label="<?php echo $sanitizer->entities($profileAriaLabel); ?>"<?php echo $profileLinkAttrs; ?>>
 									<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/profile.svg" alt="" aria-hidden="true" />
 								</a>
-							<a class="icon-btn tour-header-action" href="/contacts/" aria-label="Контакты" data-contacts-open>
-								<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/contacts.svg" alt="" aria-hidden="true" />
-							</a>
-						</div>
-					</div>
-				</header>
-			<?php else: ?>
-				<header class="site-header site-header--overlay<?php echo $isHomePage ? ' site-header--home' : ''; ?>" id="site-header">
-					<div class="container header-row<?php echo $isHomePage ? ' header-row--home' : ''; ?>">
-						<a class="icon-btn<?php echo $isHomePage ? ' home-header-profile' : ''; ?>" href="/profile/" aria-label="<?php echo $sanitizer->entities($profileAriaLabel); ?>"<?php echo $profileLinkAttrs; ?>>
-							<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/profile.svg" alt="" aria-hidden="true" />
-							<span><?php echo $sanitizer->entities($profileButtonLabel); ?></span>
-						</a>
-						<a class="logo<?php echo $isHomePage ? ' logo--home home-header-logo' : ''; ?>" href="<?php echo $home->url; ?>" aria-label="SKFO.RU">
-							<?php if($isHomePage): ?>
-								<img class="logo-eagle-img" src="<?php echo $config->urls->templates; ?>assets/icons/logo-eagle.svg" alt="" aria-hidden="true" />
-							<?php endif; ?>
-							<img class="logo-img" src="<?php echo $config->urls->templates; ?>assets/icons/logo.svg" alt="SKFO.RU" />
-						</a>
-						<a class="icon-btn<?php echo $isHomePage ? ' home-header-contacts' : ''; ?>" href="/contacts/" aria-label="Контакты" data-contacts-open>
-							<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/contacts.svg" alt="" aria-hidden="true" />
-							<span>Контакты</span>
-						</a>
-						<?php if($isHomePage): ?>
-							<button class="icon-btn home-burger-toggle" type="button" aria-label="Открыть меню" aria-expanded="false" aria-controls="home-mobile-menu" data-home-menu-toggle>
+								<a class="icon-btn tour-header-action" href="/contacts/" aria-label="Контакты" data-contacts-open>
+									<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/contacts.svg" alt="" aria-hidden="true" />
+								</a>
+							</div>
+							<button class="icon-btn home-burger-toggle tour-burger-toggle" type="button" aria-label="Открыть меню" aria-expanded="false" aria-controls="tour-mobile-menu" data-home-menu-toggle>
 								<span class="home-burger-icon" aria-hidden="true"></span>
 							</button>
-						<?php endif; ?>
-					</div>
-					<?php if($isHomePage): ?>
-						<div class="container home-mobile-menu-wrap">
-							<div class="home-mobile-menu" id="home-mobile-menu" hidden data-home-menu>
+						</div>
+						<div class="container home-mobile-menu-wrap tour-mobile-menu-wrap">
+							<div class="home-mobile-menu" id="tour-mobile-menu" hidden data-home-menu>
 								<nav class="home-mobile-menu-nav" aria-label="Навигация по сайту">
-									<a class="home-mobile-menu-link" href="<?php echo $home->url; ?>">Туры</a>
-									<a class="home-mobile-menu-link" href="/hotels/">Отели</a>
-									<a class="home-mobile-menu-link" href="/reviews/">Отзывы</a>
-									<a class="home-mobile-menu-link" href="/regions/">Регионы</a>
-									<a class="home-mobile-menu-link" href="/articles/">Статьи</a>
+									<a class="home-mobile-menu-link<?php echo $isToursMenuActive ? ' is-active' : ''; ?>" href="<?php echo $home->url; ?>"<?php echo $isToursMenuActive ? ' aria-current="page"' : ''; ?>>Туры</a>
+									<a class="home-mobile-menu-link<?php echo $isHotelsNavActive ? ' is-active' : ''; ?>" href="/hotels/"<?php echo $isHotelsNavActive ? ' aria-current="page"' : ''; ?>>Отели</a>
+									<a class="home-mobile-menu-link<?php echo $isReviewsNavActive ? ' is-active' : ''; ?>" href="/reviews/"<?php echo $isReviewsNavActive ? ' aria-current="page"' : ''; ?>>Отзывы</a>
+									<a class="home-mobile-menu-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/"<?php echo $isRegionsNavActive ? ' aria-current="page"' : ''; ?>>Регионы</a>
+									<a class="home-mobile-menu-link<?php echo $isArticlesNavActive ? ' is-active' : ''; ?>" href="/articles/"<?php echo $isArticlesNavActive ? ' aria-current="page"' : ''; ?>>Статьи</a>
 									<a class="home-mobile-menu-link" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">Форум</a>
 								</nav>
 								<div class="home-mobile-menu-actions">
@@ -249,7 +245,48 @@ $home = $pages->get('/'); /** @var HomePage $home */
 								</div>
 							</div>
 						</div>
-					<?php endif; ?>
+					</header>
+				<?php else: ?>
+					<header class="site-header site-header--overlay site-header--home" id="site-header">
+						<div class="container header-row header-row--home">
+							<a class="icon-btn home-header-profile" href="/profile/" aria-label="<?php echo $sanitizer->entities($profileAriaLabel); ?>"<?php echo $profileLinkAttrs; ?>>
+								<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/profile.svg" alt="" aria-hidden="true" />
+								<span><?php echo $sanitizer->entities($profileButtonLabel); ?></span>
+							</a>
+							<a class="logo logo--home home-header-logo" href="<?php echo $home->url; ?>" aria-label="SKFO.RU">
+								<img class="logo-eagle-img" src="<?php echo $config->urls->templates; ?>assets/icons/logo-eagle.svg" alt="" aria-hidden="true" />
+								<img class="logo-img" src="<?php echo $config->urls->templates; ?>assets/icons/logo.svg" alt="SKFO.RU" />
+							</a>
+							<a class="icon-btn home-header-contacts" href="/contacts/" aria-label="Контакты" data-contacts-open>
+								<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/contacts.svg" alt="" aria-hidden="true" />
+								<span>Контакты</span>
+							</a>
+							<button class="icon-btn home-burger-toggle" type="button" aria-label="Открыть меню" aria-expanded="false" aria-controls="home-mobile-menu" data-home-menu-toggle>
+								<span class="home-burger-icon" aria-hidden="true"></span>
+							</button>
+						</div>
+						<div class="container home-mobile-menu-wrap">
+							<div class="home-mobile-menu" id="home-mobile-menu" hidden data-home-menu>
+								<nav class="home-mobile-menu-nav" aria-label="Навигация по сайту">
+									<a class="home-mobile-menu-link<?php echo $isToursMenuActive ? ' is-active' : ''; ?>" href="<?php echo $home->url; ?>"<?php echo $isToursMenuActive ? ' aria-current="page"' : ''; ?>>Туры</a>
+									<a class="home-mobile-menu-link<?php echo $isHotelsNavActive ? ' is-active' : ''; ?>" href="/hotels/"<?php echo $isHotelsNavActive ? ' aria-current="page"' : ''; ?>>Отели</a>
+									<a class="home-mobile-menu-link<?php echo $isReviewsNavActive ? ' is-active' : ''; ?>" href="/reviews/"<?php echo $isReviewsNavActive ? ' aria-current="page"' : ''; ?>>Отзывы</a>
+									<a class="home-mobile-menu-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/"<?php echo $isRegionsNavActive ? ' aria-current="page"' : ''; ?>>Регионы</a>
+									<a class="home-mobile-menu-link<?php echo $isArticlesNavActive ? ' is-active' : ''; ?>" href="/articles/"<?php echo $isArticlesNavActive ? ' aria-current="page"' : ''; ?>>Статьи</a>
+									<a class="home-mobile-menu-link" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">Форум</a>
+								</nav>
+								<div class="home-mobile-menu-actions">
+									<a class="home-mobile-menu-action" href="/profile/" aria-label="<?php echo $sanitizer->entities($profileAriaLabel); ?>"<?php echo $profileLinkAttrs; ?>>
+										<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/profile.svg" alt="" aria-hidden="true" />
+										<span><?php echo $sanitizer->entities($profileButtonLabel); ?></span>
+									</a>
+									<a class="home-mobile-menu-action" href="/contacts/" aria-label="Контакты" data-contacts-open>
+										<img class="icon-img" src="<?php echo $config->urls->templates; ?>assets/icons/contacts.svg" alt="" aria-hidden="true" />
+										<span>Контакты</span>
+									</a>
+								</div>
+							</div>
+						</div>
 					</header>
 				<?php endif; ?>
 				<?php endif; ?>
@@ -399,7 +436,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 			<?php endif; ?>
 
 			<?php if(!$isContentAdminPage): ?>
-			<script src="<?php echo $config->urls->templates; ?>scripts/main.js"></script>
+			<script src="<?php echo $config->urls->templates; ?>scripts/main.js<?php echo $mainJsVersion ? '?v=' . (int) $mainJsVersion : ''; ?>"></script>
 			<?php endif; ?>
 		</body>
 	</html>
