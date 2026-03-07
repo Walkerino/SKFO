@@ -425,17 +425,6 @@ if (!count($todayArticlesRaw)) {
 }
 
 $todayArticles = array_slice($normalizeArticles($todayArticlesRaw), 0, 4);
-$leadArticle = $todayArticles[0] ?? [
-	'slug' => '',
-	'title' => '',
-	'date' => '',
-	'datetime' => '',
-	'topic' => '',
-	'image' => $defaultCoverUrl,
-	'url' => '/articles/',
-	'paragraphs' => [],
-];
-$sideArticles = array_slice($todayArticles, 1, 3);
 
 $isFirstTimeTopic = static function(string $topic) use ($resolveTopicSlug, $normalizeTopic): bool {
 	if ($resolveTopicSlug($topic) === 'tips') return true;
@@ -828,6 +817,37 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		<section class="articles-hero">
 			<div class="container">
 				<h1 class="articles-title">Полезное<br />для поездок</h1>
+				<div class="hero-tabs" aria-label="Разделы">
+					<div class="hero-tabs-group" role="tablist">
+						<span class="tab-indicator" aria-hidden="true"></span>
+						<span class="tab-hover" aria-hidden="true"></span>
+						<a class="hero-tab" href="/" role="tab" aria-selected="false">
+							<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
+							<span class="hero-tab-text">Туры</span>
+						</a>
+						<a class="hero-tab" href="/hotels/" role="tab" aria-selected="false">
+							<img src="<?php echo $config->urls->templates; ?>assets/icons/hotel.svg" alt="" aria-hidden="true" />
+							<span class="hero-tab-text">Отели</span>
+						</a>
+						<a class="hero-tab" href="/reviews/" role="tab" aria-selected="false">
+							<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
+							<span class="hero-tab-text">Отзывы</span>
+						</a>
+						<a class="hero-tab" href="/regions/" role="tab" aria-selected="false">
+							<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
+							<span class="hero-tab-text">Регионы</span>
+						</a>
+						<a class="hero-tab is-active" href="/articles/" role="tab" aria-selected="true">
+							<img src="<?php echo $config->urls->templates; ?>assets/icons/journal.svg" alt="" aria-hidden="true" />
+							<span class="hero-tab-text">Статьи</span>
+						</a>
+					</div>
+					<a class="hero-tab hero-tab-forum" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer" aria-label="Форум">
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/forum.svg" alt="" aria-hidden="true" />
+						<span>Форум</span>
+						<img class="hero-tab-external" src="<?php echo $config->urls->templates; ?>assets/icons/external_site.svg" alt="" aria-hidden="true" />
+					</a>
+				</div>
 				<div class="articles-hero-tags" aria-label="Категории статей">
 					<?php foreach ($topicMap as $topicSlug => $topicTitle): ?>
 						<a class="articles-hero-tag<?php echo $selectedTopicSlug === $topicSlug ? ' is-active' : ''; ?>" href="/articles/?topic=<?php echo $sanitizer->entities($topicSlug); ?>">
@@ -862,29 +882,18 @@ $forumExternalUrl = 'https://club.skfo.ru';
 			<section class="section section--region-articles section--articles-read">
 				<div class="container">
 					<h2 class="region-articles-title">Читают сегодня</h2>
-					<div class="region-articles-card<?php echo count($todayArticles) < 4 ? ' region-articles-card--compact' : ''; ?>">
-						<a class="region-article region-article--lead" href="<?php echo $sanitizer->entities($withArticleContext((string) $leadArticle['url'], $listSource, $articlesListUrl)); ?>">
-							<div class="region-article-media" style="background-image: url('<?php echo htmlspecialchars((string) $leadArticle['image'], ENT_QUOTES, 'UTF-8'); ?>');"></div>
-							<div class="region-article-content">
-								<time class="region-article-date" datetime="<?php echo $sanitizer->entities((string) ($leadArticle['datetime'] ?? '')); ?>">
-									<?php echo $sanitizer->entities((string) $leadArticle['date']); ?>
-								</time>
-								<h3 class="region-article-title"><?php echo $sanitizer->entities((string) $leadArticle['title']); ?></h3>
-								<p class="region-article-topic"><?php echo $sanitizer->entities((string) $leadArticle['topic']); ?></p>
-							</div>
-						</a>
-
-						<div class="region-article-list">
-							<?php foreach ($sideArticles as $article): ?>
-								<a class="region-article region-article--side" href="<?php echo $sanitizer->entities($withArticleContext((string) $article['url'], $listSource, $articlesListUrl)); ?>">
-									<div class="region-article-content">
-										<time class="region-article-date" datetime="<?php echo $sanitizer->entities((string) ($article['datetime'] ?? '')); ?>">
-											<?php echo $sanitizer->entities((string) $article['date']); ?>
+					<div class="region-articles-card articles-read-shell">
+						<div class="articles-read-list">
+							<?php foreach ($todayArticles as $article): ?>
+								<a class="articles-read-card" href="<?php echo $sanitizer->entities($withArticleContext((string) ($article['url'] ?? '/articles/'), $listSource, $articlesListUrl)); ?>">
+									<div class="articles-read-card-media" style="background-image: url('<?php echo htmlspecialchars((string) ($article['image'] ?? $defaultCoverUrl), ENT_QUOTES, 'UTF-8'); ?>');"></div>
+									<div class="articles-read-card-body">
+										<time class="articles-read-card-date" datetime="<?php echo $sanitizer->entities((string) ($article['datetime'] ?? '')); ?>">
+											<?php echo $sanitizer->entities((string) ($article['date'] ?? '')); ?>
 										</time>
-										<h3 class="region-article-title"><?php echo $sanitizer->entities((string) $article['title']); ?></h3>
-										<p class="region-article-topic"><?php echo $sanitizer->entities((string) $article['topic']); ?></p>
+										<h3 class="articles-read-card-title"><?php echo $sanitizer->entities((string) ($article['title'] ?? '')); ?></h3>
+										<p class="articles-read-card-topic"><?php echo $sanitizer->entities((string) ($article['topic'] ?? '')); ?></p>
 									</div>
-									<div class="region-article-side-thumb" style="background-image: url('<?php echo htmlspecialchars((string) $article['image'], ENT_QUOTES, 'UTF-8'); ?>');"></div>
 								</a>
 							<?php endforeach; ?>
 						</div>
