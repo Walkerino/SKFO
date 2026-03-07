@@ -378,8 +378,8 @@ $hotelRating = is_numeric($hotelRatingRaw) ? (float) $hotelRatingRaw : 4.5;
 $hotelPriceRaw = $page->hasField('hotel_price') ? (string) $page->getUnformatted('hotel_price') : '';
 $hotelPriceLabel = $formatPrice($hotelPriceRaw);
 
-$hotelMaxGuests = $page->hasField('hotel_max_guests') ? (int) $page->getUnformatted('hotel_max_guests') : 2;
-if ($hotelMaxGuests < 1) $hotelMaxGuests = 1;
+$hotelMaxGuests = $page->hasField('hotel_max_guests') ? (int) $page->getUnformatted('hotel_max_guests') : 0;
+if ($hotelMaxGuests < 2) $hotelMaxGuests = 10;
 $hotelGuestsDefault = min(2, $hotelMaxGuests);
 $hotelGuestsLabel = $formatGuestLabel($hotelGuestsDefault);
 
