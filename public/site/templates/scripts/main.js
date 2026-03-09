@@ -810,6 +810,7 @@ const initHotToursSlider = () => {
   const section = document.querySelector(".section--hot-tours");
   if (!section) return;
 
+  const header = section.querySelector(".hot-tours-header");
   const grid = section.querySelector(".hot-tours-grid");
   const track = section.querySelector(".hot-tours-track");
   const prevBtn = section.querySelector(".hot-tours-prev");
@@ -817,7 +818,7 @@ const initHotToursSlider = () => {
   const moreBtn = section.querySelector(".hot-tours-more-btn");
   const footer = section.querySelector(".hot-tours-footer");
   const actions = section.querySelector(".hot-tours-actions");
-  if (!grid || !track || !prevBtn || !nextBtn) return;
+  if (!header || !grid || !track || !prevBtn || !nextBtn) return;
 
   let progress = section.querySelector(".hot-tours-progress");
   if (!progress) {
@@ -840,41 +841,185 @@ const initHotToursSlider = () => {
   const getVisibleCount = () => (isMobileLayout() ? 1 : 5);
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  const actionsInitialParent = actions && actions.parentNode ? actions.parentNode : null;
+  const actionsInitialNextSibling = actions ? actions.nextSibling : null;
+  let actionsInOverlay = false;
+
+  const syncActionsPlacement = (isMobile) => {
+    if (!actions || !actionsInitialParent) return;
+    if (isMobile && !actionsInOverlay) {
+      grid.appendChild(actions);
+      actions.classList.add("is-overlay");
+      actionsInOverlay = true;
+      return;
+    }
+    if (!isMobile && actionsInOverlay) {
+      if (actionsInitialNextSibling && actionsInitialNextSibling.parentNode === actionsInitialParent) {
+        actionsInitialParent.insertBefore(actions, actionsInitialNextSibling);
+      } else {
+        actionsInitialParent.appendChild(actions);
+      }
+      actions.classList.remove("is-overlay");
+      actionsInOverlay = false;
+    }
+  };
+
   let startIndex = 0;
+  let loopVirtualIndex = 0;
+  let loopActive = false;
+  let loopSyncTimer = 0;
   let isExpanded = false;
+  const loopBuffer = 2;
+
+  const getRenderedCards = () => Array.from(track.querySelectorAll(".hot-tour-card"));
+
+  const cloneLoopCard = (node) => {
+    const clone = node.cloneNode(true);
+    clone.setAttribute("data-loop-clone", "1");
+    clone.setAttribute("aria-hidden", "true");
+    if (clone.id) clone.removeAttribute("id");
+    return clone;
+  };
+
+  const enableLoopMode = () => {
+    if (loopActive || cards.length < 2) return;
+    const prependCount = Math.min(loopBuffer, cards.length);
+    const appendCount = Math.min(loopBuffer, cards.length);
+
+    const prependFragment = document.createDocumentFragment();
+    for (let i = cards.length - prependCount; i < cards.length; i += 1) {
+      prependFragment.appendChild(cloneLoopCard(cards[i]));
+    }
+    track.insertBefore(prependFragment, track.firstChild);
+
+    const appendFragment = document.createDocumentFragment();
+    for (let i = 0; i < appendCount; i += 1) {
+      appendFragment.appendChild(cloneLoopCard(cards[i]));
+    }
+    track.appendChild(appendFragment);
+
+    loopActive = true;
+    loopVirtualIndex = startIndex;
+  };
+
+  const disableLoopMode = () => {
+    if (!loopActive) return;
+    if (loopSyncTimer) {
+      window.clearTimeout(loopSyncTimer);
+      loopSyncTimer = 0;
+    }
+    track.querySelectorAll('[data-loop-clone="1"]').forEach((node) => node.remove());
+    const count = cards.length || 1;
+    startIndex = ((loopVirtualIndex % count) + count) % count;
+    loopVirtualIndex = startIndex;
+    loopActive = false;
+  };
+
+  const syncLoopBoundary = (immediate = false) => {
+    if (!loopActive || isExpanded) return;
+    const loopCount = cards.length;
+    let nextLoopIndex = null;
+    if (loopVirtualIndex >= loopCount) nextLoopIndex = 0;
+    else if (loopVirtualIndex < 0) nextLoopIndex = loopCount - 1;
+    if (nextLoopIndex === null) return;
+
+    loopVirtualIndex = nextLoopIndex;
+    const apply = () => update({ forceNoTransition: true });
+    if (immediate) apply();
+    else window.requestAnimationFrame(() => window.requestAnimationFrame(apply));
+  };
+
+  const parseTimeToMs = (rawValue) => {
+    const value = String(rawValue || "").trim();
+    if (!value) return 0;
+    if (value.endsWith("ms")) return Number.parseFloat(value) || 0;
+    if (value.endsWith("s")) return (Number.parseFloat(value) || 0) * 1000;
+    return Number.parseFloat(value) || 0;
+  };
+
+  const getLoopFallbackDelay = () => {
+    const styles = window.getComputedStyle(track);
+    const durations = String(styles.transitionDuration || "").split(",");
+    const delays = String(styles.transitionDelay || "").split(",");
+    const count = Math.max(durations.length, delays.length);
+    let maxTotal = 0;
+    for (let i = 0; i < count; i += 1) {
+      const duration = parseTimeToMs(durations[i] || durations[durations.length - 1] || "0ms");
+      const delay = parseTimeToMs(delays[i] || delays[delays.length - 1] || "0ms");
+      maxTotal = Math.max(maxTotal, duration + delay);
+    }
+    return Math.max(420, maxTotal) + 220;
+  };
+
+  const syncCardInteractivity = (activeIndex, centerOnly) => {
+    const rendered = loopActive ? getRenderedCards() : cards;
+    rendered.forEach((card, idx) => {
+      const isCurrent = centerOnly && idx === activeIndex;
+      card.classList.toggle("is-current", isCurrent);
+      card.classList.toggle("is-side", centerOnly && !isCurrent);
+      if (!centerOnly) {
+        card.classList.remove("is-current", "is-side");
+      }
+    });
+  };
+
+  const getMaxCardHeight = () => {
+    let maxHeight = 0;
+    cards.forEach((card) => {
+      maxHeight = Math.max(maxHeight, Math.ceil(card.getBoundingClientRect().height));
+    });
+    return maxHeight;
+  };
 
   const goPrev = () => {
     if (isExpanded) return;
+    if (loopActive) {
+      loopVirtualIndex -= 1;
+      update();
+      return;
+    }
     startIndex = Math.max(0, startIndex - 1);
     update();
   };
 
   const goNext = () => {
     if (isExpanded) return;
+    if (loopActive) {
+      loopVirtualIndex += 1;
+      update();
+      return;
+    }
     const visibleCount = Math.max(1, getVisibleCount());
     const maxStart = Math.max(0, cards.length - visibleCount);
     startIndex = Math.min(maxStart, startIndex + 1);
     update();
   };
 
-  const update = () => {
+  const update = ({ forceNoTransition = false } = {}) => {
     const visibleCount = Math.max(1, getVisibleCount());
     const isMobile = isMobileLayout();
     const hasOverflow = cards.length > visibleCount;
+    const shouldLoop = isMobile && hasOverflow && !isExpanded;
+    if (shouldLoop) enableLoopMode();
+    else disableLoopMode();
+    syncActionsPlacement(isMobile);
+    section.classList.toggle("is-carousel", hasOverflow);
 
     if (!hasOverflow) isExpanded = false;
     section.classList.toggle("is-expanded", hasOverflow && isExpanded);
 
     if (footer) footer.hidden = !hasOverflow;
     if (moreBtn) moreBtn.hidden = !hasOverflow || isExpanded;
-    if (actions) actions.hidden = isMobile || !hasOverflow || isExpanded;
-    if (progress) progress.hidden = !isMobile || !hasOverflow || isExpanded;
+    if (actions) actions.hidden = !hasOverflow || isExpanded;
+    if (progress) progress.hidden = !isMobile || !hasOverflow || isExpanded || (!!actions && !actions.hidden);
 
     if (!hasOverflow) {
       startIndex = 0;
+      loopVirtualIndex = 0;
       track.style.transform = "";
       track.style.transition = "";
       grid.style.height = "";
+      syncCardInteractivity(0, false);
       if (progressFill) progressFill.style.width = "100%";
       prevBtn.disabled = true;
       nextBtn.disabled = true;
@@ -883,12 +1028,14 @@ const initHotToursSlider = () => {
       return;
     }
 
-    const cardHeight = Math.ceil(cards[0].getBoundingClientRect().height);
+    const renderedCards = loopActive ? getRenderedCards() : cards;
+    if (!renderedCards.length) return;
 
     if (isExpanded) {
       track.style.transform = "translateX(0px)";
-      track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
+      track.style.transition = forceNoTransition || prefersReducedMotion ? "none" : "transform 420ms ease";
       grid.style.height = `${Math.ceil(track.scrollHeight)}px`;
+      syncCardInteractivity(0, false);
       prevBtn.disabled = true;
       nextBtn.disabled = true;
       prevBtn.classList.add("is-disabled");
@@ -897,23 +1044,69 @@ const initHotToursSlider = () => {
     }
 
     const maxStart = Math.max(0, cards.length - visibleCount);
-    startIndex = Math.min(startIndex, maxStart);
-    const cardWidth = cards[0].getBoundingClientRect().width;
+    let logicalIndex = startIndex;
+    let physicalIndex = startIndex;
+
+    if (loopActive) {
+      const loopCount = cards.length;
+      logicalIndex = ((loopVirtualIndex % loopCount) + loopCount) % loopCount;
+      physicalIndex = loopVirtualIndex + Math.min(loopBuffer, loopCount);
+      startIndex = logicalIndex;
+    } else {
+      startIndex = Math.min(startIndex, maxStart);
+      logicalIndex = startIndex;
+      physicalIndex = startIndex;
+    }
+
+    const safePhysicalIndex = Math.max(0, Math.min(renderedCards.length - 1, physicalIndex));
+    const cardNode = renderedCards[safePhysicalIndex] || renderedCards[0];
+    const cardRect = cardNode.getBoundingClientRect();
+    const cardWidth = cardRect.width;
+    const currentHeight = Math.ceil(cardRect.height);
+    const uniformHeight = isMobile && hasOverflow && !isExpanded ? getMaxCardHeight() : 0;
+    const cardHeight = Math.max(currentHeight, uniformHeight);
+    const gridWidth = grid.getBoundingClientRect().width;
     const styles = window.getComputedStyle(track);
     const gap = parseFloat(styles.columnGap || styles.gap || "0");
-    const offset = (cardWidth + gap) * startIndex;
+    const baseOffset = (cardWidth + gap) * physicalIndex;
+    const sidePeekOffset = isMobile ? Math.max(0, (gridWidth - cardWidth) / 2) : 0;
+    const offset = baseOffset - sidePeekOffset;
     track.style.transform = `translateX(-${offset}px)`;
-    track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
+    track.style.transition = forceNoTransition || prefersReducedMotion ? "none" : "transform 420ms ease";
     grid.style.height = `${cardHeight}px`;
+    const centerOnly = isMobile && hasOverflow && !isExpanded;
+    syncCardInteractivity(safePhysicalIndex, centerOnly);
     if (progressFill) {
-      const ratio = maxStart > 0 ? (startIndex + visibleCount) / cards.length : 1;
+      const ratio = maxStart > 0 ? (logicalIndex + visibleCount) / cards.length : 1;
       progressFill.style.width = `${Math.max(0, Math.min(1, ratio)) * 100}%`;
     }
 
-    prevBtn.disabled = startIndex <= 0;
-    nextBtn.disabled = startIndex >= maxStart;
-    prevBtn.classList.toggle("is-disabled", prevBtn.disabled);
-    nextBtn.classList.toggle("is-disabled", nextBtn.disabled);
+    if (loopActive) {
+      prevBtn.disabled = false;
+      nextBtn.disabled = false;
+      prevBtn.classList.remove("is-disabled");
+      nextBtn.classList.remove("is-disabled");
+    } else {
+      prevBtn.disabled = startIndex <= 0;
+      nextBtn.disabled = startIndex >= maxStart;
+      prevBtn.classList.toggle("is-disabled", prevBtn.disabled);
+      nextBtn.classList.toggle("is-disabled", nextBtn.disabled);
+    }
+
+    if (loopActive) {
+      if (loopSyncTimer) {
+        window.clearTimeout(loopSyncTimer);
+        loopSyncTimer = 0;
+      }
+      if (prefersReducedMotion || forceNoTransition) {
+        syncLoopBoundary(false);
+      } else if (loopVirtualIndex >= cards.length || loopVirtualIndex < 0) {
+        loopSyncTimer = window.setTimeout(() => {
+          loopSyncTimer = 0;
+          syncLoopBoundary(false);
+        }, getLoopFallbackDelay());
+      }
+    }
   };
 
   prevBtn.addEventListener("click", goPrev);
@@ -927,6 +1120,17 @@ const initHotToursSlider = () => {
       update();
     });
   }
+
+  track.addEventListener("transitionend", (event) => {
+    if (event.propertyName !== "transform") return;
+    if (event.target !== track) return;
+    if (!loopActive || isExpanded) return;
+    if (loopSyncTimer) {
+      window.clearTimeout(loopSyncTimer);
+      loopSyncTimer = 0;
+    }
+    syncLoopBoundary(false);
+  });
 
   let touchStartX = 0;
   let touchStartY = 0;
@@ -997,6 +1201,7 @@ const initDagestanSlider = () => {
   if (!section) return;
 
   const banner = section.querySelector(".places-banner");
+  const header = section.querySelector(".places-banner-header");
   const grid = section.querySelector(".places-grid");
   const track = section.querySelector(".places-track");
   const prevBtn = section.querySelector(".places-prev");
@@ -1004,7 +1209,7 @@ const initDagestanSlider = () => {
   const moreBtn = section.querySelector(".places-more-btn");
   const footer = section.querySelector(".places-footer");
   const actions = section.querySelector(".places-banner-actions");
-  if (!banner || !grid || !track || !prevBtn || !nextBtn) return;
+  if (!banner || !header || !grid || !track || !prevBtn || !nextBtn) return;
 
   let progress = section.querySelector(".places-progress");
   if (!progress) {
@@ -1027,27 +1232,168 @@ const initDagestanSlider = () => {
   const getVisibleCount = () => (isMobileLayout() ? 1 : 5);
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  const actionsInitialParent = actions && actions.parentNode ? actions.parentNode : null;
+  const actionsInitialNextSibling = actions ? actions.nextSibling : null;
+  let actionsInOverlay = false;
+
+  const syncActionsPlacement = (isMobile) => {
+    if (!actions || !actionsInitialParent) return;
+    if (isMobile && !actionsInOverlay) {
+      grid.appendChild(actions);
+      actions.classList.add("is-overlay");
+      actionsInOverlay = true;
+      return;
+    }
+    if (!isMobile && actionsInOverlay) {
+      if (actionsInitialNextSibling && actionsInitialNextSibling.parentNode === actionsInitialParent) {
+        actionsInitialParent.insertBefore(actions, actionsInitialNextSibling);
+      } else {
+        actionsInitialParent.appendChild(actions);
+      }
+      actions.classList.remove("is-overlay");
+      actionsInOverlay = false;
+    }
+  };
+
   let startIndex = 0;
+  let loopVirtualIndex = 0;
+  let loopActive = false;
+  let loopSyncTimer = 0;
   let isExpanded = false;
+  const loopBuffer = 2;
+
+  const getRenderedCards = () => Array.from(track.querySelectorAll(".place-card"));
+
+  const cloneLoopCard = (node) => {
+    const clone = node.cloneNode(true);
+    clone.setAttribute("data-loop-clone", "1");
+    clone.setAttribute("aria-hidden", "true");
+    if (clone.id) clone.removeAttribute("id");
+    return clone;
+  };
+
+  const enableLoopMode = () => {
+    if (loopActive || cards.length < 2) return;
+    const prependCount = Math.min(loopBuffer, cards.length);
+    const appendCount = Math.min(loopBuffer, cards.length);
+
+    const prependFragment = document.createDocumentFragment();
+    for (let i = cards.length - prependCount; i < cards.length; i += 1) {
+      prependFragment.appendChild(cloneLoopCard(cards[i]));
+    }
+    track.insertBefore(prependFragment, track.firstChild);
+
+    const appendFragment = document.createDocumentFragment();
+    for (let i = 0; i < appendCount; i += 1) {
+      appendFragment.appendChild(cloneLoopCard(cards[i]));
+    }
+    track.appendChild(appendFragment);
+
+    loopActive = true;
+    loopVirtualIndex = startIndex;
+  };
+
+  const disableLoopMode = () => {
+    if (!loopActive) return;
+    if (loopSyncTimer) {
+      window.clearTimeout(loopSyncTimer);
+      loopSyncTimer = 0;
+    }
+    track.querySelectorAll('[data-loop-clone="1"]').forEach((node) => node.remove());
+    const count = cards.length || 1;
+    startIndex = ((loopVirtualIndex % count) + count) % count;
+    loopVirtualIndex = startIndex;
+    loopActive = false;
+  };
+
+  const syncLoopBoundary = (immediate = false) => {
+    if (!loopActive || isExpanded) return;
+    const loopCount = cards.length;
+    let nextLoopIndex = null;
+    if (loopVirtualIndex >= loopCount) nextLoopIndex = 0;
+    else if (loopVirtualIndex < 0) nextLoopIndex = loopCount - 1;
+    if (nextLoopIndex === null) return;
+
+    loopVirtualIndex = nextLoopIndex;
+    const apply = () => update({ forceNoTransition: true });
+    if (immediate) apply();
+    else window.requestAnimationFrame(() => window.requestAnimationFrame(apply));
+  };
+
+  const parseTimeToMs = (rawValue) => {
+    const value = String(rawValue || "").trim();
+    if (!value) return 0;
+    if (value.endsWith("ms")) return Number.parseFloat(value) || 0;
+    if (value.endsWith("s")) return (Number.parseFloat(value) || 0) * 1000;
+    return Number.parseFloat(value) || 0;
+  };
+
+  const getLoopFallbackDelay = () => {
+    const styles = window.getComputedStyle(track);
+    const durations = String(styles.transitionDuration || "").split(",");
+    const delays = String(styles.transitionDelay || "").split(",");
+    const count = Math.max(durations.length, delays.length);
+    let maxTotal = 0;
+    for (let i = 0; i < count; i += 1) {
+      const duration = parseTimeToMs(durations[i] || durations[durations.length - 1] || "0ms");
+      const delay = parseTimeToMs(delays[i] || delays[delays.length - 1] || "0ms");
+      maxTotal = Math.max(maxTotal, duration + delay);
+    }
+    return Math.max(420, maxTotal) + 220;
+  };
+
+  const syncCardInteractivity = (activeIndex, centerOnly) => {
+    const rendered = loopActive ? getRenderedCards() : cards;
+    rendered.forEach((card, idx) => {
+      const isCurrent = centerOnly && idx === activeIndex;
+      card.classList.toggle("is-current", isCurrent);
+      card.classList.toggle("is-side", centerOnly && !isCurrent);
+      if (!centerOnly) {
+        card.classList.remove("is-current", "is-side");
+      }
+    });
+  };
+
+  const getMaxCardHeight = () => {
+    let maxHeight = 0;
+    cards.forEach((card) => {
+      maxHeight = Math.max(maxHeight, Math.ceil(card.getBoundingClientRect().height));
+    });
+    return maxHeight;
+  };
 
   const goPrev = () => {
     if (isExpanded) return;
+    if (loopActive) {
+      loopVirtualIndex -= 1;
+      update();
+      return;
+    }
     startIndex = Math.max(0, startIndex - 1);
     update();
   };
 
   const goNext = () => {
     if (isExpanded) return;
+    if (loopActive) {
+      loopVirtualIndex += 1;
+      update();
+      return;
+    }
     const visibleCount = Math.max(1, getVisibleCount());
     const maxStart = Math.max(0, cards.length - visibleCount);
     startIndex = Math.min(maxStart, startIndex + 1);
     update();
   };
 
-  const update = () => {
+  const update = ({ forceNoTransition = false } = {}) => {
     const visibleCount = Math.max(1, getVisibleCount());
     const isMobile = isMobileLayout();
     const hasOverflow = cards.length > visibleCount;
+    const shouldLoop = isMobile && hasOverflow && !isExpanded;
+    if (shouldLoop) enableLoopMode();
+    else disableLoopMode();
+    syncActionsPlacement(isMobile);
     banner.classList.toggle("places-banner--slider", hasOverflow);
 
     if (!hasOverflow) isExpanded = false;
@@ -1055,14 +1401,16 @@ const initDagestanSlider = () => {
 
     if (footer) footer.hidden = !hasOverflow;
     if (moreBtn) moreBtn.hidden = !hasOverflow || isExpanded;
-    if (actions) actions.hidden = isMobile || !hasOverflow || isExpanded;
-    if (progress) progress.hidden = !isMobile || !hasOverflow || isExpanded;
+    if (actions) actions.hidden = !hasOverflow || isExpanded;
+    if (progress) progress.hidden = !isMobile || !hasOverflow || isExpanded || (!!actions && !actions.hidden);
 
     if (!hasOverflow) {
       startIndex = 0;
+      loopVirtualIndex = 0;
       track.style.transform = "";
       track.style.transition = "";
       grid.style.height = "";
+      syncCardInteractivity(0, false);
       if (progressFill) progressFill.style.width = "100%";
       prevBtn.disabled = true;
       nextBtn.disabled = true;
@@ -1071,12 +1419,14 @@ const initDagestanSlider = () => {
       return;
     }
 
-    const cardHeight = Math.ceil(cards[0].getBoundingClientRect().height);
+    const renderedCards = loopActive ? getRenderedCards() : cards;
+    if (!renderedCards.length) return;
 
     if (isExpanded) {
       track.style.transform = "translateX(0px)";
-      track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
+      track.style.transition = forceNoTransition || prefersReducedMotion ? "none" : "transform 420ms ease";
       grid.style.height = `${Math.ceil(track.scrollHeight)}px`;
+      syncCardInteractivity(0, false);
       prevBtn.disabled = true;
       nextBtn.disabled = true;
       prevBtn.classList.add("is-disabled");
@@ -1085,23 +1435,69 @@ const initDagestanSlider = () => {
     }
 
     const maxStart = Math.max(0, cards.length - visibleCount);
-    startIndex = Math.min(startIndex, maxStart);
-    const cardWidth = cards[0].getBoundingClientRect().width;
+    let logicalIndex = startIndex;
+    let physicalIndex = startIndex;
+
+    if (loopActive) {
+      const loopCount = cards.length;
+      logicalIndex = ((loopVirtualIndex % loopCount) + loopCount) % loopCount;
+      physicalIndex = loopVirtualIndex + Math.min(loopBuffer, loopCount);
+      startIndex = logicalIndex;
+    } else {
+      startIndex = Math.min(startIndex, maxStart);
+      logicalIndex = startIndex;
+      physicalIndex = startIndex;
+    }
+
+    const safePhysicalIndex = Math.max(0, Math.min(renderedCards.length - 1, physicalIndex));
+    const cardNode = renderedCards[safePhysicalIndex] || renderedCards[0];
+    const cardRect = cardNode.getBoundingClientRect();
+    const cardWidth = cardRect.width;
+    const currentHeight = Math.ceil(cardRect.height);
+    const uniformHeight = isMobile && hasOverflow && !isExpanded ? getMaxCardHeight() : 0;
+    const cardHeight = Math.max(currentHeight, uniformHeight);
+    const gridWidth = grid.getBoundingClientRect().width;
     const styles = window.getComputedStyle(track);
     const gap = parseFloat(styles.columnGap || styles.gap || "0");
-    const offset = (cardWidth + gap) * startIndex;
+    const baseOffset = (cardWidth + gap) * physicalIndex;
+    const sidePeekOffset = isMobile ? Math.max(0, (gridWidth - cardWidth) / 2) : 0;
+    const offset = baseOffset - sidePeekOffset;
     track.style.transform = `translateX(-${offset}px)`;
-    track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
+    track.style.transition = forceNoTransition || prefersReducedMotion ? "none" : "transform 420ms ease";
     grid.style.height = `${cardHeight}px`;
+    const centerOnly = isMobile && hasOverflow && !isExpanded;
+    syncCardInteractivity(safePhysicalIndex, centerOnly);
     if (progressFill) {
-      const ratio = maxStart > 0 ? (startIndex + visibleCount) / cards.length : 1;
+      const ratio = maxStart > 0 ? (logicalIndex + visibleCount) / cards.length : 1;
       progressFill.style.width = `${Math.max(0, Math.min(1, ratio)) * 100}%`;
     }
 
-    prevBtn.disabled = startIndex <= 0;
-    nextBtn.disabled = startIndex >= maxStart;
-    prevBtn.classList.toggle("is-disabled", prevBtn.disabled);
-    nextBtn.classList.toggle("is-disabled", nextBtn.disabled);
+    if (loopActive) {
+      prevBtn.disabled = false;
+      nextBtn.disabled = false;
+      prevBtn.classList.remove("is-disabled");
+      nextBtn.classList.remove("is-disabled");
+    } else {
+      prevBtn.disabled = startIndex <= 0;
+      nextBtn.disabled = startIndex >= maxStart;
+      prevBtn.classList.toggle("is-disabled", prevBtn.disabled);
+      nextBtn.classList.toggle("is-disabled", nextBtn.disabled);
+    }
+
+    if (loopActive) {
+      if (loopSyncTimer) {
+        window.clearTimeout(loopSyncTimer);
+        loopSyncTimer = 0;
+      }
+      if (prefersReducedMotion || forceNoTransition) {
+        syncLoopBoundary(false);
+      } else if (loopVirtualIndex >= cards.length || loopVirtualIndex < 0) {
+        loopSyncTimer = window.setTimeout(() => {
+          loopSyncTimer = 0;
+          syncLoopBoundary(false);
+        }, getLoopFallbackDelay());
+      }
+    }
   };
 
   prevBtn.addEventListener("click", goPrev);
@@ -1115,6 +1511,17 @@ const initDagestanSlider = () => {
       update();
     });
   }
+
+  track.addEventListener("transitionend", (event) => {
+    if (event.propertyName !== "transform") return;
+    if (event.target !== track) return;
+    if (!loopActive || isExpanded) return;
+    if (loopSyncTimer) {
+      window.clearTimeout(loopSyncTimer);
+      loopSyncTimer = 0;
+    }
+    syncLoopBoundary(false);
+  });
 
   let touchStartX = 0;
   let touchStartY = 0;
