@@ -231,7 +231,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 									<a class="home-mobile-menu-link<?php echo $isReviewsNavActive ? ' is-active' : ''; ?>" href="/reviews/"<?php echo $isReviewsNavActive ? ' aria-current="page"' : ''; ?>>Отзывы</a>
 									<a class="home-mobile-menu-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/"<?php echo $isRegionsNavActive ? ' aria-current="page"' : ''; ?>>Регионы</a>
 									<a class="home-mobile-menu-link<?php echo $isArticlesNavActive ? ' is-active' : ''; ?>" href="/articles/"<?php echo $isArticlesNavActive ? ' aria-current="page"' : ''; ?>>Статьи</a>
-									<a class="home-mobile-menu-link" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">Форум</a>
+									<a class="home-mobile-menu-link home-mobile-menu-link--external" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">Форум</a>
 								</nav>
 								<div class="home-mobile-menu-actions">
 									<a class="home-mobile-menu-action" href="/profile/" aria-label="<?php echo $sanitizer->entities($profileAriaLabel); ?>"<?php echo $profileLinkAttrs; ?>>
@@ -273,7 +273,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 									<a class="home-mobile-menu-link<?php echo $isReviewsNavActive ? ' is-active' : ''; ?>" href="/reviews/"<?php echo $isReviewsNavActive ? ' aria-current="page"' : ''; ?>>Отзывы</a>
 									<a class="home-mobile-menu-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/"<?php echo $isRegionsNavActive ? ' aria-current="page"' : ''; ?>>Регионы</a>
 									<a class="home-mobile-menu-link<?php echo $isArticlesNavActive ? ' is-active' : ''; ?>" href="/articles/"<?php echo $isArticlesNavActive ? ' aria-current="page"' : ''; ?>>Статьи</a>
-									<a class="home-mobile-menu-link" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">Форум</a>
+									<a class="home-mobile-menu-link home-mobile-menu-link--external" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">Форум</a>
 								</nav>
 								<div class="home-mobile-menu-actions">
 									<a class="home-mobile-menu-action" href="/profile/" aria-label="<?php echo $sanitizer->entities($profileAriaLabel); ?>"<?php echo $profileLinkAttrs; ?>>
