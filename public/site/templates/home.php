@@ -265,30 +265,11 @@ $tourTypeOptions = [
 	'individual' => 'Индивидуальный',
 ];
 
-$seasonalityOptions = [
-	'year-round' => 'Круглый год',
-	'spring' => 'Весна',
-	'summer' => 'Лето',
-	'autumn' => 'Осень',
-	'winter' => 'Зима',
-];
-
-$difficultyOptions = ['Базовая', 'Средняя', 'Высокая'];
-$difficultyOptionKeys = [];
-foreach ($difficultyOptions as $difficultyLabel) {
-	$difficultyOptionKeys[$toLower($difficultyLabel)] = true;
+$emotionOptions = ['Спокойные', 'Живые', 'Яркие', 'Незабываемые'];
+$emotionOptionKeys = [];
+foreach ($emotionOptions as $emotionLabel) {
+	$emotionOptionKeys[$toLower($emotionLabel)] = true;
 }
-
-$addDifficultyOption = static function(string $value) use (&$difficultyOptions, &$difficultyOptionKeys, $normalizeDisplayText, $toLower): void {
-	$value = $normalizeDisplayText($value);
-	if ($value === '') return;
-
-	$key = $toLower($value);
-	if (isset($difficultyOptionKeys[$key])) return;
-
-	$difficultyOptionKeys[$key] = true;
-	$difficultyOptions[] = $value;
-};
 
 $normalizeTourTypeKey = static function(string $value) use ($normalizeDisplayText, $toLower): string {
 	$value = $normalizeDisplayText($value);
@@ -315,23 +296,19 @@ $normalizeTourTypeKey = static function(string $value) use ($normalizeDisplayTex
 	return '';
 };
 
-$extractTourDifficultyLabel = static function(Page $tourPage) use ($normalizeDisplayText): string {
-	$difficulty = '';
-	if ($tourPage->hasField('tour_difficulty_level')) {
-		$value = $tourPage->getUnformatted('tour_difficulty_level');
+$extractTourEmotionLabel = static function(Page $tourPage) use ($normalizeDisplayText): string {
+	$emotion = '';
+	if ($tourPage->hasField('tour_emotion_level')) {
+		$value = $tourPage->getUnformatted('tour_emotion_level');
 		if ($value instanceof SelectableOptionArray && $value->count()) {
 			$selected = $value->first();
-			if ($selected instanceof SelectableOption) $difficulty = trim((string) $selected->title);
+			if ($selected instanceof SelectableOption) $emotion = trim((string) $selected->title);
 		} elseif ($value instanceof SelectableOption) {
-			$difficulty = trim((string) $value->title);
+			$emotion = trim((string) $value->title);
 		}
 	}
 
-	if ($difficulty === '' && $tourPage->hasField('tour_difficulty')) {
-		$difficulty = trim((string) $tourPage->getUnformatted('tour_difficulty'));
-	}
-
-	return $normalizeDisplayText($difficulty);
+	return $normalizeDisplayText($emotion);
 };
 
 $extractSeasonalityKeys = static function(string $value) use ($toLower): array {
@@ -376,13 +353,93 @@ $extractSeasonalityKeys = static function(string $value) use ($toLower): array {
 	return array_values(array_unique($keys));
 };
 
+$normalizeIsoDate = static function(string $value): string {
+	$value = trim($value);
+	if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $matches) !== 1) return '';
+	$year = (int) ($matches[1] ?? 0);
+	$month = (int) ($matches[2] ?? 0);
+	$day = (int) ($matches[3] ?? 0);
+	if (!checkdate($month, $day, $year)) return '';
+	return sprintf('%04d-%02d-%02d', $year, $month, $day);
+};
+
+$formatRuDateFromIso = static function(string $iso) use ($normalizeIsoDate): string {
+	$iso = $normalizeIsoDate($iso);
+	if ($iso === '') return '';
+	$parts = explode('-', $iso);
+	if (count($parts) !== 3) return '';
+	return $parts[2] . '.' . $parts[1];
+};
+
+$extractSeasonalityKeysFromDateRange = static function(string $fromIso, string $toIso) use ($normalizeIsoDate): array {
+	$fromIso = $normalizeIsoDate($fromIso);
+	$toIso = $normalizeIsoDate($toIso);
+	if ($fromIso === '' || $toIso === '') return [];
+	if ($fromIso > $toIso) {
+		$temp = $fromIso;
+		$fromIso = $toIso;
+		$toIso = $temp;
+	}
+
+	$from = \DateTime::createFromFormat('Y-m-d H:i:s', $fromIso . ' 00:00:00');
+	$to = \DateTime::createFromFormat('Y-m-d H:i:s', $toIso . ' 00:00:00');
+	if (!$from || !$to) return [];
+
+	$monthToSeason = [
+		1 => 'winter',
+		2 => 'winter',
+		3 => 'spring',
+		4 => 'spring',
+		5 => 'spring',
+		6 => 'summer',
+		7 => 'summer',
+		8 => 'summer',
+		9 => 'autumn',
+		10 => 'autumn',
+		11 => 'autumn',
+		12 => 'winter',
+	];
+
+	$cursor = clone $from;
+	$cursor->modify('first day of this month');
+	$endCursor = clone $to;
+	$endCursor->modify('first day of next month');
+
+	$keys = [];
+	while ($cursor < $endCursor) {
+		$month = (int) $cursor->format('n');
+		if (isset($monthToSeason[$month])) {
+			$keys[] = $monthToSeason[$month];
+		}
+		$cursor->modify('+1 month');
+	}
+
+	return array_values(array_unique($keys));
+};
+
 $searchRegion = $normalizeDisplayText((string) $input->get('where'));
 $searchTourType = trim((string) $input->get('tour_type'));
-$searchDifficulty = $normalizeDisplayText((string) $input->get('difficulty'));
-$searchSeasonality = trim((string) $input->get('seasonality'));
+$searchEmotion = $normalizeDisplayText((string) $input->get('emotion'));
+$searchDateFrom = $normalizeIsoDate((string) $input->get('date_from'));
+$searchDateTo = $normalizeIsoDate((string) $input->get('date_to'));
+if ($searchDateFrom !== '' && $searchDateTo === '') $searchDateTo = $searchDateFrom;
+if ($searchDateFrom === '' && $searchDateTo !== '') $searchDateFrom = $searchDateTo;
+if ($searchDateFrom !== '' && $searchDateTo !== '' && $searchDateFrom > $searchDateTo) {
+	$temp = $searchDateFrom;
+	$searchDateFrom = $searchDateTo;
+	$searchDateTo = $temp;
+}
+$searchDateRangeLabel = '';
+if ($searchDateFrom !== '' && $searchDateTo !== '') {
+	$fromLabel = $formatRuDateFromIso($searchDateFrom);
+	$toLabel = $formatRuDateFromIso($searchDateTo);
+	if ($fromLabel !== '' && $toLabel !== '') {
+		$searchDateRangeLabel = $fromLabel . '-' . $toLabel;
+	}
+}
+$searchDateSeasonalityKeys = $extractSeasonalityKeysFromDateRange($searchDateFrom, $searchDateTo);
 
 if ($searchTourType !== '' && !isset($tourTypeOptions[$searchTourType])) $searchTourType = '';
-if ($searchSeasonality !== '' && !isset($seasonalityOptions[$searchSeasonality])) $searchSeasonality = '';
 
 $homeDisplayPage = $page;
 if (isset($pages) && $pages instanceof Pages && !$homeDisplayPage->hasField('home_featured_tours')) {
@@ -416,16 +473,15 @@ if (isset($pages) && $pages instanceof Pages) {
 			$imageUrl = $getFirstImageUrlFromPage($tourPage, ['tour_cover_image', 'images']);
 			if ($imageUrl === '') $imageUrl = $defaultCardImage;
 			$tourTypeKey = $normalizeTourTypeKey($getFirstTextFromPage($tourPage, ['tour_type', 'tour_format', 'tour_group_type', 'tour_group']));
-			$tourDifficulty = $extractTourDifficultyLabel($tourPage);
+			$tourEmotion = $extractTourEmotionLabel($tourPage);
 			$tourSeasonalityKeys = $extractSeasonalityKeys($getFirstTextFromPage($tourPage, ['tour_season']));
-			if ($tourDifficulty !== '') $addDifficultyOption($tourDifficulty);
 
 			$toursCatalog[] = [
 				'title' => $title,
 				'region' => $getFirstTextFromPage($tourPage, ['tour_region', 'region']),
 				'type_key' => $tourTypeKey,
 				'type_label' => $tourTypeOptions[$tourTypeKey] ?? '',
-				'difficulty' => $tourDifficulty,
+				'emotion' => $tourEmotion,
 				'seasonality_keys' => $tourSeasonalityKeys,
 				'price' => $tourPage->hasField('tour_price') ? $normalizeTourPrice((string) $tourPage->getUnformatted('tour_price')) : '',
 				'duration' => $tourPage->hasField('tour_duration') ? $normalizeTourDuration((string) $tourPage->tour_duration) : '',
@@ -453,16 +509,15 @@ if (!count($toursCatalog) && $homeDisplayPage->hasField('home_featured_tours') &
 			$imageUrl = $getFirstImageUrlFromPage($tourPage, ['tour_cover_image', 'images']);
 			if ($imageUrl === '') $imageUrl = $defaultCardImage;
 			$tourTypeKey = $normalizeTourTypeKey($getFirstTextFromPage($tourPage, ['tour_type', 'tour_format', 'tour_group_type', 'tour_group']));
-			$tourDifficulty = $extractTourDifficultyLabel($tourPage);
+			$tourEmotion = $extractTourEmotionLabel($tourPage);
 			$tourSeasonalityKeys = $extractSeasonalityKeys($getFirstTextFromPage($tourPage, ['tour_season']));
-			if ($tourDifficulty !== '') $addDifficultyOption($tourDifficulty);
 
 			$toursCatalog[] = [
 				'title' => $title,
 				'region' => $getFirstTextFromPage($tourPage, ['tour_region', 'region']),
 				'type_key' => $tourTypeKey,
 				'type_label' => $tourTypeOptions[$tourTypeKey] ?? '',
-				'difficulty' => $tourDifficulty,
+				'emotion' => $tourEmotion,
 				'seasonality_keys' => $tourSeasonalityKeys,
 				'price' => $tourPage->hasField('tour_price') ? $normalizeTourPrice((string) $tourPage->getUnformatted('tour_price')) : '',
 				'duration' => $tourPage->hasField('tour_duration') ? $normalizeTourDuration((string) $tourPage->tour_duration) : '',
@@ -566,23 +621,23 @@ if ($searchRegion !== '' && !isset($knownRegionOptions[$searchRegion])) {
 	$searchRegion = '';
 }
 
-if ($searchDifficulty !== '' && !isset($difficultyOptionKeys[$toLower($searchDifficulty)])) {
-	$searchDifficulty = '';
+if ($searchEmotion !== '' && !isset($emotionOptionKeys[$toLower($searchEmotion)])) {
+	$searchEmotion = '';
 }
 
 $regionFieldClass = $searchRegion !== '' ? ' is-filled' : '';
 $tourTypeFieldClass = $searchTourType !== '' ? ' is-filled' : '';
-$difficultyFieldClass = $searchDifficulty !== '' ? ' is-filled' : '';
-$seasonalityFieldClass = $searchSeasonality !== '' ? ' is-filled' : '';
+$emotionFieldClass = $searchEmotion !== '' ? ' is-filled' : '';
+$dateFieldClass = ($searchDateFrom !== '' && $searchDateTo !== '') ? ' is-filled' : '';
 
 $filteredTours = [];
 if ($isTourSearchSubmitted) {
 	$regionNeedle = $toLower($searchRegion);
 	$typeNeedle = trim($searchTourType);
-	$difficultyNeedle = $toLower($searchDifficulty);
-	$seasonalityNeedle = trim($searchSeasonality);
+	$emotionNeedle = $toLower($searchEmotion);
+	$dateSeasonalityNeedles = $searchDateSeasonalityKeys;
 
-	$filteredTours = array_values(array_filter($toursCatalog, static function(array $tour) use ($regionNeedle, $typeNeedle, $difficultyNeedle, $seasonalityNeedle, $toLower): bool {
+	$filteredTours = array_values(array_filter($toursCatalog, static function(array $tour) use ($regionNeedle, $typeNeedle, $emotionNeedle, $dateSeasonalityNeedles, $toLower): bool {
 		if ($regionNeedle !== '') {
 			$region = $toLower(trim((string) ($tour['region'] ?? '')));
 			if (strpos($region, $regionNeedle) === false) return false;
@@ -593,14 +648,17 @@ if ($isTourSearchSubmitted) {
 			if ($typeKey !== $typeNeedle) return false;
 		}
 
-		if ($difficultyNeedle !== '') {
-			$tourDifficulty = $toLower(trim((string) ($tour['difficulty'] ?? '')));
-			if ($tourDifficulty === '' || $tourDifficulty !== $difficultyNeedle) return false;
+		if ($emotionNeedle !== '') {
+			$tourEmotion = $toLower(trim((string) ($tour['emotion'] ?? '')));
+			if ($tourEmotion === '' || $tourEmotion !== $emotionNeedle) return false;
 		}
 
-		if ($seasonalityNeedle !== '') {
+		if (count($dateSeasonalityNeedles)) {
 			$tourSeasonality = $tour['seasonality_keys'] ?? [];
-			if (!is_array($tourSeasonality) || !in_array($seasonalityNeedle, $tourSeasonality, true)) return false;
+			if (!is_array($tourSeasonality)) return false;
+			foreach ($dateSeasonalityNeedles as $seasonalityNeedle) {
+				if (!in_array($seasonalityNeedle, $tourSeasonality, true)) return false;
+			}
 		}
 
 		return true;
@@ -654,7 +712,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 				<div class="hero-search-fields">
 					<label class="hero-field hero-field-where<?php echo $regionFieldClass; ?>">
 						<span class="sr-only">Регион</span>
-						<select name="where">
+						<select name="where" data-hero-custom-select>
 							<option value="">Регион</option>
 							<?php foreach ($regionOptions as $regionOption): ?>
 								<option value="<?php echo $sanitizer->entities($regionOption); ?>"<?php echo $searchRegion === $regionOption ? ' selected' : ''; ?>>
@@ -666,7 +724,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					</label>
 					<label class="hero-field<?php echo $tourTypeFieldClass; ?>">
 						<span class="sr-only">Тип тура</span>
-						<select name="tour_type">
+						<select name="tour_type" data-hero-custom-select>
 							<option value="">Тип тура</option>
 							<?php foreach ($tourTypeOptions as $tourTypeKey => $tourTypeLabel): ?>
 								<option value="<?php echo $sanitizer->entities($tourTypeKey); ?>"<?php echo $searchTourType === $tourTypeKey ? ' selected' : ''; ?>>
@@ -676,28 +734,32 @@ $forumExternalUrl = 'https://club.skfo.ru';
 						</select>
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/human.svg" alt="" aria-hidden="true" />
 					</label>
-					<label class="hero-field<?php echo $difficultyFieldClass; ?>">
-						<span class="sr-only">Сложность</span>
-						<select name="difficulty">
-							<option value="">Сложность</option>
-							<?php foreach ($difficultyOptions as $difficultyOption): ?>
-								<option value="<?php echo $sanitizer->entities($difficultyOption); ?>"<?php echo $searchDifficulty === $difficultyOption ? ' selected' : ''; ?>>
-									<?php echo $sanitizer->entities($difficultyOption); ?>
+					<label class="hero-field<?php echo $emotionFieldClass; ?>">
+						<span class="sr-only">Эмоции</span>
+						<select name="emotion" data-hero-custom-select>
+							<option value="">Эмоции</option>
+							<?php foreach ($emotionOptions as $emotionOption): ?>
+								<option value="<?php echo $sanitizer->entities($emotionOption); ?>"<?php echo $searchEmotion === $emotionOption ? ' selected' : ''; ?>>
+									<?php echo $sanitizer->entities($emotionOption); ?>
 								</option>
 							<?php endforeach; ?>
 						</select>
-						<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/smile.svg" alt="" aria-hidden="true" />
 					</label>
-					<label class="hero-field<?php echo $seasonalityFieldClass; ?>">
-						<span class="sr-only">Сезонность</span>
-						<select name="seasonality">
-							<option value="">Сезонность</option>
-							<?php foreach ($seasonalityOptions as $seasonalityKey => $seasonalityLabel): ?>
-								<option value="<?php echo $sanitizer->entities($seasonalityKey); ?>"<?php echo $searchSeasonality === $seasonalityKey ? ' selected' : ''; ?>>
-									<?php echo $sanitizer->entities($seasonalityLabel); ?>
-								</option>
-							<?php endforeach; ?>
-						</select>
+					<label class="hero-field hero-field-date-range<?php echo $dateFieldClass; ?>">
+						<span class="sr-only">Дата</span>
+						<input
+							type="text"
+							value="<?php echo $sanitizer->entities($searchDateRangeLabel); ?>"
+							placeholder="Дата"
+							readonly
+							autocomplete="off"
+							data-date-range-input
+							data-date-range-from="<?php echo $sanitizer->entities($searchDateFrom); ?>"
+							data-date-range-to="<?php echo $sanitizer->entities($searchDateTo); ?>"
+						/>
+						<input type="hidden" name="date_from" value="<?php echo $sanitizer->entities($searchDateFrom); ?>" />
+						<input type="hidden" name="date_to" value="<?php echo $sanitizer->entities($searchDateTo); ?>" />
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/when.svg" alt="" aria-hidden="true" />
 					</label>
 				</div>
