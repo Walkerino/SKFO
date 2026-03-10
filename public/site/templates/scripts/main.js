@@ -297,6 +297,371 @@ const initHotelDateFields = () => {
   });
 };
 
+const initDateRangeFields = () => {
+  const rangeInputs = Array.from(document.querySelectorAll("input[data-date-range-input]"));
+  if (rangeInputs.length === 0) return;
+
+  const isValidDate = (year, month, day) => {
+    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
+    if (year < 1000 || year > 9999) return false;
+    if (month < 1 || month > 12) return false;
+    if (day < 1 || day > 31) return false;
+    const date = new Date(year, month - 1, day);
+    return (
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    );
+  };
+
+  const normalizeIsoDate = (value) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || "").trim());
+    if (!match) return "";
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (!isValidDate(year, month, day)) return "";
+    return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  };
+
+  const toIsoDate = (date) =>
+    `${String(date.getFullYear()).padStart(4, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+      date.getDate(),
+    ).padStart(2, "0")}`;
+
+  const isoToDate = (iso) => {
+    const normalized = normalizeIsoDate(iso);
+    if (!normalized) return null;
+    const [year, month, day] = normalized.split("-").map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  const formatRuDate = (iso) => {
+    const normalized = normalizeIsoDate(iso);
+    if (!normalized) return "";
+    const [, month, day] = normalized.split("-");
+    return `${day}.${month}`;
+  };
+
+  const monthLabelFormatter = new Intl.DateTimeFormat("ru-RU", {
+    month: "long",
+    year: "numeric",
+  });
+  const weekdayLabels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+  const todayIso = toIsoDate(new Date());
+  const capitalize = (value) => value.charAt(0).toUpperCase() + value.slice(1);
+
+  rangeInputs.forEach((input) => {
+    const field = input.closest(".hero-field");
+    if (!field) return;
+
+    const hiddenFromInput = field.querySelector('input[name="date_from"]');
+    const hiddenToInput = field.querySelector('input[name="date_to"]');
+    if (!(hiddenFromInput instanceof HTMLInputElement) || !(hiddenToInput instanceof HTMLInputElement)) return;
+
+    let selectedFrom = normalizeIsoDate(input.dataset.dateRangeFrom) || normalizeIsoDate(hiddenFromInput.value);
+    let selectedTo = normalizeIsoDate(input.dataset.dateRangeTo) || normalizeIsoDate(hiddenToInput.value);
+    if (selectedFrom && !selectedTo) selectedTo = selectedFrom;
+    if (!selectedFrom && selectedTo) selectedFrom = selectedTo;
+    if (selectedFrom && selectedTo && selectedFrom > selectedTo) {
+      const temp = selectedFrom;
+      selectedFrom = selectedTo;
+      selectedTo = temp;
+    }
+
+    const initialViewDate = isoToDate(selectedFrom) || new Date();
+    let viewMonth = new Date(initialViewDate.getFullYear(), initialViewDate.getMonth(), 1);
+
+    const popover = document.createElement("div");
+    popover.className = "date-range-popover";
+    popover.setAttribute("aria-hidden", "true");
+    popover.innerHTML = `
+      <div class="date-range-head">
+        <button class="date-range-nav-btn" type="button" data-date-range-action="prev" aria-label="Предыдущий месяц">‹</button>
+        <div class="date-range-month" data-date-range-month></div>
+        <button class="date-range-nav-btn" type="button" data-date-range-action="next" aria-label="Следующий месяц">›</button>
+      </div>
+      <div class="date-range-weekdays">
+        ${weekdayLabels.map((label) => `<span>${label}</span>`).join("")}
+      </div>
+      <div class="date-range-grid" data-date-range-grid></div>
+      <div class="date-range-actions">
+        <button class="date-range-btn date-range-btn--muted" type="button" data-date-range-action="clear">Очистить</button>
+        <button class="date-range-btn" type="button" data-date-range-action="apply">Готово</button>
+      </div>
+    `;
+    field.appendChild(popover);
+
+    const monthEl = popover.querySelector("[data-date-range-month]");
+    const gridEl = popover.querySelector("[data-date-range-grid]");
+    if (!(monthEl instanceof HTMLElement) || !(gridEl instanceof HTMLElement)) return;
+
+    const syncField = () => {
+      hiddenFromInput.value = selectedFrom || "";
+      hiddenToInput.value = selectedTo || "";
+      input.dataset.dateRangeFrom = selectedFrom || "";
+      input.dataset.dateRangeTo = selectedTo || "";
+
+      if (selectedFrom && selectedTo) {
+        const fromLabel = formatRuDate(selectedFrom);
+        const toLabel = formatRuDate(selectedTo);
+        input.value = `${fromLabel}-${toLabel}`;
+        field.classList.add("is-filled");
+      } else {
+        input.value = "";
+        field.classList.remove("is-filled");
+      }
+    };
+
+    const isInRange = (iso) => Boolean(selectedFrom && selectedTo && iso >= selectedFrom && iso <= selectedTo);
+
+    const renderMonth = () => {
+      monthEl.textContent = capitalize(monthLabelFormatter.format(viewMonth));
+      gridEl.innerHTML = "";
+
+      const firstDay = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+      const lastDay = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0);
+      const offset = (firstDay.getDay() + 6) % 7;
+
+      for (let i = 0; i < offset; i += 1) {
+        const emptyCell = document.createElement("span");
+        emptyCell.className = "date-range-day-empty";
+        gridEl.appendChild(emptyCell);
+      }
+
+      for (let day = 1; day <= lastDay.getDate(); day += 1) {
+        const date = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), day);
+        const iso = toIsoDate(date);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "date-range-day";
+        btn.dataset.iso = iso;
+        btn.textContent = String(day);
+        if (iso === todayIso) btn.classList.add("is-today");
+        if (selectedFrom && iso === selectedFrom) btn.classList.add("is-start", "is-selected");
+        if (selectedTo && iso === selectedTo) btn.classList.add("is-end", "is-selected");
+        if (isInRange(iso) && iso !== selectedFrom && iso !== selectedTo) btn.classList.add("is-in-range");
+        gridEl.appendChild(btn);
+      }
+    };
+
+    const openPopover = () => {
+      popover.classList.add("is-open");
+      popover.setAttribute("aria-hidden", "false");
+    };
+
+    const closePopover = () => {
+      popover.classList.remove("is-open");
+      popover.setAttribute("aria-hidden", "true");
+    };
+
+    const onDaySelect = (iso) => {
+      const normalized = normalizeIsoDate(iso);
+      if (!normalized) return;
+
+      if (!selectedFrom || (selectedFrom && selectedTo)) {
+        selectedFrom = normalized;
+        selectedTo = "";
+      } else if (normalized < selectedFrom) {
+        selectedTo = selectedFrom;
+        selectedFrom = normalized;
+      } else {
+        selectedTo = normalized;
+      }
+
+      syncField();
+      renderMonth();
+    };
+
+    popover.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+
+      const action = event.target.closest("[data-date-range-action]");
+      if (action instanceof HTMLElement) {
+        const actionName = action.dataset.dateRangeAction || "";
+        if (actionName === "prev") {
+          viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1);
+          renderMonth();
+        } else if (actionName === "next") {
+          viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1);
+          renderMonth();
+        } else if (actionName === "clear") {
+          selectedFrom = "";
+          selectedTo = "";
+          syncField();
+          renderMonth();
+        } else if (actionName === "apply") {
+          if (selectedFrom && !selectedTo) selectedTo = selectedFrom;
+          syncField();
+          closePopover();
+        }
+        return;
+      }
+
+      const dayBtn = event.target.closest(".date-range-day");
+      if (!(dayBtn instanceof HTMLElement)) return;
+      const iso = dayBtn.dataset.iso || "";
+      onDaySelect(iso);
+    });
+
+    input.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openPopover();
+    });
+
+    field.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      if (event.target.closest(".date-range-popover")) return;
+      event.stopPropagation();
+      openPopover();
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!(event.target instanceof Node) || !field.contains(event.target)) {
+        closePopover();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closePopover();
+    });
+
+    syncField();
+    renderMonth();
+  });
+};
+
+const initHeroCustomSelects = () => {
+  const selects = Array.from(document.querySelectorAll("select[data-hero-custom-select]"));
+  if (selects.length === 0) return;
+
+  const instances = [];
+
+  const closeAll = (exceptField = null) => {
+    instances.forEach((instance) => {
+      if (exceptField && instance.field === exceptField) return;
+      instance.popover.classList.remove("is-open");
+      instance.field.classList.remove("is-open");
+      instance.popover.setAttribute("aria-hidden", "true");
+      instance.trigger.setAttribute("aria-expanded", "false");
+    });
+  };
+
+  selects.forEach((select, index) => {
+    const field = select.closest(".hero-field");
+    if (!field) return;
+    if (field.querySelector(".hero-custom-select-trigger")) return;
+
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "hero-custom-select-trigger";
+    trigger.setAttribute("aria-haspopup", "listbox");
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.setAttribute("data-hero-custom-select-trigger", "1");
+    trigger.id = `hero-custom-select-trigger-${index + 1}`;
+
+    const popover = document.createElement("div");
+    popover.className = "hero-custom-select-popover";
+    popover.setAttribute("aria-hidden", "true");
+
+    const list = document.createElement("ul");
+    list.className = "hero-custom-select-list";
+    list.setAttribute("role", "listbox");
+    list.setAttribute("aria-labelledby", trigger.id);
+    popover.appendChild(list);
+
+    const rebuildOptions = () => {
+      list.innerHTML = "";
+      const options = Array.from(select.options);
+      options.forEach((option) => {
+        const item = document.createElement("li");
+        item.className = "hero-custom-select-item";
+
+        const optionBtn = document.createElement("button");
+        optionBtn.type = "button";
+        optionBtn.className = "hero-custom-select-option";
+        optionBtn.setAttribute("role", "option");
+        optionBtn.dataset.value = option.value;
+        optionBtn.textContent = option.textContent || "";
+        if (option.selected) {
+          optionBtn.classList.add("is-selected");
+          optionBtn.setAttribute("aria-selected", "true");
+        } else {
+          optionBtn.setAttribute("aria-selected", "false");
+        }
+
+        optionBtn.addEventListener("click", () => {
+          select.value = option.value;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          closeAll();
+        });
+
+        item.appendChild(optionBtn);
+        list.appendChild(item);
+      });
+    };
+
+    const syncFromSelect = () => {
+      const selectedOption = select.options[select.selectedIndex] || null;
+      trigger.textContent = selectedOption ? selectedOption.textContent || "" : "";
+
+      const selectedValue = String(select.value || "").trim();
+      field.classList.toggle("is-filled", selectedValue !== "");
+
+      Array.from(list.querySelectorAll(".hero-custom-select-option")).forEach((btn) => {
+        const isSelected = (btn.dataset.value || "") === selectedValue;
+        btn.classList.toggle("is-selected", isSelected);
+        btn.setAttribute("aria-selected", isSelected ? "true" : "false");
+      });
+    };
+
+    rebuildOptions();
+    syncFromSelect();
+
+    select.classList.add("hero-native-select");
+    select.setAttribute("tabindex", "-1");
+    select.setAttribute("aria-hidden", "true");
+
+    const icon = field.querySelector("img");
+    if (icon && icon.parentElement === field) {
+      field.insertBefore(trigger, icon);
+    } else {
+      field.appendChild(trigger);
+    }
+    field.appendChild(popover);
+
+    trigger.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const willOpen = !popover.classList.contains("is-open");
+      closeAll(field);
+      popover.classList.toggle("is-open", willOpen);
+      field.classList.toggle("is-open", willOpen);
+      popover.setAttribute("aria-hidden", willOpen ? "false" : "true");
+      trigger.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    });
+
+    select.addEventListener("change", () => {
+      syncFromSelect();
+    });
+
+    instances.push({ field, trigger, popover });
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!(event.target instanceof Node)) {
+      closeAll();
+      return;
+    }
+    const hasOpenInTarget = instances.some((instance) => instance.field.contains(event.target));
+    if (!hasOpenInTarget) closeAll();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    closeAll();
+  });
+};
+
 const initWhereFieldAutoGrow = () => {
   const field = document.querySelector(".hero-field-where");
   if (!field) return;
@@ -1967,7 +2332,108 @@ const initMediaLightbox = (gallerySelector, itemSelector, modalSelector) => {
   });
 };
 
+const initHotelHeroThumbLayout = () => {
+  const galleries = Array.from(document.querySelectorAll("[data-hotel-gallery]"));
+  if (!galleries.length) return;
+
+  const MIN_THUMB_WIDTH = 96;
+
+  const updateGallery = (gallery) => {
+    const strip = gallery.querySelector(".hotel-hero-gallery-strip");
+    const primary = gallery.querySelector(".hotel-media-item--primary");
+    if (!(strip instanceof HTMLElement) || !(primary instanceof HTMLElement)) return;
+
+    const thumbTiles = Array.from(strip.querySelectorAll(".hotel-media-item--thumb"));
+    if (!thumbTiles.length) return;
+
+    const styles = window.getComputedStyle(strip);
+    const gap = parseFloat(styles.columnGap || styles.gap || "0") || 0;
+    const mainWidth = primary.getBoundingClientRect().width;
+    if (!mainWidth) return;
+
+    const maxThumbs = Math.min(4, thumbTiles.length);
+
+    const fits = (count) => {
+      if (count <= 1) return true;
+      const thumbWidth = (mainWidth - gap * (count - 1)) / count;
+      return thumbWidth >= MIN_THUMB_WIDTH;
+    };
+
+    let visibleThumbs = maxThumbs;
+    if (maxThumbs >= 4 && !fits(4)) {
+      visibleThumbs = fits(3) ? 3 : 2;
+    } else if (maxThumbs === 3 && !fits(3)) {
+      visibleThumbs = 2;
+    }
+
+    visibleThumbs = Math.max(1, Math.min(maxThumbs, visibleThumbs));
+    gallery.dataset.thumbCount = String(visibleThumbs);
+
+    const totalItems = gallery.querySelectorAll("[data-hotel-gallery-item]").length;
+    const totalThumbs = Math.max(0, totalItems - 1);
+    const hiddenThumbs = Math.max(0, totalThumbs - visibleThumbs);
+
+    thumbTiles.forEach((tile, index) => {
+      const itemBtn = tile.querySelector("[data-hotel-gallery-item]");
+      if (!(itemBtn instanceof HTMLElement)) return;
+
+      if (!itemBtn.dataset.defaultAriaLabel) {
+        itemBtn.dataset.defaultAriaLabel = itemBtn.getAttribute("aria-label") || "";
+      }
+
+      const existingMoreLabel = tile.querySelector(".hotel-hero-gallery-more");
+      tile.classList.remove("is-more");
+      if (existingMoreLabel instanceof HTMLElement) existingMoreLabel.hidden = true;
+      if (index + 1 > visibleThumbs) return;
+
+      if (hiddenThumbs > 0 && index + 1 === visibleThumbs) {
+        tile.classList.add("is-more");
+        let moreLabel = existingMoreLabel;
+        if (!(moreLabel instanceof HTMLElement)) {
+          moreLabel = document.createElement("span");
+          moreLabel.className = "hotel-hero-gallery-more";
+          const trigger = tile.querySelector(".hotel-media-trigger");
+          if (trigger) trigger.appendChild(moreLabel);
+        }
+        if (moreLabel instanceof HTMLElement) {
+          moreLabel.innerHTML = `+${hiddenThumbs}<small> фото</small>`;
+          moreLabel.hidden = false;
+        }
+        itemBtn.setAttribute("aria-label", `Открыть галерею, ещё ${hiddenThumbs} фото`);
+        return;
+      }
+
+      const fallbackIndex = Number.parseInt(itemBtn.dataset.galleryIndex || "", 10);
+      const fallbackLabel = Number.isFinite(fallbackIndex)
+        ? `Открыть фото ${fallbackIndex + 1}`
+        : "Открыть фото";
+      itemBtn.setAttribute("aria-label", itemBtn.dataset.defaultAriaLabel || fallbackLabel);
+    });
+  };
+
+  let rafId = 0;
+  const scheduleUpdate = () => {
+    if (rafId) window.cancelAnimationFrame(rafId);
+    rafId = window.requestAnimationFrame(() => {
+      rafId = 0;
+      galleries.forEach(updateGallery);
+    });
+  };
+
+  galleries.forEach((gallery) => {
+    const primaryImage = gallery.querySelector(".hotel-media-item--primary img");
+    if (primaryImage instanceof HTMLImageElement) {
+      primaryImage.addEventListener("load", scheduleUpdate);
+    }
+  });
+
+  scheduleUpdate();
+  window.addEventListener("resize", scheduleUpdate);
+  window.addEventListener("load", scheduleUpdate);
+};
+
 const initHotelMediaGallery = () => {
+  initHotelHeroThumbLayout();
   initMediaLightbox("[data-hotel-gallery]", "[data-hotel-gallery-item]", "[data-hotel-gallery-modal]");
 };
 
@@ -2043,6 +2509,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initTourNavTabs();
   initPeoplePicker();
   initHotelDateFields();
+  initDateRangeFields();
+  initHeroCustomSelects();
   initWhereFieldAutoGrow();
   initAuthModal();
   initContactsModal();
