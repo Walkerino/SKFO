@@ -711,6 +711,12 @@ if (!count($hotelMedia)) {
 }
 if (!count($hotelMedia)) $addMediaImage($defaultHotelImage);
 if (count($hotelMedia) > 12) $hotelMedia = array_slice($hotelMedia, 0, 12);
+
+$hotelHeroMainMedia = $hotelMedia[0] ?? '';
+$hotelHeroThumbMedia = array_slice($hotelMedia, 1, 4, true);
+$hotelHeroVisibleCount = 1 + count($hotelHeroThumbMedia);
+$hotelHeroHiddenCount = max(0, count($hotelMedia) - $hotelHeroVisibleCount);
+$hotelHeroHiddenMedia = $hotelHeroHiddenCount > 0 ? array_slice($hotelMedia, $hotelHeroVisibleCount, null, true) : [];
 ?>
 
 <div id="content" class="tour-page hotel-page">
@@ -727,7 +733,82 @@ if (count($hotelMedia) > 12) $hotelMedia = array_slice($hotelMedia, 0, 12);
 							<img src="<?php echo $config->urls->templates; ?>assets/icons/location_on.svg" alt="" aria-hidden="true" />
 							<span><?php echo $sanitizer->entities($hotelLocation); ?></span>
 						</div>
-						<div class="tour-cover"<?php echo $hotelImageUrl !== '' ? " style=\"background-image: url('" . htmlspecialchars($hotelImageUrl, ENT_QUOTES, 'UTF-8') . "');\"" : ''; ?>></div>
+						<div
+							class="hotel-hero-gallery"
+							data-hotel-gallery
+							data-thumb-count="<?php echo (int) max(0, min(4, count($hotelHeroThumbMedia))); ?>"
+						>
+							<?php if ($hotelHeroMainMedia !== ''): ?>
+								<figure class="hotel-media-item hotel-media-item--hero hotel-media-item--primary">
+									<button
+										class="hotel-media-trigger"
+										type="button"
+										data-hotel-gallery-item
+										data-gallery-index="0"
+										data-gallery-src="<?php echo htmlspecialchars($hotelHeroMainMedia, ENT_QUOTES, 'UTF-8'); ?>"
+										data-gallery-alt="<?php echo $sanitizer->entities('Фото отеля 1'); ?>"
+										aria-label="<?php echo $sanitizer->entities('Открыть фото 1'); ?>"
+									>
+										<img
+											src="<?php echo htmlspecialchars($hotelHeroMainMedia, ENT_QUOTES, 'UTF-8'); ?>"
+											alt="<?php echo $sanitizer->entities('Фото отеля 1'); ?>"
+											loading="eager"
+											fetchpriority="high"
+										/>
+									</button>
+								</figure>
+							<?php endif; ?>
+							<?php if (count($hotelHeroThumbMedia)): ?>
+								<div class="hotel-hero-gallery-strip">
+									<?php $visibleThumbCount = count($hotelHeroThumbMedia); ?>
+									<?php $visibleThumbOrder = 0; ?>
+									<?php foreach ($hotelHeroThumbMedia as $thumbIndex => $hotelMediaImage): ?>
+										<?php
+										$visibleThumbOrder++;
+										$isMoreTile = $hotelHeroHiddenCount > 0 && $visibleThumbOrder === $visibleThumbCount;
+										$thumbPhotoNumber = (int) $thumbIndex + 1;
+										$thumbLabel = $isMoreTile
+											? ('Открыть галерею, ещё ' . (int) $hotelHeroHiddenCount . ' фото')
+											: ('Открыть фото ' . $thumbPhotoNumber);
+										?>
+										<figure class="hotel-media-item hotel-media-item--hero hotel-media-item--thumb<?php echo $isMoreTile ? ' is-more' : ''; ?>">
+											<button
+												class="hotel-media-trigger"
+												type="button"
+												data-hotel-gallery-item
+												data-gallery-index="<?php echo (int) $thumbIndex; ?>"
+												data-gallery-src="<?php echo htmlspecialchars($hotelMediaImage, ENT_QUOTES, 'UTF-8'); ?>"
+												data-gallery-alt="<?php echo $sanitizer->entities('Фото отеля ' . $thumbPhotoNumber); ?>"
+												aria-label="<?php echo $sanitizer->entities($thumbLabel); ?>"
+											>
+												<img
+													src="<?php echo htmlspecialchars($hotelMediaImage, ENT_QUOTES, 'UTF-8'); ?>"
+													alt="<?php echo $sanitizer->entities('Фото отеля ' . $thumbPhotoNumber); ?>"
+													loading="lazy"
+												/>
+												<?php if ($isMoreTile): ?>
+													<span class="hotel-hero-gallery-more">+<?php echo (int) $hotelHeroHiddenCount; ?><small> фото</small></span>
+												<?php endif; ?>
+											</button>
+										</figure>
+									<?php endforeach; ?>
+								</div>
+							<?php endif; ?>
+							<?php if (count($hotelHeroHiddenMedia)): ?>
+								<div class="hotel-hero-gallery-hidden" hidden aria-hidden="true">
+									<?php foreach ($hotelHeroHiddenMedia as $hiddenIndex => $hotelMediaImage): ?>
+										<button
+											type="button"
+											data-hotel-gallery-item
+											data-gallery-index="<?php echo (int) $hiddenIndex; ?>"
+											data-gallery-src="<?php echo htmlspecialchars($hotelMediaImage, ENT_QUOTES, 'UTF-8'); ?>"
+											data-gallery-alt="<?php echo $sanitizer->entities('Фото отеля ' . ((int) $hiddenIndex + 1)); ?>"
+											tabindex="-1"
+										></button>
+									<?php endforeach; ?>
+								</div>
+							<?php endif; ?>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -831,35 +912,6 @@ if (count($hotelMedia) > 12) $hotelMedia = array_slice($hotelMedia, 0, 12);
 		</div>
 	</section>
 	<?php endif; ?>
-
-	<section class="hotel-media-section">
-		<div class="container">
-			<div class="hotel-media-card">
-				<h2 class="tour-section-title">Медиатека отеля</h2>
-				<div class="hotel-media-grid" data-hotel-gallery>
-					<?php foreach ($hotelMedia as $index => $hotelMediaImage): ?>
-						<figure class="hotel-media-item">
-							<button
-								class="hotel-media-trigger"
-								type="button"
-								data-hotel-gallery-item
-								data-gallery-index="<?php echo (int) $index; ?>"
-								data-gallery-src="<?php echo htmlspecialchars($hotelMediaImage, ENT_QUOTES, 'UTF-8'); ?>"
-								data-gallery-alt="<?php echo $sanitizer->entities('Фото отеля ' . ((int) $index + 1)); ?>"
-								aria-label="<?php echo $sanitizer->entities('Открыть фото ' . ((int) $index + 1)); ?>"
-							>
-								<img
-									src="<?php echo htmlspecialchars($hotelMediaImage, ENT_QUOTES, 'UTF-8'); ?>"
-									alt="<?php echo $sanitizer->entities('Фото отеля ' . ((int) $index + 1)); ?>"
-									loading="lazy"
-								/>
-							</button>
-						</figure>
-					<?php endforeach; ?>
-				</div>
-			</div>
-		</div>
-	</section>
 
 	<div class="hotel-gallery-lightbox" data-hotel-gallery-modal hidden>
 		<div class="hotel-gallery-lightbox-backdrop" data-gallery-close="backdrop"></div>
