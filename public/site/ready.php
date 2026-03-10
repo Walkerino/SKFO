@@ -224,6 +224,9 @@ $tourDifficultyField = $ensureField('tour_difficulty', 'FieldtypeText', 'Сло�
 $tourDifficultyLevelField = $ensureField('tour_difficulty_level', 'FieldtypeOptions', 'Сложность тура (список)', [
 	'inputfieldClass' => 'InputfieldSelect',
 ]);
+$tourEmotionLevelField = $ensureField('tour_emotion_level', 'FieldtypeOptions', 'Эмоции тура (список)', [
+	'inputfieldClass' => 'InputfieldSelect',
+]);
 $tourAgeField = $ensureField('tour_age', 'FieldtypeText', 'Возраст тура');
 $tourIncludedField = $ensureField('tour_included', 'FieldtypeTextarea', 'Что включено (по строкам)');
 $tourIncludedItemTextField = $ensureField('tour_included_item_text', 'FieldtypeText', 'Что включено: пункт');
@@ -725,6 +728,42 @@ if(
 }
 
 if(
+	$tourEmotionLevelField &&
+	$tourEmotionLevelField->id &&
+	$tourEmotionLevelField->type instanceof FieldtypeOptions
+) {
+	$emotionOptions = $tourEmotionLevelField->type->getOptions($tourEmotionLevelField);
+	$normalizedCurrentTitles = [];
+	foreach($emotionOptions as $option) {
+		$normalizedCurrentTitles[] = $toLower((string) $option->title);
+	}
+
+	$normalizedExpectedTitles = ['спокойные', 'живые', 'яркие', 'незабываемые'];
+	if($normalizedCurrentTitles !== $normalizedExpectedTitles) {
+		$newOptions = wire(new SelectableOptionArray());
+		$newOptions->setField($tourEmotionLevelField);
+
+		$items = [
+			['value' => 'calm', 'title' => 'Спокойные'],
+			['value' => 'lively', 'title' => 'Живые'],
+			['value' => 'bright', 'title' => 'Яркие'],
+			['value' => 'unforgettable', 'title' => 'Незабываемые'],
+		];
+
+		foreach($items as $sort => $item) {
+			$option = wire(new SelectableOption());
+			$option->set('sort', $sort);
+			$option->set('value', $item['value']);
+			$option->set('title', $item['title']);
+			$newOptions->add($option);
+		}
+
+		$tourEmotionLevelField->type->setOptions($tourEmotionLevelField, $newOptions);
+		$log->save('actual-cards-setup', "Updated options for field 'tour_emotion_level'.");
+	}
+}
+
+if(
 	(!$actualCardsField || !$actualCardsField->id) &&
 	(!$hotToursCardsField || !$hotToursCardsField->id) &&
 	(!$dagestanPlacesCardsField || !$dagestanPlacesCardsField->id) &&
@@ -1028,6 +1067,7 @@ if($tourTemplate && $tourTemplate->id) {
 		$tourGroupField,
 		$tourSeasonField,
 		$tourDifficultyLevelField,
+		$tourEmotionLevelField,
 		$tourAgeField,
 		$tourIncludedField,
 		$tourCoverImageField,
