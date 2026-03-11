@@ -104,15 +104,18 @@ const initPeoplePicker = () => {
   };
 
   const pickers = [];
+  const closeOtherPickers = (activeField) => {
+    pickers.forEach((picker) => {
+      if (picker.field !== activeField) picker.close();
+    });
+  };
 
   fields.forEach((field) => {
     const input = field.querySelector('input:not([type="hidden"])');
-    const hiddenInput = field.querySelector('input[type="hidden"]');
+    const hiddenTotalInput =
+      field.querySelector("[data-people-hidden-total]") || field.querySelector('input[type="hidden"]');
     const popover = field.querySelector(".people-popover");
-    const countEl = field.querySelector(".people-count");
-    const minusBtn = field.querySelector("[data-action='minus']");
-    const plusBtn = field.querySelector("[data-action='plus']");
-    if (!input || !popover || !countEl || !minusBtn || !plusBtn) return;
+    if (!input || !popover) return;
 
     const min = Math.max(1, Number(field.dataset.peopleMin) || 1);
     const rawMax = Number(field.dataset.peopleMax);
@@ -120,19 +123,6 @@ const initPeoplePicker = () => {
     const singular = field.dataset.peopleUnitSingular || "человек";
     const few = field.dataset.peopleUnitFew || "человека";
     const many = field.dataset.peopleUnitMany || "человек";
-
-    const valueFromInput = Number(String(input.value || "").replace(/\D+/g, ""));
-    const valueFromHidden = hiddenInput ? Number(hiddenInput.value) : NaN;
-    let count = Number.isFinite(valueFromHidden) && valueFromHidden > 0 ? valueFromHidden : valueFromInput;
-    if (!Number.isFinite(count) || count < min) count = min;
-    if (count > max) count = max;
-
-    const setCount = (value) => {
-      count = Math.max(min, Math.min(max, value));
-      countEl.textContent = String(count);
-      input.value = formatLabel(count, singular, few, many);
-      if (hiddenInput) hiddenInput.value = String(count);
-    };
 
     const open = () => {
       popover.classList.add("is-open");
@@ -145,33 +135,213 @@ const initPeoplePicker = () => {
     };
 
     pickers.push({ field, open, close, isOpen: () => popover.classList.contains("is-open") });
-    setCount(count);
+
+    const categoryRows = Array.from(popover.querySelectorAll("[data-people-category]"));
+    if (categoryRows.length > 0) {
+      const categories = categoryRows
+        .map((row) => {
+          const key = String(row.getAttribute("data-people-category") || "").trim();
+          const countEl = row.querySelector("[data-people-count]");
+          if (!key || !(countEl instanceof HTMLElement)) return null;
+
+          const hiddenInput = field.querySelector(`[data-people-hidden="${key}"]`);
+          const minValue = Math.max(0, Number(row.getAttribute("data-min")) || 0);
+          const rowMaxRaw = Number(row.getAttribute("data-max"));
+          const maxValue = Number.isFinite(rowMaxRaw) && rowMaxRaw >= minValue ? rowMaxRaw : max;
+          const singularUnit = row.getAttribute("data-unit-singular") || key;
+          const fewUnit = row.getAttribute("data-unit-few") || singularUnit;
+          const manyUnit = row.getAttribute("data-unit-many") || fewUnit;
+
+          const hiddenValue =
+            hiddenInput instanceof HTMLInputElement ? Number(hiddenInput.value || "") : Number.NaN;
+          const countValue = Number(String(countEl.textContent || "").replace(/\D+/g, ""));
+          let initial = Number.isFinite(hiddenValue) ? hiddenValue : countValue;
+          if (!Number.isFinite(initial)) initial = minValue;
+          initial = Math.max(minValue, Math.min(maxValue, initial));
+
+          return {
+            key,
+            countEl,
+            hiddenInput: hiddenInput instanceof HTMLInputElement ? hiddenInput : null,
+            min: minValue,
+            max: maxValue,
+            singularUnit,
+            fewUnit,
+            manyUnit,
+            value: initial,
+          };
+        })
+        .filter(Boolean);
+
+      if (categories.length === 0) return;
+
+      const sumCategories = () =>
+        categories.reduce((sum, category) => sum + Math.max(category.min, category.value), 0);
+
+      const normalizeTotals = () => {
+        categories.forEach((category) => {
+          category.value = Math.max(category.min, Math.min(category.max, category.value));
+        });
+
+        let total = sumCategories();
+        if (total < min) {
+          const firstCategory = categories[0];
+          if (firstCategory) {
+            const missing = min - total;
+            firstCategory.value = Math.min(firstCategory.max, firstCategory.value + missing);
+          }
+        }
+
+        total = sumCategories();
+        if (total > max) {
+          let overflow = total - max;
+          for (let index = categories.length - 1; index >= 0 && overflow > 0; index -= 1) {
+            const category = categories[index];
+            const allowedDecrease = Math.max(0, category.value - category.min);
+            if (allowedDecrease <= 0) continue;
+            const delta = Math.min(allowedDecrease, overflow);
+            category.value -= delta;
+            overflow -= delta;
+          }
+        }
+      };
+
+      const syncCategories = () => {
+        const previousInputValue = input.value;
+        const previousTotalValue =
+          hiddenTotalInput instanceof HTMLInputElement ? hiddenTotalInput.value : "";
+        normalizeTotals();
+        const total = sumCategories();
+        const labelParts = [];
+
+        categories.forEach((category) => {
+          category.countEl.textContent = String(category.value);
+          if (category.hiddenInput) category.hiddenInput.value = String(category.value);
+          if (category.value > 0) {
+            labelParts.push(
+              formatLabel(category.value, category.singularUnit, category.fewUnit, category.manyUnit),
+            );
+          }
+        });
+
+        if (hiddenTotalInput instanceof HTMLInputElement) {
+          hiddenTotalInput.value = String(total);
+        }
+
+        input.value =
+          labelParts.length > 0 ? labelParts.join(", ") : formatLabel(total, singular, few, many);
+
+        if (input.value !== previousInputValue) {
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        if (
+          hiddenTotalInput instanceof HTMLInputElement &&
+          hiddenTotalInput.value !== previousTotalValue
+        ) {
+          hiddenTotalInput.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      };
+
+      const changeCategory = (key, action) => {
+        const category = categories.find((item) => item.key === key);
+        if (!category) return;
+
+        const currentTotal = sumCategories();
+        if (action === "plus") {
+          if (category.value >= category.max || currentTotal >= max) return;
+          category.value += 1;
+          syncCategories();
+          return;
+        }
+
+        if (action === "minus") {
+          if (category.value <= category.min || currentTotal <= min) return;
+          category.value -= 1;
+          syncCategories();
+        }
+      };
+
+      syncCategories();
+
+      popover.addEventListener("click", (event) => {
+        if (!(event.target instanceof Element)) return;
+        const button = event.target.closest("[data-action][data-people-target]");
+        if (!(button instanceof HTMLElement)) return;
+        event.stopPropagation();
+        const action = button.getAttribute("data-action");
+        const targetKey = button.getAttribute("data-people-target") || "";
+        if (action !== "plus" && action !== "minus") return;
+        changeCategory(targetKey, action);
+      });
+    } else {
+      const countEl = field.querySelector(".people-count");
+      const minusBtn = field.querySelector("[data-action='minus']");
+      const plusBtn = field.querySelector("[data-action='plus']");
+      if (
+        !(countEl instanceof HTMLElement) ||
+        !(minusBtn instanceof HTMLElement) ||
+        !(plusBtn instanceof HTMLElement)
+      ) {
+        return;
+      }
+
+      const valueFromInput = Number(String(input.value || "").replace(/\D+/g, ""));
+      const valueFromHidden =
+        hiddenTotalInput instanceof HTMLInputElement ? Number(hiddenTotalInput.value) : Number.NaN;
+      let count = Number.isFinite(valueFromHidden) && valueFromHidden > 0 ? valueFromHidden : valueFromInput;
+      if (!Number.isFinite(count) || count < min) count = min;
+      if (count > max) count = max;
+
+      const setCount = (value) => {
+        const previousInputValue = input.value;
+        const previousTotalValue =
+          hiddenTotalInput instanceof HTMLInputElement ? hiddenTotalInput.value : "";
+        count = Math.max(min, Math.min(max, value));
+        countEl.textContent = String(count);
+        input.value = formatLabel(count, singular, few, many);
+        if (hiddenTotalInput instanceof HTMLInputElement) hiddenTotalInput.value = String(count);
+
+        if (input.value !== previousInputValue) {
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        if (
+          hiddenTotalInput instanceof HTMLInputElement &&
+          hiddenTotalInput.value !== previousTotalValue
+        ) {
+          hiddenTotalInput.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      };
+
+      setCount(count);
+
+      minusBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        setCount(count - 1);
+      });
+
+      plusBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        setCount(count + 1);
+      });
+    }
 
     input.addEventListener("click", (event) => {
       event.stopPropagation();
-      pickers.forEach((picker) => {
-        if (picker.field !== field) picker.close();
-      });
+      closeOtherPickers(field);
+      open();
+    });
+
+    input.addEventListener("focus", (event) => {
+      event.stopPropagation();
+      closeOtherPickers(field);
       open();
     });
 
     field.addEventListener("click", (event) => {
       if (event.target instanceof Element && event.target.closest(".people-popover")) return;
       event.stopPropagation();
-      pickers.forEach((picker) => {
-        if (picker.field !== field) picker.close();
-      });
+      closeOtherPickers(field);
       open();
-    });
-
-    minusBtn.addEventListener("click", (event) => {
-      event.stopPropagation();
-      setCount(count - 1);
-    });
-
-    plusBtn.addEventListener("click", (event) => {
-      event.stopPropagation();
-      setCount(count + 1);
     });
   });
 
@@ -192,10 +362,11 @@ const initPeoplePicker = () => {
 };
 
 const initHotelDateFields = () => {
-  const dateInputs = Array.from(
-    document.querySelectorAll("input[data-date-input], input[data-hotel-date]"),
+  const hotelDateInputs = Array.from(document.querySelectorAll("input[data-hotel-date]"));
+  const legacyDateInputs = Array.from(
+    document.querySelectorAll("input[data-date-input]:not([data-hotel-date])"),
   );
-  if (dateInputs.length === 0) return;
+  if (hotelDateInputs.length === 0 && legacyDateInputs.length === 0) return;
 
   const isValidDate = (year, month, day) => {
     if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
@@ -212,7 +383,7 @@ const initHotelDateFields = () => {
   };
 
   const parseIsoDate = (value) => {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || "").trim());
     if (!match) return "";
     const year = Number(match[1]);
     const month = Number(match[2]);
@@ -222,7 +393,7 @@ const initHotelDateFields = () => {
   };
 
   const parseRuDate = (value) => {
-    const match = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(value);
+    const match = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(String(value || "").trim());
     if (!match) return "";
     const day = Number(match[1]);
     const month = Number(match[2]);
@@ -240,7 +411,246 @@ const initHotelDateFields = () => {
     return `${day}.${month}.${year}`;
   };
 
-  dateInputs.forEach((input) => {
+  if (hotelDateInputs.length > 0) {
+    const monthLabelFormatter = new Intl.DateTimeFormat("ru-RU", {
+      month: "long",
+      year: "numeric",
+    });
+    const weekdayLabels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+    const capitalize = (value) => value.charAt(0).toUpperCase() + value.slice(1);
+
+    const toIsoDate = (date) =>
+      `${String(date.getFullYear()).padStart(4, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+        date.getDate(),
+      ).padStart(2, "0")}`;
+
+    const isoToDate = (isoValue) => {
+      const iso = parseIsoDate(isoValue);
+      if (!iso) return null;
+      const [year, month, day] = iso.split("-").map(Number);
+      return new Date(year, month - 1, day);
+    };
+
+    const todayIso = toIsoDate(new Date());
+    const pickers = [];
+
+    const closeAll = (exceptInput = null) => {
+      pickers.forEach((picker) => {
+        if (exceptInput && picker.input === exceptInput) return;
+        picker.close();
+      });
+    };
+
+    const setInputIso = (input, isoValue) => {
+      const normalized = parseIsoDate(isoValue);
+      const previousIso = parseIsoDate(input.dataset.hotelDateIso || "") || parseAnyDate(input.value || "");
+      if (normalized) {
+        input.value = formatRuDate(normalized);
+        input.dataset.hotelDateIso = normalized;
+      } else {
+        input.value = "";
+        delete input.dataset.hotelDateIso;
+      }
+      if ((normalized || "") !== (previousIso || "")) {
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    };
+
+    const getInputIso = (input) => {
+      const fromDataset = parseIsoDate(input.dataset.hotelDateIso || "");
+      if (fromDataset) return fromDataset;
+      return parseAnyDate(input.value || "");
+    };
+
+    hotelDateInputs.forEach((input) => {
+      const field = input.closest(".hotel-booking-input--date");
+      if (!(field instanceof HTMLElement)) return;
+
+      let selectedIso = getInputIso(input);
+      setInputIso(input, selectedIso);
+      let viewMonth = isoToDate(selectedIso) || new Date();
+      viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+
+      const popover = document.createElement("div");
+      popover.className = "date-range-popover hotel-date-popover";
+      popover.setAttribute("aria-hidden", "true");
+      popover.innerHTML = `
+        <div class="date-range-head">
+          <button class="date-range-nav-btn" type="button" data-hotel-date-action="prev" aria-label="Предыдущий месяц">‹</button>
+          <div class="date-range-month" data-hotel-date-month></div>
+          <button class="date-range-nav-btn" type="button" data-hotel-date-action="next" aria-label="Следующий месяц">›</button>
+        </div>
+        <div class="date-range-weekdays">
+          ${weekdayLabels.map((label) => `<span>${label}</span>`).join("")}
+        </div>
+        <div class="date-range-grid" data-hotel-date-grid></div>
+        <div class="date-range-actions">
+          <button class="date-range-btn date-range-btn--muted" type="button" data-hotel-date-action="clear">Очистить</button>
+          <button class="date-range-btn" type="button" data-hotel-date-action="today">Сегодня</button>
+        </div>
+      `;
+      field.appendChild(popover);
+
+      const monthEl = popover.querySelector("[data-hotel-date-month]");
+      const gridEl = popover.querySelector("[data-hotel-date-grid]");
+      if (!(monthEl instanceof HTMLElement) || !(gridEl instanceof HTMLElement)) return;
+
+      const getPairInput = () => {
+        const pairName = String(input.dataset.hotelDatePair || "").trim();
+        if (!pairName) return null;
+        return (
+          hotelDateInputs.find(
+            (candidate) =>
+              candidate !== input && String(candidate.getAttribute("name") || "").trim() === pairName,
+          ) || null
+        );
+      };
+
+      const syncPairBounds = () => {
+        const role = String(input.dataset.hotelDateRole || "").trim();
+        const pairInput = getPairInput();
+        if (!pairInput) return;
+
+        const currentIso = getInputIso(input);
+        const pairIso = getInputIso(pairInput);
+        if (!currentIso || !pairIso) return;
+
+        if (role === "start" && currentIso > pairIso) {
+          setInputIso(pairInput, currentIso);
+        } else if (role === "end" && currentIso < pairIso) {
+          setInputIso(pairInput, currentIso);
+        }
+      };
+
+      const renderMonth = () => {
+        monthEl.textContent = capitalize(monthLabelFormatter.format(viewMonth));
+        gridEl.innerHTML = "";
+
+        const firstDay = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+        const lastDay = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0);
+        const offset = (firstDay.getDay() + 6) % 7;
+
+        for (let index = 0; index < offset; index += 1) {
+          const emptyCell = document.createElement("span");
+          emptyCell.className = "date-range-day-empty";
+          gridEl.appendChild(emptyCell);
+        }
+
+        for (let day = 1; day <= lastDay.getDate(); day += 1) {
+          const date = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), day);
+          const iso = toIsoDate(date);
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "date-range-day";
+          btn.dataset.iso = iso;
+          btn.textContent = String(day);
+          if (iso === todayIso) btn.classList.add("is-today");
+          if (selectedIso && iso === selectedIso) btn.classList.add("is-selected");
+          gridEl.appendChild(btn);
+        }
+      };
+
+      const open = () => {
+        selectedIso = getInputIso(input);
+        const selectedDate = isoToDate(selectedIso);
+        if (selectedDate) {
+          viewMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+        }
+        renderMonth();
+        closeAll(input);
+        popover.classList.add("is-open");
+        popover.setAttribute("aria-hidden", "false");
+      };
+
+      const close = () => {
+        popover.classList.remove("is-open");
+        popover.setAttribute("aria-hidden", "true");
+      };
+
+      const applyIso = (isoValue, shouldClose = true) => {
+        const normalized = parseIsoDate(isoValue);
+        selectedIso = normalized;
+        setInputIso(input, normalized);
+        syncPairBounds();
+        renderMonth();
+        if (shouldClose) close();
+      };
+
+      pickers.push({
+        input,
+        field,
+        close,
+        isOpen: () => popover.classList.contains("is-open"),
+      });
+
+      popover.addEventListener("click", (event) => {
+        if (!(event.target instanceof Element)) return;
+
+        const actionBtn = event.target.closest("[data-hotel-date-action]");
+        if (actionBtn instanceof HTMLElement) {
+          const action = actionBtn.dataset.hotelDateAction || "";
+          if (action === "prev") {
+            viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1);
+            renderMonth();
+          } else if (action === "next") {
+            viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1);
+            renderMonth();
+          } else if (action === "clear") {
+            selectedIso = "";
+            setInputIso(input, "");
+            renderMonth();
+            close();
+          } else if (action === "today") {
+            viewMonth = new Date();
+            viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+            applyIso(todayIso, true);
+          }
+          return;
+        }
+
+        const dayBtn = event.target.closest(".date-range-day");
+        if (!(dayBtn instanceof HTMLElement)) return;
+        const iso = parseIsoDate(dayBtn.dataset.iso || "");
+        if (!iso) return;
+        applyIso(iso, true);
+      });
+
+      input.addEventListener("click", (event) => {
+        event.stopPropagation();
+        open();
+      });
+
+      input.addEventListener("focus", () => {
+        open();
+      });
+
+      field.addEventListener("click", (event) => {
+        if (!(event.target instanceof Element)) return;
+        if (event.target.closest(".hotel-date-popover")) return;
+        event.stopPropagation();
+        open();
+      });
+
+      renderMonth();
+    });
+
+    document.addEventListener("click", (event) => {
+      pickers.forEach((picker) => {
+        if (!(event.target instanceof Node) || !picker.field.contains(event.target)) {
+          picker.close();
+        }
+      });
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      pickers.forEach((picker) => {
+        if (picker.isOpen()) picker.close();
+      });
+    });
+  }
+
+  legacyDateInputs.forEach((input) => {
     const toTextMode = () => {
       input.type = "text";
       const value = input.value.trim();
@@ -295,6 +705,123 @@ const initHotelDateFields = () => {
     input.addEventListener("change", toTextMode);
     input.addEventListener("blur", setTextMode);
   });
+};
+
+const initHotelRoomsSearchControls = () => {
+  const summary = document.querySelector("[data-hotel-booking-summary]");
+  const actionBtn = document.querySelector("[data-hotel-booking-action]");
+  const checkInInput = document.querySelector("input[data-hotel-booking-check-in]");
+  const checkOutInput = document.querySelector("input[data-hotel-booking-check-out]");
+  const guestsTotalInput = document.querySelector("input[name='guests_total'][data-people-hidden-total]");
+
+  if (
+    !(summary instanceof HTMLElement) ||
+    !(actionBtn instanceof HTMLButtonElement) ||
+    !(checkInInput instanceof HTMLInputElement) ||
+    !(checkOutInput instanceof HTMLInputElement) ||
+    !(guestsTotalInput instanceof HTMLInputElement)
+  ) {
+    return;
+  }
+
+  const parseIsoDate = (value) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || "").trim());
+    if (!match) return "";
+    return `${match[1]}-${match[2]}-${match[3]}`;
+  };
+
+  const parseRuDate = (value) => {
+    const match = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(String(value || "").trim());
+    if (!match) return "";
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = Number(match[3]);
+    if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) return "";
+    if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1000 || year > 9999) return "";
+    const date = new Date(year, month - 1, day);
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    ) {
+      return "";
+    }
+    return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  };
+
+  const resolveIso = (input) => parseIsoDate(input.dataset.hotelDateIso || "") || parseRuDate(input.value || "");
+
+  const formatLabel = (value, singular, few, many) => {
+    const safeValue = Math.max(0, Number(value) || 0);
+    const mod10 = safeValue % 10;
+    const mod100 = safeValue % 100;
+    if (mod10 === 1 && mod100 !== 11) return `${safeValue} ${singular}`;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return `${safeValue} ${few}`;
+    return `${safeValue} ${many}`;
+  };
+
+  const getNights = (checkInIso, checkOutIso) => {
+    if (!checkInIso || !checkOutIso) return 0;
+    const [checkInYear, checkInMonth, checkInDay] = checkInIso.split("-").map(Number);
+    const [checkOutYear, checkOutMonth, checkOutDay] = checkOutIso.split("-").map(Number);
+    const checkInMs = Date.UTC(checkInYear, checkInMonth - 1, checkInDay);
+    const checkOutMs = Date.UTC(checkOutYear, checkOutMonth - 1, checkOutDay);
+    const diffDays = Math.round((checkOutMs - checkInMs) / 86400000);
+    return Math.max(1, diffDays || 0);
+  };
+
+  let hasSearched = false;
+
+  const getState = () => {
+    const checkInIso = resolveIso(checkInInput);
+    const checkOutIso = resolveIso(checkOutInput);
+    const guestsTotal = Math.max(0, Number(guestsTotalInput.value) || 0);
+    const hasDates = Boolean(checkInIso && checkOutIso);
+    const isReady = hasDates && guestsTotal > 0;
+    const nights = isReady ? getNights(checkInIso, checkOutIso) : 0;
+    return {
+      checkInIso,
+      checkOutIso,
+      guestsTotal,
+      isReady,
+      nights,
+    };
+  };
+
+  const syncUi = () => {
+    const state = getState();
+    actionBtn.textContent = hasSearched ? "Обновить" : "Найти";
+    actionBtn.disabled = !state.isReady;
+
+    if (!state.isReady) {
+      summary.hidden = true;
+      return;
+    }
+
+    const nightsLabel = formatLabel(state.nights, "ночь", "ночи", "ночей");
+    const guestsLabel = formatLabel(state.guestsTotal, "гость", "гостя", "гостей");
+    summary.textContent = `На ${nightsLabel}, ${guestsLabel}`;
+    summary.hidden = false;
+  };
+
+  const onSearch = () => {
+    const state = getState();
+    if (!state.isReady) {
+      syncUi();
+      return;
+    }
+    hasSearched = true;
+    syncUi();
+  };
+
+  const watchInputs = [checkInInput, checkOutInput, guestsTotalInput];
+  watchInputs.forEach((input) => {
+    input.addEventListener("change", syncUi);
+    input.addEventListener("input", syncUi);
+  });
+
+  actionBtn.addEventListener("click", onSearch);
+  syncUi();
 };
 
 const initDateRangeFields = () => {
@@ -2441,6 +2968,58 @@ const initRegionMediaGallery = () => {
   initMediaLightbox("[data-region-gallery]", "[data-region-gallery-item]", "[data-region-gallery-modal]");
 };
 
+const initHotelRoomOffersSlider = () => {
+  const sliders = Array.from(document.querySelectorAll("[data-room-offers]"));
+  if (sliders.length === 0) return;
+
+  sliders.forEach((slider) => {
+    const track = slider.querySelector("[data-room-offers-track]");
+    const prevBtn = slider.querySelector("[data-room-offers-nav='prev']");
+    const nextBtn = slider.querySelector("[data-room-offers-nav='next']");
+    if (
+      !(track instanceof HTMLElement) ||
+      !(prevBtn instanceof HTMLButtonElement) ||
+      !(nextBtn instanceof HTMLButtonElement)
+    ) {
+      return;
+    }
+
+    const step = () => {
+      const firstCard = track.querySelector(".hotel-offer-card");
+      if (!(firstCard instanceof HTMLElement)) return 260;
+      const cardWidth = firstCard.getBoundingClientRect().width;
+      const styles = window.getComputedStyle(track);
+      const gap = parseFloat(styles.columnGap || styles.gap || "0") || 0;
+      return cardWidth + gap;
+    };
+
+    const updateButtons = () => {
+      const maxScroll = Math.max(0, track.scrollWidth - track.clientWidth);
+      const left = track.scrollLeft;
+      const canPrev = left > 2;
+      const canNext = left < maxScroll - 2;
+      prevBtn.disabled = !canPrev;
+      nextBtn.disabled = !canNext;
+      slider.classList.toggle("is-scrollable", maxScroll > 2);
+      slider.classList.toggle("has-prev", canPrev);
+      slider.classList.toggle("has-next", canNext);
+    };
+
+    prevBtn.addEventListener("click", () => {
+      track.scrollBy({ left: -step(), behavior: "smooth" });
+    });
+
+    nextBtn.addEventListener("click", () => {
+      track.scrollBy({ left: step(), behavior: "smooth" });
+    });
+
+    track.addEventListener("scroll", updateButtons, { passive: true });
+    window.addEventListener("resize", updateButtons);
+    window.addEventListener("load", updateButtons);
+    updateButtons();
+  });
+};
+
 const initTourDaysAccordion = () => {
   const cards = Array.from(document.querySelectorAll(".tour-day-card"));
   if (cards.length === 0) return;
@@ -2509,6 +3088,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initTourNavTabs();
   initPeoplePicker();
   initHotelDateFields();
+  initHotelRoomsSearchControls();
   initDateRangeFields();
   initHeroCustomSelects();
   initWhereFieldAutoGrow();
@@ -2521,6 +3101,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initHotToursSlider();
   initRegionActualSlider();
   initHotelMediaGallery();
+  initHotelRoomOffersSlider();
   initRegionMediaPreview();
   initRegionMediaGallery();
   initTourDaysAccordion();
