@@ -177,15 +177,6 @@ $formatRating = static function(float $value): string {
 	return str_replace('.', ',', number_format($value, 1, '.', ''));
 };
 
-$formatGuestLabel = static function(int $count): string {
-	$count = max(1, $count);
-	$mod10 = $count % 10;
-	$mod100 = $count % 100;
-	if ($mod10 === 1 && $mod100 !== 11) return $count . ' гость';
-	if ($mod10 >= 2 && $mod10 <= 4 && ($mod100 < 10 || $mod100 >= 20)) return $count . ' гостя';
-	return $count . ' гостей';
-};
-
 $formatPrice = static function(string $value): string {
 	$digits = (int) preg_replace('/[^\d]+/', '', $value);
 	if ($digits > 0) return number_format($digits, 0, '', ' ') . '₽';
@@ -224,22 +215,39 @@ $getComboFieldConfig = static function(string $fieldName) use ($fields): array {
 };
 
 $amenityMap = [
-	'wifi' => ['title' => 'Бесплатный Wi-Fi', 'icon' => 'hotel-amenity-wifi.svg'],
+	'wifi' => ['title' => 'Бесплатный Wi-Fi', 'icon' => 'site/assets/wifi.44597012.svg'],
 	'parking' => ['title' => 'Паркинг', 'icon' => 'hotel-amenity-parking.svg'],
 	'elevator' => ['title' => 'Лифт', 'icon' => 'hotel-amenity-elevator.svg'],
 	'soundproof_rooms' => ['title' => 'Звукоизолированные номера'],
-	'air_conditioning' => ['title' => 'Кондиционер', 'short' => 'A/C'],
-	'kids' => ['title' => 'Подходит для детей', 'icon' => 'hotel-amenity-kid.svg'],
-	'tv' => ['title' => 'Телевизор', 'short' => 'TV'],
+	'air_conditioning' => ['title' => 'Кондиционер', 'short' => 'A/C', 'icon' => 'site/assets/conditioner.ce1a9abe.svg'],
+	'kids' => ['title' => 'Подходит для детей', 'icon' => 'site/assets/children.45775593.svg'],
+	'tv' => ['title' => 'Телевизор', 'short' => 'TV', 'icon' => 'site/assets/tv.3c977110.svg'],
 	'spa' => ['title' => 'Spa-центр', 'icon' => 'hotel-amenity-spa.svg'],
-	'minibar' => ['title' => 'Мини-бар', 'icon' => 'hotel-amenity-minibar.svg'],
-	'breakfast' => ['title' => 'Завтрак', 'icon' => 'hotel-amenity-breakfast.svg'],
+	'minibar' => ['title' => 'Мини-бар', 'icon' => 'site/assets/mini-bar.742c1dbb.svg'],
+	'breakfast' => ['title' => 'Завтрак', 'icon' => 'site/assets/meal.27c89335.svg'],
 	'transfer' => ['title' => 'Трансфер', 'icon' => 'hotel-amenity-transfer.svg'],
-	'accessible' => ['title' => 'Удобства для людей с ограниченными возможностями', 'icon' => 'hotel-amenity-accessible.svg'],
-	'gym' => ['title' => 'Спортивный зал', 'icon' => 'hotel-amenity-gym.svg'],
+	'accessible' => ['title' => 'Удобства для людей с ограниченными возможностями', 'icon' => 'site/assets/disabled-support.cc65e41d.svg'],
+	'gym' => ['title' => 'Спортивный зал', 'icon' => 'site/assets/fitness.cd535f93.svg'],
 	'pool' => ['title' => 'Бассейн', 'icon' => 'hotel-amenity-pool.svg'],
-	'restaurant' => ['title' => 'Ресторан'],
-	'pets' => ['title' => 'Можно с питомцами'],
+	'restaurant' => ['title' => 'Ресторан', 'icon' => 'site/assets/meal.27c89335.svg'],
+	'pets' => ['title' => 'Можно с питомцами', 'icon' => 'site/assets/pets.383546b8.svg'],
+	'safe' => ['title' => 'Сейф', 'icon' => 'site/assets/safe.9639935f.svg'],
+	'bath' => ['title' => 'Ванна', 'icon' => 'site/assets/bath.c1d4458d.svg'],
+	'toiletries' => ['title' => 'Туалетные принадлежности', 'icon' => 'site/assets/toilet.1df72879.svg'],
+	'shower' => ['title' => 'Душ', 'icon' => 'site/assets/shower.11ab2844.svg'],
+	'iron' => ['title' => 'Утюг', 'icon' => 'site/assets/iron.aa58ef9c.svg'],
+	'hair_dryer' => ['title' => 'Фен', 'icon' => 'site/assets/hair-dryer.332233dc.svg'],
+	'linens' => ['title' => 'Постельное белье', 'icon' => 'site/assets/exclusuve-bed-linen.acfc1543.svg'],
+	'wardrobe' => ['title' => 'Шкаф', 'icon' => 'site/assets/wardrobe.f5a8fd98.svg'],
+	'mirror' => ['title' => 'Зеркало', 'icon' => 'site/assets/mirror.3b60a325.svg'],
+	'tea' => ['title' => 'Чай', 'icon' => 'site/assets/tea.fde63893.svg'],
+	'kettle' => ['title' => 'Чайник или кофеварка', 'icon' => 'site/assets/tea.fde63893.svg'],
+	'telephone' => ['title' => 'Телефон', 'icon' => 'site/assets/telephone.b100e40c.svg'],
+	'blackout_blinds' => ['title' => 'Плотные шторы', 'icon' => 'site/assets/blackout-blinds.dd56c4ee.svg'],
+	'heating' => ['title' => 'Отопление', 'icon' => 'site/assets/heating.6c67a823.svg'],
+	'slippers' => ['title' => 'Тапочки', 'icon' => 'site/assets/slippers.24762c1e.svg'],
+	'desk' => ['title' => 'Рабочий стол', 'icon' => 'site/assets/desk.96294349.svg'],
+	'water' => ['title' => 'Бутилированная вода', 'icon' => 'site/assets/water.3c9b9eab.svg'],
 ];
 $amenityCodeByLabel = [];
 foreach ($amenityMap as $amenityCode => $amenityConfig) {
@@ -269,6 +277,23 @@ $mapAmenityItemToCode = static function(string $item) use ($amenityMap, $amenity
 	if (strpos($key, 'бассейн') !== false) return 'pool';
 	if (strpos($key, 'ресторан') !== false || strpos($key, 'кафе') !== false || strpos($key, 'бар') !== false) return 'restaurant';
 	if (strpos($key, 'питом') !== false || strpos($key, 'животн') !== false) return 'pets';
+	if (strpos($key, 'сейф') !== false || strpos($key, 'safe') !== false) return 'safe';
+	if (strpos($key, 'ванн') !== false || strpos($key, 'bath') !== false || strpos($key, 'bathroom') !== false) return 'bath';
+	if (strpos($key, 'туалет') !== false || strpos($key, 'toilet') !== false || strpos($key, 'toiletr') !== false || strpos($key, 'косметич') !== false) return 'toiletries';
+	if (strpos($key, 'душ') !== false || strpos($key, 'shower') !== false) return 'shower';
+	if (strpos($key, 'утю') !== false || strpos($key, 'глад') !== false || strpos($key, 'iron') !== false) return 'iron';
+	if (strpos($key, 'фен') !== false || strpos($key, 'hair') !== false) return 'hair_dryer';
+	if (strpos($key, 'бель') !== false || strpos($key, 'простын') !== false || strpos($key, 'linen') !== false || strpos($key, 'bedsheet') !== false) return 'linens';
+	if (strpos($key, 'шкаф') !== false || strpos($key, 'wardrobe') !== false) return 'wardrobe';
+	if (strpos($key, 'зеркал') !== false || strpos($key, 'mirror') !== false) return 'mirror';
+	if (strpos($key, 'чайник') !== false || strpos($key, 'kettle') !== false || strpos($key, 'кофевар') !== false || strpos($key, 'coffee') !== false) return 'kettle';
+	if (strpos($key, 'чай') !== false || strpos($key, 'tea') !== false) return 'tea';
+	if (strpos($key, 'телефон') !== false || strpos($key, 'telephone') !== false) return 'telephone';
+	if (strpos($key, 'штор') !== false || strpos($key, 'жалюз') !== false || strpos($key, 'blackout') !== false) return 'blackout_blinds';
+	if (strpos($key, 'отоплен') !== false || strpos($key, 'heating') !== false) return 'heating';
+	if (strpos($key, 'тапоч') !== false || strpos($key, 'slippers') !== false) return 'slippers';
+	if (strpos($key, 'стол') !== false || strpos($key, 'desk') !== false || strpos($key, 'рабоч') !== false) return 'desk';
+	if ((strpos($key, 'бутыл') !== false && strpos($key, 'вод') !== false) || strpos($key, 'water') !== false) return 'water';
 
 	return '';
 };
@@ -380,8 +405,21 @@ $hotelPriceLabel = $formatPrice($hotelPriceRaw);
 
 $hotelMaxGuests = $page->hasField('hotel_max_guests') ? (int) $page->getUnformatted('hotel_max_guests') : 0;
 if ($hotelMaxGuests < 2) $hotelMaxGuests = 10;
-$hotelGuestsDefault = min(2, $hotelMaxGuests);
-$hotelGuestsLabel = $formatGuestLabel($hotelGuestsDefault);
+$hotelAdultsDefault = min(2, $hotelMaxGuests);
+if ($hotelAdultsDefault < 1) $hotelAdultsDefault = 1;
+$hotelChildrenDefault = 0;
+$hotelGuestsDefault = min($hotelMaxGuests, $hotelAdultsDefault + $hotelChildrenDefault);
+$formatGuestCountByForms = static function(int $count, string $singular, string $few, string $many): string {
+	$count = max(0, $count);
+	$mod10 = $count % 10;
+	$mod100 = $count % 100;
+	if ($mod10 === 1 && $mod100 !== 11) return $count . ' ' . $singular;
+	if ($mod10 >= 2 && $mod10 <= 4 && ($mod100 < 10 || $mod100 >= 20)) return $count . ' ' . $few;
+	return $count . ' ' . $many;
+};
+$hotelAdultsLabel = $formatGuestCountByForms($hotelAdultsDefault, 'взрослый', 'взрослых', 'взрослых');
+$hotelChildrenLabel = $formatGuestCountByForms($hotelChildrenDefault, 'ребенок', 'ребенка', 'детей');
+$hotelGuestsBreakdownLabel = $hotelAdultsLabel . ($hotelChildrenDefault > 0 ? ', ' . $hotelChildrenLabel : '');
 
 $hotelDescription = '';
 if ($page->hasField('hotel_description')) {
@@ -474,39 +512,183 @@ if ($page->hasField('content')) {
 	}
 }
 
+$resolveAddressRegionLabel = static function($regionRaw) use ($pages, $normalizeLine): string {
+	if ($regionRaw instanceof Page) return $normalizeLine((string) $regionRaw->title);
+	if (is_numeric((string) $regionRaw) && (int) $regionRaw > 0) {
+		$regionPage = $pages->get((int) $regionRaw);
+		if ($regionPage && $regionPage->id) return $normalizeLine((string) $regionPage->title);
+		return '';
+	}
+	return $normalizeLine((string) $regionRaw);
+};
+$pushAddressPart = static function(array &$parts, string $part) use ($normalizeLine, $toLower): void {
+	$part = trim($normalizeLine($part), " ,;\t\n\r\0\x0B");
+	if ($part === '') return;
+	$partKey = $toLower($part);
+	foreach ($parts as $existingPart) {
+		if ($toLower((string) $existingPart) === $partKey) return;
+	}
+	$parts[] = $part;
+};
+
 $hotelAddressLabel = '';
 if ($page->hasField('address')) {
 	$hotelAddressRaw = $page->getUnformatted('address');
 	$addressStreet = $normalizeLine((string) $getComboItem($hotelAddressRaw, 'i1'));
 	$addressStreet2 = $normalizeLine((string) $getComboItem($hotelAddressRaw, 'i6'));
 	$addressCity = $normalizeLine((string) $getComboItem($hotelAddressRaw, 'i2'));
-	$addressPostcode = $normalizeLine((string) $getComboItem($hotelAddressRaw, 'i5'));
-
-	$addressRegion = '';
-	$addressRegionRaw = $getComboItem($hotelAddressRaw, 'i3');
-	if ($addressRegionRaw instanceof Page) {
-		$addressRegion = $normalizeLine((string) $addressRegionRaw->title);
-	} elseif (is_numeric((string) $addressRegionRaw) && (int) $addressRegionRaw > 0) {
-		$regionPage = $pages->get((int) $addressRegionRaw);
-		if ($regionPage && $regionPage->id) $addressRegion = $normalizeLine((string) $regionPage->title);
-	} else {
-		$addressRegion = $normalizeLine((string) $addressRegionRaw);
-	}
-
+	$addressRegion = $resolveAddressRegionLabel($getComboItem($hotelAddressRaw, 'i3'));
+	$addressPostcodeRaw = $normalizeLine((string) $getComboItem($hotelAddressRaw, 'i5'));
 	$countryCode = $toLower((string) $getComboItem($hotelAddressRaw, 'i4'));
 	$countryLabel = $countryCodeLabels[$countryCode] ?? $normalizeLine((string) $countryCode);
 
-	$streetLine = trim(implode(', ', array_filter([$addressStreet, $addressStreet2], static fn(string $item): bool => $item !== '')));
-	$geoLine = trim(implode(', ', array_filter([
-		$addressCity !== '' ? $addressCity : $hotelCity,
-		$addressRegion !== '' ? $addressRegion : $hotelRegion,
-		$addressPostcode,
-		$countryLabel,
-	], static fn(string $item): bool => $item !== '')));
+	if (($addressStreet === '' || $addressCity === '' || $addressRegion === '') && isset($database) && $database instanceof WireDatabasePDO) {
+		try {
+			$stmtAddress = $database->prepare("SELECT data FROM field_address WHERE pages_id = :page_id LIMIT 1");
+			if ($stmtAddress) {
+				$stmtAddress->bindValue(':page_id', (int) $page->id, \PDO::PARAM_INT);
+				$stmtAddress->execute();
+				$addressRawFromDb = trim((string) $stmtAddress->fetchColumn());
+				$addressDecoded = json_decode($addressRawFromDb, true);
+				if (is_array($addressDecoded)) {
+					if ($addressStreet === '') $addressStreet = $normalizeLine((string) ($addressDecoded['i1'] ?? ''));
+					if ($addressStreet2 === '') $addressStreet2 = $normalizeLine((string) ($addressDecoded['i6'] ?? ''));
+					if ($addressCity === '') $addressCity = $normalizeLine((string) ($addressDecoded['i2'] ?? ''));
+					if ($addressRegion === '') $addressRegion = $resolveAddressRegionLabel($addressDecoded['i3'] ?? '');
+					if ($addressPostcodeRaw === '') $addressPostcodeRaw = $normalizeLine((string) ($addressDecoded['i5'] ?? ''));
+					if ($countryCode === '') $countryCode = $toLower((string) ($addressDecoded['i4'] ?? ''));
+					if ($countryLabel === '' && $countryCode !== '') {
+						$countryLabel = $countryCodeLabels[$countryCode] ?? $normalizeLine((string) $countryCode);
+					}
+				}
+			}
+		} catch (\Throwable $e) {
+			// Ignore DB fallback errors; address has a safe fallback below.
+		}
+	}
 
-	$hotelAddressLabel = trim(implode(', ', array_filter([$streetLine, $geoLine], static fn(string $item): bool => $item !== '')));
+	$addressPostcode = '';
+	$addressExtra = '';
+	if ($addressPostcodeRaw !== '') {
+		$postcodeDigits = preg_replace('/[^\d]+/u', '', $addressPostcodeRaw) ?? '';
+		if (preg_match('/^\d{5,7}$/', $postcodeDigits) === 1) {
+			$addressPostcode = $postcodeDigits;
+		} elseif ($addressStreet === '') {
+			$addressStreet = $addressPostcodeRaw;
+		} elseif (strpos($addressPostcodeRaw, ',') === false) {
+			$addressExtra = $addressPostcodeRaw;
+		}
+	}
+
+	$addressParts = [];
+	$pushAddressPart($addressParts, $addressStreet);
+	$pushAddressPart($addressParts, $addressStreet2);
+	$pushAddressPart($addressParts, $addressExtra);
+	$pushAddressPart($addressParts, $addressCity !== '' ? $addressCity : $hotelCity);
+	$pushAddressPart($addressParts, $addressRegion !== '' ? $addressRegion : $hotelRegion);
+	$pushAddressPart($addressParts, $addressPostcode);
+	$pushAddressPart($addressParts, $countryLabel);
+
+	$hotelAddressLabel = trim(implode(', ', $addressParts));
 }
 if ($hotelAddressLabel === '') $hotelAddressLabel = $hotelLocation;
+
+$hotelMapQuery = trim(implode(', ', array_filter([$hotelAddressLabel, $hotelTitle], static fn(string $item): bool => $item !== '')));
+if ($hotelMapQuery === '') $hotelMapQuery = $hotelLocation;
+if ($hotelMapQuery === '') $hotelMapQuery = 'Северо-Кавказский федеральный округ';
+
+$hotelMapCache = isset($cache) && $cache instanceof WireCache ? $cache : null;
+$fetchRemoteJson = static function(string $url): string {
+	if (function_exists('curl_init')) {
+		$ch = curl_init($url);
+		if ($ch !== false) {
+			curl_setopt_array($ch, [
+				CURLOPT_RETURNTRANSFER => true,
+				CURLOPT_FOLLOWLOCATION => true,
+				CURLOPT_CONNECTTIMEOUT => 2,
+				CURLOPT_TIMEOUT => 2,
+				CURLOPT_HTTPHEADER => [
+					'User-Agent: SKFO/1.0 (+https://skfo.ru)',
+					'Accept: application/json',
+					'Accept-Language: ru',
+				],
+			]);
+			$response = curl_exec($ch);
+			curl_close($ch);
+			if (is_string($response)) return $response;
+		}
+	}
+
+	if (!ini_get('allow_url_fopen')) return '';
+	$context = stream_context_create([
+		'http' => [
+			'method' => 'GET',
+			'timeout' => 2,
+			'header' => implode("\r\n", [
+				'User-Agent: SKFO/1.0 (+https://skfo.ru)',
+				'Accept: application/json',
+				'Accept-Language: ru',
+			]),
+		],
+	]);
+	$response = @file_get_contents($url, false, $context);
+	return is_string($response) ? $response : '';
+};
+$resolveGeoCoords = static function(string $query) use ($normalizeLine, $hotelMapCache, $fetchRemoteJson): array {
+	$query = $normalizeLine($query);
+	if ($query === '') return [];
+
+	$cacheKey = 'hotel_map_geocode_' . sha1($query);
+	if ($hotelMapCache instanceof WireCache) {
+		$cached = $hotelMapCache->get($cacheKey);
+		if (is_array($cached) && isset($cached['lat'], $cached['lon'])) return $cached;
+		if ($cached === 'miss') return [];
+	}
+
+	$url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=ru&q=' . rawurlencode($query);
+	$response = $fetchRemoteJson($url);
+	if ($response === '') {
+		if ($hotelMapCache instanceof WireCache) $hotelMapCache->save($cacheKey, 'miss', 60 * 60 * 6);
+		return [];
+	}
+
+	$decoded = json_decode($response, true);
+	$item = is_array($decoded) && isset($decoded[0]) && is_array($decoded[0]) ? $decoded[0] : null;
+	$lat = is_array($item) ? (float) ($item['lat'] ?? 0.0) : 0.0;
+	$lon = is_array($item) ? (float) ($item['lon'] ?? 0.0) : 0.0;
+	$isValid = abs($lat) > 0.001 && abs($lon) > 0.001 && abs($lat) <= 90.0 && abs($lon) <= 180.0;
+	if (!$isValid) {
+		if ($hotelMapCache instanceof WireCache) $hotelMapCache->save($cacheKey, 'miss', 60 * 60 * 6);
+		return [];
+	}
+
+	$coords = ['lat' => $lat, 'lon' => $lon];
+	if ($hotelMapCache instanceof WireCache) $hotelMapCache->save($cacheKey, $coords, 60 * 60 * 24 * 30);
+	return $coords;
+};
+$formatCoord = static function(float $value): string {
+	$formatted = number_format($value, 6, '.', '');
+	$formatted = rtrim(rtrim($formatted, '0'), '.');
+	if ($formatted === '-0') $formatted = '0';
+	return $formatted;
+};
+
+$hotelMapCoords = $resolveGeoCoords($hotelMapQuery);
+if (!count($hotelMapCoords) && $hotelAddressLabel !== '') {
+	$hotelMapCoords = $resolveGeoCoords($hotelAddressLabel);
+}
+if (!count($hotelMapCoords)) {
+	$hotelMapCoords = $resolveGeoCoords(trim(implode(', ', array_filter([$hotelTitle, $hotelLocation], static fn(string $item): bool => $item !== ''))));
+}
+
+if (count($hotelMapCoords) && isset($hotelMapCoords['lat'], $hotelMapCoords['lon'])) {
+	$lonLabel = $formatCoord((float) $hotelMapCoords['lon']);
+	$latLabel = $formatCoord((float) $hotelMapCoords['lat']);
+	$pointLabel = $lonLabel . ',' . $latLabel;
+	$hotelMapWidgetUrl = 'https://yandex.ru/map-widget/v1/?z=16&ll=' . rawurlencode($pointLabel) . '&pt=' . rawurlencode($pointLabel . ',pm2rdl1');
+} else {
+	$hotelMapWidgetUrl = 'https://yandex.ru/map-widget/v1/?z=16&text=' . rawurlencode($hotelMapQuery);
+}
 
 $getFirstLine = static function($value) use ($extractAmenityItems): string {
 	$items = $extractAmenityItems($value);
@@ -717,6 +899,345 @@ $hotelHeroThumbMedia = array_slice($hotelMedia, 1, 4, true);
 $hotelHeroVisibleCount = 1 + count($hotelHeroThumbMedia);
 $hotelHeroHiddenCount = max(0, count($hotelMedia) - $hotelHeroVisibleCount);
 $hotelHeroHiddenMedia = $hotelHeroHiddenCount > 0 ? array_slice($hotelMedia, $hotelHeroVisibleCount, null, true) : [];
+
+$hotelBasePriceValue = (int) preg_replace('/[^\d]+/', '', $hotelPriceLabel);
+if ($hotelBasePriceValue <= 0) $hotelBasePriceValue = (int) preg_replace('/[^\d]+/', '', $hotelPriceRaw);
+if ($hotelBasePriceValue <= 0) $hotelBasePriceValue = 10000;
+$formatHotelRoomPrice = static function(int $value): string {
+	$value = max(1000, $value);
+	return "\u{20BD}\u{202F}" . number_format($value, 0, '.', ',');
+};
+
+$resolveAmenityIconUrl = static function(string $iconPath) use ($config): string {
+	$iconPath = ltrim(trim($iconPath), '/');
+	if ($iconPath === '') return '';
+	if (is_file($config->paths->root . $iconPath)) return $config->urls->root . $iconPath;
+	if (is_file($config->paths->templates . 'assets/icons/' . $iconPath)) return $config->urls->templates . 'assets/icons/' . $iconPath;
+	return '';
+};
+
+$hotelRoomAmenityPool = [];
+$hotelRoomAmenityPoolKeys = [];
+$addRoomAmenity = static function(string $amenityCode, string $amenityTitle = '') use (&$hotelRoomAmenityPool, &$hotelRoomAmenityPoolKeys, $amenityMap, $resolveAmenityIconUrl): void {
+	$amenityCode = trim($amenityCode);
+	if ($amenityCode === '' || isset($hotelRoomAmenityPoolKeys[$amenityCode])) return;
+	if (!isset($amenityMap[$amenityCode])) return;
+
+	$amenityConfig = (array) $amenityMap[$amenityCode];
+	$iconUrl = $resolveAmenityIconUrl((string) ($amenityConfig['icon'] ?? ''));
+	if ($iconUrl === '') return;
+
+	$title = trim($amenityTitle);
+	if ($title === '') $title = trim((string) ($amenityConfig['title'] ?? ''));
+	if ($title === '') return;
+
+	$hotelRoomAmenityPoolKeys[$amenityCode] = count($hotelRoomAmenityPool);
+	$hotelRoomAmenityPool[] = [
+		'code' => $amenityCode,
+		'title' => $title,
+		'icon' => $iconUrl,
+	];
+};
+
+foreach ($orderedAmenitySections as $amenitySection) {
+	$amenityItems = (array) ($amenitySection['items'] ?? []);
+	foreach ($amenityItems as $amenityItem) {
+		$amenityLabel = trim((string) $amenityItem);
+		if ($amenityLabel === '') continue;
+		$amenityCode = $mapAmenityItemToCode($amenityLabel);
+		if ($amenityCode === '') continue;
+		$addRoomAmenity($amenityCode, $amenityLabel);
+	}
+}
+
+$defaultRoomAmenityCodes = [
+	'minibar',
+	'hair_dryer',
+	'slippers',
+	'bath',
+	'toiletries',
+	'shower',
+	'iron',
+	'wardrobe',
+	'mirror',
+	'water',
+	'safe',
+	'air_conditioning',
+	'tv',
+	'wifi',
+];
+foreach ($defaultRoomAmenityCodes as $amenityCode) {
+	$addRoomAmenity((string) $amenityCode);
+}
+
+$hotelOfferPointIconMap = [
+	'beds' => 'site/assets/extraBed.24fe62c6.svg',
+	'meals' => 'site/assets/meal.27c89335.svg',
+	'cancellation' => 'site/assets/checkin.8d4e37c0.svg',
+	'payment' => 'site/assets/payment.2db08cdd.svg',
+];
+$getHotelOfferPointIcon = static function(string $pointKey) use ($hotelOfferPointIconMap, $resolveAmenityIconUrl): string {
+	$iconPath = trim((string) ($hotelOfferPointIconMap[$pointKey] ?? ''));
+	if ($iconPath === '') return '';
+	return $resolveAmenityIconUrl($iconPath);
+};
+
+$hotelRoomTariffsByRoomId = [];
+$hotelRoomCommonTariffs = [];
+if (isset($database) && $database instanceof WireDatabasePDO) {
+	try {
+		$stmtRoomPrice = $database->prepare("SELECT room, period, price, sort, data FROM field_room_price WHERE pages_id = :page_id ORDER BY sort ASC, data ASC");
+		if ($stmtRoomPrice) {
+			$stmtRoomPrice->bindValue(':page_id', (int) $page->id, \PDO::PARAM_INT);
+			$stmtRoomPrice->execute();
+			$tariffRows = $stmtRoomPrice->fetchAll(\PDO::FETCH_ASSOC);
+			foreach ((array) $tariffRows as $tariffRow) {
+				if (!is_array($tariffRow)) continue;
+				$periodLabel = $normalizeLine((string) ($tariffRow['period'] ?? ''));
+				$priceLabel = $normalizeLine((string) ($tariffRow['price'] ?? ''));
+				if ($periodLabel === '' && $priceLabel === '') continue;
+
+				$tariff = [
+					'period' => $periodLabel,
+					'price' => $priceLabel,
+				];
+				$roomRefId = (int) ($tariffRow['room'] ?? 0);
+				if ($roomRefId > 0) {
+					if (!isset($hotelRoomTariffsByRoomId[$roomRefId])) $hotelRoomTariffsByRoomId[$roomRefId] = [];
+					$hotelRoomTariffsByRoomId[$roomRefId][] = $tariff;
+				} else {
+					$hotelRoomCommonTariffs[] = $tariff;
+				}
+			}
+		}
+	} catch (\Throwable $e) {
+		// Ignore optional room tariff table errors and use a single fallback tariff.
+	}
+}
+
+$roomTariffToOffer = static function(array $tariffRow, int $fallbackPrice, string $bedsLabel, string $mealsLabel) use ($formatHotelRoomPrice, $normalizeLine, $toLower): array {
+	$periodLabel = $normalizeLine((string) ($tariffRow['period'] ?? ''));
+	$priceRaw = $normalizeLine((string) ($tariffRow['price'] ?? ''));
+	$priceValue = (int) preg_replace('/[^\d]+/u', '', $priceRaw);
+	if ($priceValue <= 0) $priceValue = max(1000, $fallbackPrice);
+
+	$priceLabel = $formatHotelRoomPrice($priceValue);
+	$pricePrefix = preg_match('/^\s*от\b/iu', $priceRaw) === 1 ? 'от ' : '';
+	if ($pricePrefix !== '') $priceLabel = $pricePrefix . $priceLabel;
+
+	$periodKey = $toLower($periodLabel);
+	$cancellationLabel = strpos($periodKey, 'невозврат') !== false
+		? 'Невозвратный тариф'
+		: 'Условия отмены по тарифу';
+	$paymentLabel = (strpos($periodKey, 'при заезд') !== false || strpos($periodKey, 'на месте') !== false)
+		? 'Оплата при заезде'
+		: 'Оплата по условиям тарифа';
+
+	return [
+		'label' => $periodLabel,
+		'price' => $priceValue,
+		'price_label' => $priceLabel,
+		'beds' => $bedsLabel,
+		'meals' => $mealsLabel,
+		'meals_positive' => strpos($toLower($mealsLabel), 'без питан') === false,
+		'cancellation' => $cancellationLabel,
+		'payment' => $paymentLabel,
+	];
+};
+$addRoomTag = static function(array &$tags, string $label) use ($mapAmenityItemToCode, $amenityMap, $resolveAmenityIconUrl, $toLower, $normalizeLine): void {
+	$title = $normalizeLine($label);
+	if ($title === '') return;
+	$key = $toLower($title);
+	foreach ($tags as $existingTag) {
+		if ($toLower((string) ($existingTag['title'] ?? '')) === $key) return;
+	}
+	$icon = '';
+	$amenityCode = $mapAmenityItemToCode($title);
+	if ($amenityCode !== '' && isset($amenityMap[$amenityCode])) {
+		$amenityConfig = (array) $amenityMap[$amenityCode];
+		$icon = $resolveAmenityIconUrl((string) ($amenityConfig['icon'] ?? ''));
+	}
+	$tags[] = [
+		'title' => $title,
+		'icon' => $icon,
+	];
+};
+
+$hotelRoomOptions = [];
+$roomPages = $page->hasField('rooms') ? $page->getUnformatted('rooms') : null;
+$roomInfoDbById = [];
+if ($roomPages instanceof PageArray && $roomPages->count() && isset($database) && $database instanceof WireDatabasePDO) {
+	$roomIds = [];
+	foreach ($roomPages as $roomPageRef) {
+		if (!$roomPageRef instanceof Page || !$roomPageRef->id) continue;
+		$roomIds[] = (int) $roomPageRef->id;
+	}
+	$roomIds = array_values(array_unique($roomIds));
+	if (count($roomIds)) {
+		try {
+			$roomIdsSql = implode(',', array_map('intval', $roomIds));
+			$stmtRoomInfo = $database->query("SELECT pages_id, i1, i2, i3, i4, i5, i7, i8, i9, i10 FROM field_room_info WHERE pages_id IN (" . $roomIdsSql . ")");
+			if ($stmtRoomInfo) {
+				$rows = $stmtRoomInfo->fetchAll(\PDO::FETCH_ASSOC);
+				foreach ((array) $rows as $row) {
+					if (!is_array($row)) continue;
+					$rowId = (int) ($row['pages_id'] ?? 0);
+					if ($rowId <= 0) continue;
+					$roomInfoDbById[$rowId] = $row;
+				}
+			}
+		} catch (\Throwable $e) {
+			// Ignore room_info DB fallback errors and rely on standard field values.
+		}
+	}
+}
+$isEmptyRoomInfoValue = static function($value): bool {
+	if ($value === null) return true;
+	if (is_string($value)) return trim($value) === '';
+	if (is_array($value)) {
+		foreach ($value as $item) {
+			if (!is_scalar($item)) continue;
+			if (trim((string) $item) !== '') return false;
+		}
+		return true;
+	}
+	if (is_numeric($value)) return ((float) $value) === 0.0;
+	return false;
+};
+$getRoomInfoValue = static function($roomInfoRaw, array $roomInfoDbRow, string $key) use ($getComboItem, $isEmptyRoomInfoValue) {
+	$value = $getComboItem($roomInfoRaw, $key);
+	if (!$isEmptyRoomInfoValue($value)) return $value;
+	return $roomInfoDbRow[$key] ?? $value;
+};
+if ($roomPages instanceof PageArray && $roomPages->count()) {
+	foreach ($roomPages as $roomPage) {
+		if (!$roomPage instanceof Page || !$roomPage->id) continue;
+		if (method_exists($roomPage, 'isUnpublished') && $roomPage->isUnpublished()) continue;
+
+		$roomTitle = $sanitizeHeadingText((string) $roomPage->title);
+		if ($roomTitle === '') $roomTitle = trim((string) $roomPage->title);
+		if ($roomTitle === '') $roomTitle = 'Номер';
+
+		$roomInfoRaw = $roomPage->hasField('room_info') ? $roomPage->getUnformatted('room_info') : null;
+		$roomInfoDbRow = (array) ($roomInfoDbById[(int) $roomPage->id] ?? []);
+		$roomAreaRaw = $normalizeLine((string) $getRoomInfoValue($roomInfoRaw, $roomInfoDbRow, 'i1'));
+		$roomArea = (int) preg_replace('/[^\d]+/u', '', $roomAreaRaw);
+		$roomGuests = (int) $getRoomInfoValue($roomInfoRaw, $roomInfoDbRow, 'i8');
+		if ($roomGuests <= 0) $roomGuests = 2;
+
+		$roomDescription = $normalizeLine((string) $getRoomInfoValue($roomInfoRaw, $roomInfoDbRow, 'i2'));
+		if ($roomDescription === '' && $roomPage->hasField('summary')) {
+			$roomDescription = $normalizeLine((string) $roomPage->summary);
+		}
+
+		$roomViewTags = $extractAmenityItems($getRoomInfoValue($roomInfoRaw, $roomInfoDbRow, 'i3'));
+		$roomAmenityTags = $extractAmenityItems($getRoomInfoValue($roomInfoRaw, $roomInfoDbRow, 'i4'));
+		$roomMealTags = $extractAmenityItems($getRoomInfoValue($roomInfoRaw, $roomInfoDbRow, 'i5'));
+		$roomBedTags = $extractAmenityItems($getRoomInfoValue($roomInfoRaw, $roomInfoDbRow, 'i10'));
+
+		$roomTagItems = [];
+		foreach ($roomAmenityTags as $roomAmenityTag) {
+			$addRoomTag($roomTagItems, (string) $roomAmenityTag);
+			if (count($roomTagItems) >= 8) break;
+		}
+		if (count($roomTagItems) < 8) {
+			foreach ($roomViewTags as $roomViewTag) {
+				$addRoomTag($roomTagItems, (string) $roomViewTag);
+				if (count($roomTagItems) >= 8) break;
+			}
+		}
+		if (count($roomTagItems) < 8) {
+			foreach ($roomBedTags as $roomBedTag) {
+				$addRoomTag($roomTagItems, (string) $roomBedTag);
+				if (count($roomTagItems) >= 8) break;
+			}
+		}
+		if (!count($roomTagItems)) {
+			$roomTagItems = array_slice($hotelRoomAmenityPool, 0, 4);
+		}
+
+		$roomImages = [];
+		if ($roomPage->hasField('images')) {
+			$roomImagesValue = $roomPage->getUnformatted('images');
+			if ($roomImagesValue instanceof Pageimage) {
+				$roomImages[] = $roomImagesValue->url;
+			} elseif ($roomImagesValue instanceof Pageimages && $roomImagesValue->count()) {
+				foreach ($roomImagesValue as $roomImageItem) {
+					if (!$roomImageItem instanceof Pageimage) continue;
+					$roomImages[] = $roomImageItem->url;
+				}
+			}
+		}
+		$roomImage = $roomImages[0] ?? ($hotelMedia[0] ?? $hotelImageUrl);
+		$roomPhotoCount = count($roomImages);
+		if ($roomPhotoCount <= 0) $roomPhotoCount = max(1, count($hotelMedia));
+
+		$roomBedsLabel = count($roomBedTags)
+			? implode(', ', array_slice($roomBedTags, 0, 3))
+			: ($roomDescription !== '' ? $roomDescription : 'Разные варианты кроватей');
+		if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+			if (mb_strlen($roomBedsLabel, 'UTF-8') > 120) $roomBedsLabel = mb_substr($roomBedsLabel, 0, 117, 'UTF-8') . '…';
+		} elseif (strlen($roomBedsLabel) > 120) {
+			$roomBedsLabel = substr($roomBedsLabel, 0, 117) . '...';
+		}
+		$roomMealsLabel = count($roomMealTags)
+			? implode(', ', array_slice($roomMealTags, 0, 2))
+			: 'Без питания';
+
+		$roomTariffRows = (array) ($hotelRoomTariffsByRoomId[(int) $roomPage->id] ?? []);
+		if (!count($roomTariffRows)) $roomTariffRows = $hotelRoomCommonTariffs;
+		if (!count($roomTariffRows)) {
+			$roomTariffRows = [
+				[
+					'period' => '',
+					'price' => (string) $hotelBasePriceValue,
+				],
+			];
+		}
+
+		$roomOffers = [];
+		foreach ($roomTariffRows as $roomTariffRow) {
+			if (!is_array($roomTariffRow)) continue;
+			$roomOffers[] = $roomTariffToOffer($roomTariffRow, $hotelBasePriceValue, $roomBedsLabel, $roomMealsLabel);
+		}
+		if (!count($roomOffers)) {
+			$roomOffers[] = $roomTariffToOffer(['period' => '', 'price' => (string) $hotelBasePriceValue], $hotelBasePriceValue, $roomBedsLabel, $roomMealsLabel);
+		}
+
+		$hotelRoomOptions[] = [
+			'title' => $roomTitle,
+			'area' => max(0, $roomArea),
+			'guests' => max(1, $roomGuests),
+			'image' => $roomImage,
+			'photo_count' => $roomPhotoCount,
+			'amenities' => $roomTagItems,
+			'offers' => $roomOffers,
+		];
+	}
+}
+
+if (!count($hotelRoomOptions)) {
+	$fallbackTags = array_slice($hotelRoomAmenityPool, 0, 4);
+	if (!count($fallbackTags)) {
+		$fallbackTags = [
+			['title' => 'Бесплатный Wi-Fi', 'icon' => ''],
+			['title' => 'Кондиционер', 'icon' => ''],
+			['title' => 'Собственная ванная', 'icon' => ''],
+		];
+	}
+	$hotelRoomOptions[] = [
+		'title' => 'Номер',
+		'area' => 0,
+		'guests' => 2,
+		'image' => $hotelMedia[0] ?? $hotelImageUrl,
+		'photo_count' => max(1, count($hotelMedia)),
+		'amenities' => $fallbackTags,
+		'offers' => [
+			$roomTariffToOffer(['period' => '', 'price' => (string) $hotelBasePriceValue], $hotelBasePriceValue, 'Разные варианты кроватей', 'Без питания'),
+		],
+	];
+}
+
 ?>
 
 <div id="content" class="tour-page hotel-page">
@@ -816,7 +1337,7 @@ $hotelHeroHiddenMedia = $hotelHeroHiddenCount > 0 ? array_slice($hotelMedia, $ho
 	</section>
 
 	<section class="tour-overview hotel-overview">
-		<div class="container tour-overview-layout">
+		<div class="container tour-overview-layout tour-overview-layout--single">
 			<div class="tour-included-card hotel-amenities-card">
 				<h2 class="tour-section-title">Сервис и удобства</h2>
 				<div class="hotel-amenity-groups">
@@ -830,66 +1351,230 @@ $hotelHeroHiddenMedia = $hotelHeroHiddenCount > 0 ? array_slice($hotelMedia, $ho
 									<li><?php echo $sanitizer->entities((string) $sectionItem); ?></li>
 								<?php endforeach; ?>
 							</ul>
-						</section>
+					</section>
+				<?php endforeach; ?>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="hotel-rooms-section" id="hotel-rooms">
+			<div class="container">
+				<div class="hotel-rooms-card">
+					<header class="hotel-rooms-head">
+						<h2 class="tour-section-title">Бронирование номера</h2>
+						<div class="hotel-booking-fields hotel-booking-fields--rooms">
+							<div class="hotel-booking-row hotel-booking-row--rooms">
+								<label class="hotel-booking-input hotel-booking-input--date">
+									<span>Заезд</span>
+									<span class="hotel-booking-date-field">
+										<input
+											type="text"
+											name="check_in"
+											data-hotel-date
+											data-hotel-booking-check-in
+											data-hotel-date-role="start"
+											data-hotel-date-pair="check_out"
+											placeholder="дд.мм.гггг"
+											readonly
+										/>
+										<img src="<?php echo $config->urls->templates; ?>assets/icons/when.svg" alt="" aria-hidden="true" />
+									</span>
+								</label>
+								<label class="hotel-booking-input hotel-booking-input--date">
+									<span>Выезд</span>
+									<span class="hotel-booking-date-field">
+										<input
+											type="text"
+											name="check_out"
+											data-hotel-date
+											data-hotel-booking-check-out
+											data-hotel-date-role="end"
+											data-hotel-date-pair="check_in"
+											placeholder="дд.мм.гггг"
+											readonly
+										/>
+										<img src="<?php echo $config->urls->templates; ?>assets/icons/when.svg" alt="" aria-hidden="true" />
+									</span>
+								</label>
+								<div class="hotel-booking-input hotel-booking-input--guests">
+									<span>Гости</span>
+									<label
+										class="hero-field hero-field-people hotel-guests-picker"
+										data-people-min="1"
+										data-people-max="<?php echo (int) $hotelMaxGuests; ?>"
+										data-people-unit-singular="гость"
+										data-people-unit-few="гостя"
+										data-people-unit-many="гостей"
+									>
+										<input type="text" value="<?php echo $sanitizer->entities($hotelGuestsBreakdownLabel); ?>" readonly />
+										<input type="hidden" name="guests_total" value="<?php echo (int) $hotelGuestsDefault; ?>" data-people-hidden-total />
+										<input type="hidden" name="guests_adults" value="<?php echo (int) $hotelAdultsDefault; ?>" data-people-hidden="adults" />
+										<input type="hidden" name="guests_children" value="<?php echo (int) $hotelChildrenDefault; ?>" data-people-hidden="children" />
+										<img src="<?php echo $config->urls->templates; ?>assets/icons/human.svg" alt="" aria-hidden="true" />
+										<div class="people-popover" aria-hidden="true">
+											<div
+												class="people-category-row"
+												data-people-category="adults"
+												data-min="1"
+												data-max="<?php echo (int) $hotelMaxGuests; ?>"
+												data-unit-singular="взрослый"
+												data-unit-few="взрослых"
+												data-unit-many="взрослых"
+											>
+												<div class="people-category-label">
+													<span>Взрослые</span>
+													<small>от 14 лет</small>
+												</div>
+												<div class="people-row">
+													<button class="people-btn" type="button" data-action="minus" data-people-target="adults" aria-label="Уменьшить количество взрослых">−</button>
+													<span class="people-count" data-people-count="adults" aria-live="polite"><?php echo (int) $hotelAdultsDefault; ?></span>
+													<button class="people-btn" type="button" data-action="plus" data-people-target="adults" aria-label="Увеличить количество взрослых">+</button>
+												</div>
+											</div>
+											<div
+												class="people-category-row"
+												data-people-category="children"
+												data-min="0"
+												data-max="<?php echo (int) $hotelMaxGuests; ?>"
+												data-unit-singular="ребенок"
+												data-unit-few="ребенка"
+												data-unit-many="детей"
+											>
+												<div class="people-category-label">
+													<span>Дети</span>
+													<small>0-13 лет</small>
+												</div>
+												<div class="people-row">
+													<button class="people-btn" type="button" data-action="minus" data-people-target="children" aria-label="Уменьшить количество детей">−</button>
+													<span class="people-count" data-people-count="children" aria-live="polite"><?php echo (int) $hotelChildrenDefault; ?></span>
+													<button class="people-btn" type="button" data-action="plus" data-people-target="children" aria-label="Увеличить количество детей">+</button>
+												</div>
+											</div>
+										</div>
+									</label>
+								</div>
+								<div class="hotel-booking-action">
+									<button class="hotel-booking-action-btn" type="button" data-hotel-booking-action>Найти</button>
+								</div>
+							</div>
+						</div>
+						<p class="hotel-rooms-subtitle" data-hotel-booking-summary hidden>На 1 ночь, 2 гостя</p>
+				</header>
+				<div class="hotel-room-list">
+					<?php foreach ($hotelRoomOptions as $roomOption): ?>
+						<article class="hotel-room-row">
+							<div class="hotel-room-summary">
+								<div class="hotel-room-photo-wrap">
+									<img
+										class="hotel-room-photo"
+										src="<?php echo htmlspecialchars((string) ($roomOption['image'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+										alt="<?php echo $sanitizer->entities((string) ($roomOption['title'] ?? 'Номер отеля')); ?>"
+										loading="lazy"
+									/>
+									<span class="hotel-room-photo-count"><?php echo (int) ($roomOption['photo_count'] ?? 0); ?> фото</span>
+								</div>
+									<h3 class="hotel-room-title"><?php echo $sanitizer->entities((string) ($roomOption['title'] ?? 'Номер')); ?></h3>
+									<div class="hotel-room-meta">
+										<?php if ((int) ($roomOption['area'] ?? 0) > 0): ?>
+											<span><?php echo (int) ($roomOption['area'] ?? 0); ?> м²</span>
+										<?php endif; ?>
+									</div>
+									<div class="hotel-room-tags">
+										<?php foreach ((array) ($roomOption['amenities'] ?? []) as $roomAmenity): ?>
+											<?php
+											$roomAmenityTitle = is_array($roomAmenity) ? trim((string) ($roomAmenity['title'] ?? '')) : trim((string) $roomAmenity);
+											if ($roomAmenityTitle === '') continue;
+											$roomAmenityIcon = is_array($roomAmenity) ? trim((string) ($roomAmenity['icon'] ?? '')) : '';
+											?>
+											<span class="hotel-room-tag">
+												<?php if ($roomAmenityIcon !== ''): ?>
+													<img class="hotel-room-tag-icon" src="<?php echo htmlspecialchars($roomAmenityIcon, ENT_QUOTES, 'UTF-8'); ?>" alt="" aria-hidden="true" />
+												<?php endif; ?>
+												<span class="hotel-room-tag-text"><?php echo $sanitizer->entities($roomAmenityTitle); ?></span>
+											</span>
+										<?php endforeach; ?>
+								</div>
+							</div>
+							<div class="hotel-room-offers" data-room-offers>
+								<button
+									class="hotel-room-offers-nav hotel-room-offers-nav--prev"
+									type="button"
+									data-room-offers-nav="prev"
+									aria-label="Предыдущие тарифы"
+								>‹</button>
+								<div class="hotel-room-offers-track" data-room-offers-track>
+									<?php foreach ((array) ($roomOption['offers'] ?? []) as $roomOffer): ?>
+											<article class="hotel-offer-card">
+												<ul class="hotel-offer-points">
+													<li class="hotel-offer-point">
+														<?php $bedsIcon = $getHotelOfferPointIcon('beds'); ?>
+														<?php if ($bedsIcon !== ''): ?>
+															<img class="hotel-offer-point-icon" src="<?php echo htmlspecialchars($bedsIcon, ENT_QUOTES, 'UTF-8'); ?>" alt="" aria-hidden="true" />
+														<?php endif; ?>
+														<span class="hotel-offer-point-text"><?php echo $sanitizer->entities((string) ($roomOffer['beds'] ?? '')); ?></span>
+													</li>
+													<li class="hotel-offer-point<?php echo !empty($roomOffer['meals_positive']) ? ' is-positive' : ''; ?>">
+														<?php $mealsIcon = $getHotelOfferPointIcon('meals'); ?>
+														<?php if ($mealsIcon !== ''): ?>
+															<img class="hotel-offer-point-icon" src="<?php echo htmlspecialchars($mealsIcon, ENT_QUOTES, 'UTF-8'); ?>" alt="" aria-hidden="true" />
+														<?php endif; ?>
+														<span class="hotel-offer-point-text"><?php echo $sanitizer->entities((string) ($roomOffer['meals'] ?? '')); ?></span>
+													</li>
+													<li class="hotel-offer-point is-positive">
+														<?php $cancellationIcon = $getHotelOfferPointIcon('cancellation'); ?>
+														<?php if ($cancellationIcon !== ''): ?>
+															<img class="hotel-offer-point-icon" src="<?php echo htmlspecialchars($cancellationIcon, ENT_QUOTES, 'UTF-8'); ?>" alt="" aria-hidden="true" />
+														<?php endif; ?>
+														<span class="hotel-offer-point-text"><?php echo $sanitizer->entities((string) ($roomOffer['cancellation'] ?? '')); ?></span>
+													</li>
+													<li class="hotel-offer-point">
+														<?php $paymentIcon = $getHotelOfferPointIcon('payment'); ?>
+														<?php if ($paymentIcon !== ''): ?>
+															<img class="hotel-offer-point-icon" src="<?php echo htmlspecialchars($paymentIcon, ENT_QUOTES, 'UTF-8'); ?>" alt="" aria-hidden="true" />
+														<?php endif; ?>
+														<span class="hotel-offer-point-text"><?php echo $sanitizer->entities((string) ($roomOffer['payment'] ?? '')); ?></span>
+													</li>
+												</ul>
+												<div class="hotel-offer-footer">
+													<?php if (trim((string) ($roomOffer['label'] ?? '')) !== ''): ?>
+														<div class="hotel-offer-badge"><?php echo $sanitizer->entities((string) $roomOffer['label']); ?></div>
+													<?php endif; ?>
+													<div class="hotel-offer-price"><?php echo $sanitizer->entities((string) ($roomOffer['price_label'] ?? $formatHotelRoomPrice((int) ($roomOffer['price'] ?? 0)))); ?></div>
+													<div class="hotel-offer-caption">за 1 ночь, для <?php echo (int) ($roomOption['guests'] ?? 2); ?> гостей</div>
+													<button class="hotel-offer-book-btn" type="button">Забронировать</button>
+												</div>
+										</article>
+									<?php endforeach; ?>
+								</div>
+								<button
+									class="hotel-room-offers-nav hotel-room-offers-nav--next"
+									type="button"
+									data-room-offers-nav="next"
+									aria-label="Следующие тарифы"
+								>›</button>
+							</div>
+						</article>
 					<?php endforeach; ?>
 				</div>
 			</div>
-			<div class="tour-details-card hotel-details-card">
-				<h2 class="tour-section-title">Детали Отеля</h2>
-				<dl class="tour-meta hotel-meta">
-					<div>
-						<dt>Рейтинг</dt>
-						<dd><?php echo $sanitizer->entities($formatRating($hotelRating)); ?></dd>
-					</div>
-					<div>
-						<dt>Кол-во гостей</dt>
-						<dd>
-							<label
-								class="hero-field hero-field-people hotel-guests-picker"
-								data-people-min="1"
-								data-people-max="<?php echo (int) $hotelMaxGuests; ?>"
-								data-people-unit-singular="гость"
-								data-people-unit-few="гостя"
-								data-people-unit-many="гостей"
-							>
-								<input type="text" value="<?php echo $sanitizer->entities($hotelGuestsLabel); ?>" readonly />
-								<input type="hidden" value="<?php echo (int) $hotelGuestsDefault; ?>" />
-								<img src="<?php echo $config->urls->templates; ?>assets/icons/human.svg" alt="" aria-hidden="true" />
-								<div class="people-popover" aria-hidden="true">
-									<div class="people-row">
-										<button class="people-btn" type="button" data-action="minus" aria-label="Уменьшить количество">−</button>
-										<span class="people-count" aria-live="polite"><?php echo (int) $hotelGuestsDefault; ?></span>
-										<button class="people-btn" type="button" data-action="plus" aria-label="Увеличить количество">+</button>
-									</div>
-								</div>
-							</label>
-						</dd>
-					</div>
-					<div>
-						<dt>Регион</dt>
-						<dd><?php echo $sanitizer->entities($hotelLocation); ?></dd>
-					</div>
-					<div class="hotel-meta-row hotel-meta-row--address">
-						<dt>Адрес</dt>
-						<dd><?php echo $sanitizer->entities($hotelAddressLabel); ?></dd>
-					</div>
-					<div class="hotel-meta-row hotel-meta-row--rules">
-						<dt>Правила отеля</dt>
-						<dd>
-							<ul class="hotel-meta-list">
-								<?php foreach ($hotelRules as $hotelRule): ?>
-									<li><?php echo $sanitizer->entities((string) $hotelRule); ?></li>
-								<?php endforeach; ?>
-							</ul>
-						</dd>
-					</div>
-				</dl>
-				<div class="tour-details-footer">
-					<div class="tour-price-wrap">
-						<div class="tour-price"><?php echo $sanitizer->entities($hotelPriceLabel); ?></div>
-						<div class="tour-price-caption">за номер</div>
-					</div>
-					<button class="tour-book-btn" type="button">Забронировать</button>
+		</div>
+	</section>
+
+	<section class="hotel-location-section" id="hotel-location">
+		<div class="container">
+			<div class="hotel-location-card">
+				<h2 class="tour-section-title">Расположение</h2>
+				<p class="hotel-location-address"><?php echo $sanitizer->entities($hotelAddressLabel); ?></p>
+				<div class="hotel-location-map-wrap">
+					<iframe
+						class="hotel-location-map"
+						src="<?php echo htmlspecialchars($hotelMapWidgetUrl, ENT_QUOTES, 'UTF-8'); ?>"
+						title="<?php echo $sanitizer->entities('Расположение: ' . $hotelTitle); ?>"
+						loading="lazy"
+						referrerpolicy="no-referrer-when-downgrade"
+						allowfullscreen
+					></iframe>
 				</div>
 			</div>
 		</div>
