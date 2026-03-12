@@ -20,6 +20,7 @@ if(!function_exists(__NAMESPACE__ . '\\skfoReviewsEnsureTable')) {
 				`review_text` TEXT NOT NULL,
 				`rating` TINYINT UNSIGNED NOT NULL,
 				`avatar_color` VARCHAR(16) NOT NULL DEFAULT 'blue',
+				`photos_json` TEXT NULL,
 				`content_hash` CHAR(64) NOT NULL DEFAULT '',
 				`moderation_status` VARCHAR(16) NOT NULL DEFAULT 'approved',
 				`moderation_flags` VARCHAR(255) NOT NULL DEFAULT '',
@@ -34,6 +35,7 @@ if(!function_exists(__NAMESPACE__ . '\\skfoReviewsEnsureTable')) {
 
 		$alters = [
 			"ALTER TABLE `$table` ADD COLUMN `avatar_color` VARCHAR(16) NOT NULL DEFAULT 'blue'",
+			"ALTER TABLE `$table` ADD COLUMN `photos_json` TEXT NULL",
 			"ALTER TABLE `$table` ADD COLUMN `content_hash` CHAR(64) NOT NULL DEFAULT ''",
 			"ALTER TABLE `$table` ADD COLUMN `moderation_status` VARCHAR(16) NOT NULL DEFAULT 'approved'",
 			"ALTER TABLE `$table` ADD COLUMN `moderation_flags` VARCHAR(255) NOT NULL DEFAULT ''",
@@ -240,5 +242,36 @@ if(!function_exists(__NAMESPACE__ . '\\skfoReviewsEnsureTable')) {
 			$update->bindValue(':id', $id, \PDO::PARAM_INT);
 			$update->execute();
 		}
+	}
+
+	function skfoReviewsDecodePhotos(string $photosRaw): array {
+		$photosRaw = trim($photosRaw);
+		if($photosRaw === '') return [];
+
+		$decoded = json_decode($photosRaw, true);
+		if(!is_array($decoded)) return [];
+
+		$photos = [];
+		foreach($decoded as $photo) {
+			$photo = trim((string) $photo);
+			if($photo === '') continue;
+			$photos[] = $photo;
+		}
+
+		return array_values(array_unique($photos));
+	}
+
+	function skfoReviewsEncodePhotos(array $photos): string {
+		$clean = [];
+		foreach($photos as $photo) {
+			$photo = trim((string) $photo);
+			if($photo === '') continue;
+			$clean[] = $photo;
+		}
+		$clean = array_values(array_unique($clean));
+		if(!count($clean)) return '';
+
+		$encoded = json_encode($clean, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+		return is_string($encoded) ? $encoded : '';
 	}
 }
