@@ -915,6 +915,31 @@ $resolveAmenityIconUrl = static function(string $iconPath) use ($config): string
 	if (is_file($config->paths->templates . 'assets/icons/' . $iconPath)) return $config->urls->templates . 'assets/icons/' . $iconPath;
 	return '';
 };
+$amenityGroupIconPaths = [
+	'i2' => 'site/assets/star.0c35dc2a.svg',
+	'i3' => 'site/assets/common-info.5208dc13.svg',
+	'i4' => 'site/assets/extraBed.24fe62c6.svg',
+	'i5' => 'site/assets/disabled-support.cc65e41d.svg',
+	'i6' => 'site/assets/meal.27c89335.svg',
+	'i7' => 'site/assets/internet.b8e3abca.svg',
+	'i8' => 'site/assets/train.e58c579c.svg',
+	'i9' => 'site/assets/languages.14395ccf.svg',
+	'i10' => 'site/assets/entertainment.9f88df47.svg',
+	'i11' => 'hotel-amenity-parking.svg',
+	'i12' => 'site/assets/extra-services.7bf34de9.svg',
+	'i13' => 'site/assets/busyness.96294349.svg',
+	'i14' => 'site/assets/fitness.cd535f93.svg',
+	'i15' => 'site/assets/barber-shop.ed6a092e.svg',
+	'i16' => 'site/assets/kids.d5d85382.svg',
+	'i17' => 'site/assets/safe.9639935f.svg',
+	'other' => 'site/assets/extra-service.1faf2bfd.svg',
+];
+$amenityGroupIconUrls = [];
+foreach ($amenityGroupIconPaths as $groupKey => $iconPath) {
+	$iconUrl = $resolveAmenityIconUrl((string) $iconPath);
+	if ($iconUrl === '') continue;
+	$amenityGroupIconUrls[(string) $groupKey] = $iconUrl;
+}
 
 $hotelRoomAmenityPool = [];
 $hotelRoomAmenityPoolKeys = [];
@@ -981,6 +1006,135 @@ $getHotelOfferPointIcon = static function(string $pointKey) use ($hotelOfferPoin
 	if ($iconPath === '') return '';
 	return $resolveAmenityIconUrl($iconPath);
 };
+$normalizeIsoDateValue = static function($value) use ($normalizeLine): string {
+	$value = $normalizeLine((string) $value);
+	if ($value === '') return '';
+
+	if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $matches)) {
+		$year = (int) ($matches[1] ?? 0);
+		$month = (int) ($matches[2] ?? 0);
+		$day = (int) ($matches[3] ?? 0);
+		if (checkdate($month, $day, $year)) {
+			return sprintf('%04d-%02d-%02d', $year, $month, $day);
+		}
+	}
+
+	if (preg_match('/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/', $value, $matches)) {
+		$day = (int) ($matches[1] ?? 0);
+		$month = (int) ($matches[2] ?? 0);
+		$year = (int) ($matches[3] ?? 0);
+		if (checkdate($month, $day, $year)) {
+			return sprintf('%04d-%02d-%02d', $year, $month, $day);
+		}
+	}
+
+	return '';
+};
+$toPositiveInt = static function($value): int {
+	$number = (int) preg_replace('/[^\d]+/', '', (string) $value);
+	return max(0, $number);
+};
+$toBool = static function($value): bool {
+	$text = trim((string) $value);
+	if ($text === '') return false;
+	$lower = function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
+	return in_array($lower, ['1', 'true', 'yes', 'y', 'on', 'да', 'закрыто', 'closed'], true);
+};
+$tariffMetaDefaults = [
+	'label' => '',
+	'date_from' => '',
+	'date_to' => '',
+	'min_nights' => 0,
+	'max_nights' => 0,
+	'min_guests' => 0,
+	'max_guests' => 0,
+	'is_closed' => false,
+];
+$applyTariffMetaPair = static function(array &$meta, string $rawKey, $rawValue) use ($toLower, $normalizeIsoDateValue, $toPositiveInt, $toBool): void {
+	$key = $toLower($rawKey);
+	$value = trim((string) $rawValue);
+	if ($value === '' && $key !== 'closed') return;
+
+	if (in_array($key, ['label', 'name', 'title', 'period'], true)) {
+		$meta['label'] = $value;
+		return;
+	}
+	if (in_array($key, ['from', 'date_from', 'start', 'available_from', 'checkin_from'], true)) {
+		$iso = $normalizeIsoDateValue($value);
+		if ($iso !== '') $meta['date_from'] = $iso;
+		return;
+	}
+	if (in_array($key, ['to', 'date_to', 'end', 'available_to', 'checkout_to'], true)) {
+		$iso = $normalizeIsoDateValue($value);
+		if ($iso !== '') $meta['date_to'] = $iso;
+		return;
+	}
+	if (in_array($key, ['min_nights', 'min_night', 'minstay', 'min_stay', 'min_days', 'min_day'], true)) {
+		$meta['min_nights'] = $toPositiveInt($value);
+		return;
+	}
+	if (in_array($key, ['max_nights', 'max_night', 'maxstay', 'max_stay', 'max_days', 'max_day'], true)) {
+		$meta['max_nights'] = $toPositiveInt($value);
+		return;
+	}
+	if (in_array($key, ['min_guests', 'min_guest'], true)) {
+		$meta['min_guests'] = $toPositiveInt($value);
+		return;
+	}
+	if (in_array($key, ['max_guests', 'max_guest'], true)) {
+		$meta['max_guests'] = $toPositiveInt($value);
+		return;
+	}
+	if (in_array($key, ['closed', 'is_closed', 'stop_sale', 'stop'], true)) {
+		$meta['is_closed'] = $toBool($value);
+	}
+};
+$extractTariffMetaFromPeriod = static function(string $periodRaw) use ($tariffMetaDefaults, $normalizeLine, $applyTariffMetaPair, $normalizeIsoDateValue): array {
+	$meta = $tariffMetaDefaults;
+	$periodRaw = trim((string) $periodRaw);
+	if ($periodRaw === '') return $meta;
+
+	$segments = preg_split('/\s*\|\s*/u', $periodRaw) ?: [];
+	$labelSegment = trim((string) ($segments[0] ?? ''));
+	$meta['label'] = $normalizeLine($labelSegment);
+
+	for ($i = 1, $count = count($segments); $i < $count; $i++) {
+		$segment = trim((string) $segments[$i]);
+		if ($segment === '') continue;
+
+		if (preg_match('/^([^=]+)=(.+)$/u', $segment, $matches)) {
+			$applyTariffMetaPair($meta, (string) ($matches[1] ?? ''), (string) ($matches[2] ?? ''));
+			continue;
+		}
+
+		if (preg_match('/(\d{1,2}\.\d{1,2}\.\d{4}|\d{4}-\d{2}-\d{2})\s*(?:\.\.|-|—|–)\s*(\d{1,2}\.\d{1,2}\.\d{4}|\d{4}-\d{2}-\d{2})/u', $segment, $matches)) {
+			$dateFrom = $normalizeIsoDateValue((string) ($matches[1] ?? ''));
+			$dateTo = $normalizeIsoDateValue((string) ($matches[2] ?? ''));
+			if ($dateFrom !== '') $meta['date_from'] = $dateFrom;
+			if ($dateTo !== '') $meta['date_to'] = $dateTo;
+		}
+	}
+
+	return $meta;
+};
+$extractTariffMetaFromData = static function($dataRaw) use ($tariffMetaDefaults, $applyTariffMetaPair): array {
+	$meta = $tariffMetaDefaults;
+	if (!is_array($dataRaw)) return $meta;
+
+	$candidate = $dataRaw;
+	foreach (['meta', 'availability', 'constraints'] as $nestedKey) {
+		if (isset($dataRaw[$nestedKey]) && is_array($dataRaw[$nestedKey])) {
+			$candidate = array_merge($candidate, (array) $dataRaw[$nestedKey]);
+		}
+	}
+
+	foreach ($candidate as $key => $value) {
+		if (is_array($value) || is_object($value)) continue;
+		$applyTariffMetaPair($meta, (string) $key, (string) $value);
+	}
+
+	return $meta;
+};
 
 $hotelRoomTariffsByRoomId = [];
 $hotelRoomCommonTariffs = [];
@@ -993,13 +1147,50 @@ if (isset($database) && $database instanceof WireDatabasePDO) {
 			$tariffRows = $stmtRoomPrice->fetchAll(\PDO::FETCH_ASSOC);
 			foreach ((array) $tariffRows as $tariffRow) {
 				if (!is_array($tariffRow)) continue;
-				$periodLabel = $normalizeLine((string) ($tariffRow['period'] ?? ''));
+				$periodRaw = trim((string) ($tariffRow['period'] ?? ''));
 				$priceLabel = $normalizeLine((string) ($tariffRow['price'] ?? ''));
-				if ($periodLabel === '' && $priceLabel === '') continue;
+				if ($periodRaw === '' && $priceLabel === '') continue;
+
+				$periodMeta = $extractTariffMetaFromPeriod($periodRaw);
+				$dataRaw = trim((string) ($tariffRow['data'] ?? ''));
+				$dataMeta = $tariffMetaDefaults;
+				if ($dataRaw !== '') {
+					$dataDecoded = json_decode($dataRaw, true);
+					if (is_array($dataDecoded)) {
+						$dataMeta = $extractTariffMetaFromData($dataDecoded);
+					}
+				}
+
+				$periodLabel = trim((string) ($periodMeta['label'] ?? ''));
+				if (trim((string) ($dataMeta['label'] ?? '')) !== '') {
+					$periodLabel = trim((string) $dataMeta['label']);
+				}
+				if ($periodLabel === '') $periodLabel = $normalizeLine($periodRaw);
+
+				$dateFrom = trim((string) ($dataMeta['date_from'] ?? ''));
+				if ($dateFrom === '') $dateFrom = trim((string) ($periodMeta['date_from'] ?? ''));
+				$dateTo = trim((string) ($dataMeta['date_to'] ?? ''));
+				if ($dateTo === '') $dateTo = trim((string) ($periodMeta['date_to'] ?? ''));
+				$minNights = (int) ($dataMeta['min_nights'] ?? 0);
+				if ($minNights <= 0) $minNights = (int) ($periodMeta['min_nights'] ?? 0);
+				$maxNights = (int) ($dataMeta['max_nights'] ?? 0);
+				if ($maxNights <= 0) $maxNights = (int) ($periodMeta['max_nights'] ?? 0);
+				$minGuests = (int) ($dataMeta['min_guests'] ?? 0);
+				if ($minGuests <= 0) $minGuests = (int) ($periodMeta['min_guests'] ?? 0);
+				$maxGuests = (int) ($dataMeta['max_guests'] ?? 0);
+				if ($maxGuests <= 0) $maxGuests = (int) ($periodMeta['max_guests'] ?? 0);
+				$isClosed = !empty($dataMeta['is_closed']) || !empty($periodMeta['is_closed']);
 
 				$tariff = [
 					'period' => $periodLabel,
 					'price' => $priceLabel,
+					'date_from' => $dateFrom,
+					'date_to' => $dateTo,
+					'min_nights' => max(0, $minNights),
+					'max_nights' => max(0, $maxNights),
+					'min_guests' => max(0, $minGuests),
+					'max_guests' => max(0, $maxGuests),
+					'is_closed' => $isClosed ? 1 : 0,
 				];
 				$roomRefId = (int) ($tariffRow['room'] ?? 0);
 				if ($roomRefId > 0) {
@@ -1021,9 +1212,8 @@ $roomTariffToOffer = static function(array $tariffRow, int $fallbackPrice, strin
 	$priceValue = (int) preg_replace('/[^\d]+/u', '', $priceRaw);
 	if ($priceValue <= 0) $priceValue = max(1000, $fallbackPrice);
 
-	$priceLabel = $formatHotelRoomPrice($priceValue);
 	$pricePrefix = preg_match('/^\s*от\b/iu', $priceRaw) === 1 ? 'от ' : '';
-	if ($pricePrefix !== '') $priceLabel = $pricePrefix . $priceLabel;
+	$priceLabel = $pricePrefix . $formatHotelRoomPrice($priceValue);
 
 	$periodKey = $toLower($periodLabel);
 	$cancellationLabel = strpos($periodKey, 'невозврат') !== false
@@ -1037,6 +1227,15 @@ $roomTariffToOffer = static function(array $tariffRow, int $fallbackPrice, strin
 		'label' => $periodLabel,
 		'price' => $priceValue,
 		'price_label' => $priceLabel,
+		'price_prefix' => $pricePrefix,
+		'rate_per_guest' => $priceValue,
+		'date_from' => trim((string) ($tariffRow['date_from'] ?? '')),
+		'date_to' => trim((string) ($tariffRow['date_to'] ?? '')),
+		'min_nights' => max(0, (int) ($tariffRow['min_nights'] ?? 0)),
+		'max_nights' => max(0, (int) ($tariffRow['max_nights'] ?? 0)),
+		'min_guests' => max(0, (int) ($tariffRow['min_guests'] ?? 0)),
+		'max_guests' => max(0, (int) ($tariffRow['max_guests'] ?? 0)),
+		'is_closed' => !empty($tariffRow['is_closed']) ? 1 : 0,
 		'beds' => $bedsLabel,
 		'meals' => $mealsLabel,
 		'meals_positive' => strpos($toLower($mealsLabel), 'без питан') === false,
@@ -1064,7 +1263,37 @@ $addRoomTag = static function(array &$tags, string $label) use ($mapAmenityItemT
 };
 
 $hotelRoomOptions = [];
-$roomPages = $page->hasField('rooms') ? $page->getUnformatted('rooms') : null;
+$roomPagesRaw = $page->hasField('rooms') ? $page->getUnformatted('rooms') : null;
+$roomPages = new PageArray();
+$roomPageIds = [];
+$pushRoomPage = static function($candidate) use (&$roomPages, &$roomPageIds): void {
+	if (!$candidate instanceof Page || !$candidate->id) return;
+	$roomId = (int) $candidate->id;
+	if ($roomId <= 0 || isset($roomPageIds[$roomId])) return;
+	$roomPages->add($candidate);
+	$roomPageIds[$roomId] = true;
+};
+if ($roomPagesRaw instanceof PageArray && $roomPagesRaw->count()) {
+	foreach ($roomPagesRaw as $roomPageRef) {
+		$pushRoomPage($roomPageRef);
+	}
+} elseif ($roomPagesRaw instanceof Page) {
+	$pushRoomPage($roomPagesRaw);
+}
+if (!$roomPages->count() && $page instanceof Page) {
+	foreach ($page->children('include=all') as $roomChildPage) {
+		if (!$roomChildPage instanceof Page || !$roomChildPage->id) continue;
+		if (!$roomChildPage->hasField('room_info')) continue;
+		$pushRoomPage($roomChildPage);
+	}
+}
+if (!$roomPages->count() && isset($pages) && $pages instanceof Pages && count($hotelRoomTariffsByRoomId)) {
+	foreach (array_keys($hotelRoomTariffsByRoomId) as $roomRefId) {
+		$roomRefId = (int) $roomRefId;
+		if ($roomRefId <= 0) continue;
+		$pushRoomPage($pages->get($roomRefId));
+	}
+}
 $roomInfoDbById = [];
 if ($roomPages instanceof PageArray && $roomPages->count() && isset($database) && $database instanceof WireDatabasePDO) {
 	$roomIds = [];
@@ -1171,6 +1400,11 @@ if ($roomPages instanceof PageArray && $roomPages->count()) {
 		$roomImage = $roomImages[0] ?? ($hotelMedia[0] ?? $hotelImageUrl);
 		$roomPhotoCount = count($roomImages);
 		if ($roomPhotoCount <= 0) $roomPhotoCount = max(1, count($hotelMedia));
+		$roomGalleryImages = count($roomImages) ? $roomImages : [$roomImage];
+		$roomGalleryImages = array_values(array_unique(array_filter($roomGalleryImages, static function($value): bool {
+			return trim((string) $value) !== '';
+		})));
+		if (!count($roomGalleryImages) && $roomImage !== '') $roomGalleryImages[] = $roomImage;
 
 		$roomBedsLabel = count($roomBedTags)
 			? implode(', ', array_slice($roomBedTags, 0, 3))
@@ -1203,40 +1437,49 @@ if ($roomPages instanceof PageArray && $roomPages->count()) {
 		if (!count($roomOffers)) {
 			$roomOffers[] = $roomTariffToOffer(['period' => '', 'price' => (string) $hotelBasePriceValue], $hotelBasePriceValue, $roomBedsLabel, $roomMealsLabel);
 		}
+		if (count($roomOffers) === 1) {
+			$baseOffer = (array) $roomOffers[0];
+			$basePrice = (int) ($baseOffer['price'] ?? 0);
+			if ($basePrice <= 0) $basePrice = max(1000, $hotelBasePriceValue);
+			$breakfastPrice = (int) max($basePrice + 1200, round($basePrice * 1.15));
+
+			$roomOffers[0]['meals'] = 'Без питания';
+			$roomOffers[0]['meals_positive'] = false;
+			if (trim((string) ($roomOffers[0]['label'] ?? '')) === '') {
+				$roomOffers[0]['label'] = 'Базовый тариф';
+			}
+
+			$breakfastOffer = $baseOffer;
+			$breakfastOffer['label'] = 'Тариф с завтраком';
+			$breakfastOffer['price'] = $breakfastPrice;
+			$breakfastOffer['price_label'] = $formatHotelRoomPrice($breakfastPrice);
+			$breakfastOffer['meals'] = 'Завтрак включён';
+			$breakfastOffer['meals_positive'] = true;
+			$roomOffers[] = $breakfastOffer;
+		}
 
 		$hotelRoomOptions[] = [
 			'title' => $roomTitle,
 			'area' => max(0, $roomArea),
 			'guests' => max(1, $roomGuests),
+			'default_guests' => max(1, $hotelGuestsDefault),
 			'image' => $roomImage,
 			'photo_count' => $roomPhotoCount,
+			'gallery_images' => $roomGalleryImages,
 			'amenities' => $roomTagItems,
 			'offers' => $roomOffers,
 		];
 	}
 }
 
-if (!count($hotelRoomOptions)) {
-	$fallbackTags = array_slice($hotelRoomAmenityPool, 0, 4);
-	if (!count($fallbackTags)) {
-		$fallbackTags = [
-			['title' => 'Бесплатный Wi-Fi', 'icon' => ''],
-			['title' => 'Кондиционер', 'icon' => ''],
-			['title' => 'Собственная ванная', 'icon' => ''],
-		];
-	}
-	$hotelRoomOptions[] = [
-		'title' => 'Номер',
-		'area' => 0,
-		'guests' => 2,
-		'image' => $hotelMedia[0] ?? $hotelImageUrl,
-		'photo_count' => max(1, count($hotelMedia)),
-		'amenities' => $fallbackTags,
-		'offers' => [
-			$roomTariffToOffer(['period' => '', 'price' => (string) $hotelBasePriceValue], $hotelBasePriceValue, 'Разные варианты кроватей', 'Без питания'),
-		],
-	];
+$hotelHasRealRooms = count($hotelRoomOptions) > 0;
+$hotelRoomsEmptyIllustrationUrl = $resolveAmenityIconUrl('site/assets/calendar.bafba94a.svg');
+if ($hotelRoomsEmptyIllustrationUrl === '') {
+	$hotelRoomsEmptyIllustrationUrl = $config->urls->templates . 'assets/icons/when.svg';
 }
+$hotelRoomsEmptyTitleHotel = 'Нет свободных номеров на данный момент, приносим свои извинения';
+$hotelRoomsEmptyTitleSearch = 'Нет свободных номеров на ваши даты';
+$hotelRoomsEmptySubtitleSearch = 'Попробуйте сменить параметры или выбрать другой отель.';
 
 ?>
 
@@ -1344,8 +1587,26 @@ if (!count($hotelRoomOptions)) {
 					<?php foreach ($orderedAmenitySections as $amenitySection): ?>
 						<?php $sectionItems = (array) ($amenitySection['items'] ?? []); ?>
 						<?php if (!count($sectionItems)) continue; ?>
+						<?php
+						$amenitySectionKey = (string) ($amenitySection['key'] ?? 'other');
+						$amenitySectionTitle = (string) ($amenitySection['title'] ?? '');
+						$amenitySectionIconUrl = (string) ($amenityGroupIconUrls[$amenitySectionKey] ?? '');
+						$amenitySectionIconClass = $amenitySectionKey === 'i2'
+							? 'hotel-amenity-group-title-icon is-highlight'
+							: 'hotel-amenity-group-title-icon';
+						?>
 						<section class="hotel-amenity-group">
-							<h3 class="hotel-amenity-group-title"><?php echo $sanitizer->entities((string) ($amenitySection['title'] ?? '')); ?></h3>
+							<h3 class="hotel-amenity-group-title">
+								<?php if ($amenitySectionIconUrl !== ''): ?>
+									<img
+										class="<?php echo $amenitySectionIconClass; ?>"
+										src="<?php echo htmlspecialchars($amenitySectionIconUrl, ENT_QUOTES, 'UTF-8'); ?>"
+										alt=""
+										aria-hidden="true"
+									/>
+								<?php endif; ?>
+								<span><?php echo $sanitizer->entities($amenitySectionTitle); ?></span>
+							</h3>
 							<ul class="tour-included-list hotel-amenity-group-list">
 								<?php foreach ($sectionItems as $sectionItem): ?>
 									<li><?php echo $sanitizer->entities((string) $sectionItem); ?></li>
@@ -1461,20 +1722,59 @@ if (!count($hotelRoomOptions)) {
 						</div>
 						<p class="hotel-rooms-subtitle" data-hotel-booking-summary hidden>На 1 ночь, 2 гостя</p>
 				</header>
-				<div class="hotel-room-list">
-					<?php foreach ($hotelRoomOptions as $roomOption): ?>
-						<article class="hotel-room-row">
+				<div class="hotel-room-list" data-hotel-room-list<?php echo !$hotelHasRealRooms ? ' hidden' : ''; ?>>
+					<?php foreach ($hotelRoomOptions as $roomIndex => $roomOption): ?>
+						<?php
+						$roomGalleryGroup = 'room-' . ((int) $roomIndex + 1);
+						$roomGalleryImages = array_values(array_filter((array) ($roomOption['gallery_images'] ?? []), static function($value): bool {
+							return trim((string) $value) !== '';
+						}));
+						$roomPrimaryImage = trim((string) ($roomOption['image'] ?? ''));
+						if (!count($roomGalleryImages) && $roomPrimaryImage !== '') $roomGalleryImages[] = $roomPrimaryImage;
+						$roomDisplayImage = $roomGalleryImages[0] ?? $roomPrimaryImage;
+						$roomDisplayPhotoCount = max((int) ($roomOption['photo_count'] ?? 0), count($roomGalleryImages));
+						if ($roomDisplayPhotoCount <= 0) $roomDisplayPhotoCount = 1;
+						$roomTitleText = (string) ($roomOption['title'] ?? 'Номер');
+						?>
+						<article
+							class="hotel-room-row"
+							data-hotel-room-row
+							data-room-max-guests="<?php echo (int) ($roomOption['guests'] ?? 2); ?>"
+						>
 							<div class="hotel-room-summary">
 								<div class="hotel-room-photo-wrap">
-									<img
-										class="hotel-room-photo"
-										src="<?php echo htmlspecialchars((string) ($roomOption['image'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
-										alt="<?php echo $sanitizer->entities((string) ($roomOption['title'] ?? 'Номер отеля')); ?>"
-										loading="lazy"
-									/>
-									<span class="hotel-room-photo-count"><?php echo (int) ($roomOption['photo_count'] ?? 0); ?> фото</span>
+									<button
+										class="hotel-room-photo-trigger"
+										type="button"
+										data-room-gallery-open
+										data-room-gallery-group="<?php echo $sanitizer->entities($roomGalleryGroup); ?>"
+										aria-label="<?php echo $sanitizer->entities('Открыть фотографии номера: ' . $roomTitleText); ?>"
+									>
+										<img
+											class="hotel-room-photo"
+											src="<?php echo htmlspecialchars($roomDisplayImage, ENT_QUOTES, 'UTF-8'); ?>"
+											alt="<?php echo $sanitizer->entities($roomTitleText); ?>"
+											loading="lazy"
+										/>
+										<span class="hotel-room-photo-count"><?php echo (int) $roomDisplayPhotoCount; ?> фото</span>
+									</button>
 								</div>
-									<h3 class="hotel-room-title"><?php echo $sanitizer->entities((string) ($roomOption['title'] ?? 'Номер')); ?></h3>
+								<?php if (count($roomGalleryImages)): ?>
+									<div class="hotel-room-gallery-items" hidden aria-hidden="true">
+										<?php foreach ($roomGalleryImages as $roomGalleryImageIndex => $roomGalleryImage): ?>
+											<button
+												type="button"
+												data-room-gallery-item
+												data-room-gallery-group="<?php echo $sanitizer->entities($roomGalleryGroup); ?>"
+												data-gallery-index="<?php echo (int) $roomGalleryImageIndex; ?>"
+												data-gallery-src="<?php echo htmlspecialchars((string) $roomGalleryImage, ENT_QUOTES, 'UTF-8'); ?>"
+												data-gallery-alt="<?php echo $sanitizer->entities($roomTitleText . ' — фото ' . ((int) $roomGalleryImageIndex + 1)); ?>"
+												tabindex="-1"
+											></button>
+										<?php endforeach; ?>
+									</div>
+								<?php endif; ?>
+									<h3 class="hotel-room-title"><?php echo $sanitizer->entities($roomTitleText); ?></h3>
 									<div class="hotel-room-meta">
 										<?php if ((int) ($roomOption['area'] ?? 0) > 0): ?>
 											<span><?php echo (int) ($roomOption['area'] ?? 0); ?> м²</span>
@@ -1505,7 +1805,30 @@ if (!count($hotelRoomOptions)) {
 								>‹</button>
 								<div class="hotel-room-offers-track" data-room-offers-track>
 									<?php foreach ((array) ($roomOption['offers'] ?? []) as $roomOffer): ?>
-											<article class="hotel-offer-card">
+										<?php
+										$offerRatePerGuest = max(0, (int) ($roomOffer['rate_per_guest'] ?? ($roomOffer['price'] ?? 0)));
+										$offerPricePrefix = (string) ($roomOffer['price_prefix'] ?? '');
+										$offerDefaultGuests = max(1, (int) ($roomOption['default_guests'] ?? $hotelGuestsDefault));
+										$offerDefaultTotal = max(0, $offerRatePerGuest * $offerDefaultGuests);
+										$offerPriceLabel = $offerRatePerGuest > 0
+											? $offerPricePrefix . $formatHotelRoomPrice($offerDefaultTotal)
+											: (string) ($roomOffer['price_label'] ?? $formatHotelRoomPrice((int) ($roomOffer['price'] ?? 0)));
+										$offerCaptionLabel = 'за 1 ночь, для ' . $formatGuestCountByForms($offerDefaultGuests, 'гость', 'гостя', 'гостей');
+										?>
+											<article
+												class="hotel-offer-card"
+												data-room-offer-card
+												data-offer-rate-per-guest="<?php echo (int) $offerRatePerGuest; ?>"
+												data-offer-default-guests="<?php echo (int) $offerDefaultGuests; ?>"
+												data-offer-price-prefix="<?php echo htmlspecialchars($offerPricePrefix, ENT_QUOTES, 'UTF-8'); ?>"
+												data-offer-date-from="<?php echo htmlspecialchars((string) ($roomOffer['date_from'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+												data-offer-date-to="<?php echo htmlspecialchars((string) ($roomOffer['date_to'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+												data-offer-min-nights="<?php echo (int) ($roomOffer['min_nights'] ?? 0); ?>"
+												data-offer-max-nights="<?php echo (int) ($roomOffer['max_nights'] ?? 0); ?>"
+												data-offer-min-guests="<?php echo (int) ($roomOffer['min_guests'] ?? 0); ?>"
+												data-offer-max-guests="<?php echo (int) ($roomOffer['max_guests'] ?? 0); ?>"
+												data-offer-closed="<?php echo !empty($roomOffer['is_closed']) ? '1' : '0'; ?>"
+											>
 												<ul class="hotel-offer-points">
 													<li class="hotel-offer-point">
 														<?php $bedsIcon = $getHotelOfferPointIcon('beds'); ?>
@@ -1540,8 +1863,8 @@ if (!count($hotelRoomOptions)) {
 													<?php if (trim((string) ($roomOffer['label'] ?? '')) !== ''): ?>
 														<div class="hotel-offer-badge"><?php echo $sanitizer->entities((string) $roomOffer['label']); ?></div>
 													<?php endif; ?>
-													<div class="hotel-offer-price"><?php echo $sanitizer->entities((string) ($roomOffer['price_label'] ?? $formatHotelRoomPrice((int) ($roomOffer['price'] ?? 0)))); ?></div>
-													<div class="hotel-offer-caption">за 1 ночь, для <?php echo (int) ($roomOption['guests'] ?? 2); ?> гостей</div>
+													<div class="hotel-offer-price" data-room-offer-price><?php echo $sanitizer->entities($offerPriceLabel); ?></div>
+													<div class="hotel-offer-caption" data-room-offer-caption><?php echo $sanitizer->entities($offerCaptionLabel); ?></div>
 													<button class="hotel-offer-book-btn" type="button">Забронировать</button>
 												</div>
 										</article>
@@ -1556,6 +1879,20 @@ if (!count($hotelRoomOptions)) {
 							</div>
 						</article>
 					<?php endforeach; ?>
+				</div>
+				<div
+					class="hotel-rooms-empty"
+					data-hotel-rooms-empty
+					data-empty-title-hotel="<?php echo htmlspecialchars($hotelRoomsEmptyTitleHotel, ENT_QUOTES, 'UTF-8'); ?>"
+					data-empty-title-search="<?php echo htmlspecialchars($hotelRoomsEmptyTitleSearch, ENT_QUOTES, 'UTF-8'); ?>"
+					data-empty-subtitle-search="<?php echo htmlspecialchars($hotelRoomsEmptySubtitleSearch, ENT_QUOTES, 'UTF-8'); ?>"
+					<?php echo $hotelHasRealRooms ? 'hidden' : ''; ?>
+				>
+					<?php if ($hotelRoomsEmptyIllustrationUrl !== ''): ?>
+						<img class="hotel-rooms-empty-image" src="<?php echo htmlspecialchars($hotelRoomsEmptyIllustrationUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="" aria-hidden="true" />
+					<?php endif; ?>
+					<p class="hotel-rooms-empty-title" data-hotel-rooms-empty-title><?php echo $sanitizer->entities($hotelRoomsEmptyTitleHotel); ?></p>
+					<p class="hotel-rooms-empty-subtitle" data-hotel-rooms-empty-subtitle hidden><?php echo $sanitizer->entities($hotelRoomsEmptySubtitleSearch); ?></p>
 				</div>
 			</div>
 		</div>
@@ -1608,6 +1945,18 @@ if (!count($hotelRoomOptions)) {
 			</figure>
 			<button class="hotel-gallery-nav hotel-gallery-nav--next" type="button" data-gallery-nav="next" aria-label="Следующее фото"></button>
 			<div class="hotel-gallery-counter" data-gallery-counter></div>
+		</div>
+	</div>
+	<div class="hotel-gallery-lightbox" data-hotel-room-gallery-modal hidden>
+		<div class="hotel-gallery-lightbox-backdrop" data-room-gallery-close="backdrop"></div>
+		<div class="hotel-gallery-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Фотографии номера">
+			<button class="hotel-gallery-close" type="button" data-room-gallery-close="button" aria-label="Закрыть">×</button>
+			<button class="hotel-gallery-nav hotel-gallery-nav--prev" type="button" data-room-gallery-nav="prev" aria-label="Предыдущее фото"></button>
+			<figure class="hotel-gallery-stage">
+				<img src="" alt="" data-room-gallery-image />
+			</figure>
+			<button class="hotel-gallery-nav hotel-gallery-nav--next" type="button" data-room-gallery-nav="next" aria-label="Следующее фото"></button>
+			<div class="hotel-gallery-counter" data-room-gallery-counter></div>
 		</div>
 	</div>
 </div>
