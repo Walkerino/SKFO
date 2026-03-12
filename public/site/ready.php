@@ -81,6 +81,119 @@ $wire->addHookAfter('ProcessPageEdit::buildForm', function(HookEvent $event) {
 	$event->return = $form;
 });
 
+// Simplify native ProcessWire admin form layout for guides:
+// - keep only fields displayed on guide page (name, city, photo, description)
+// - tours/articles are linked from their own forms and should not be edited here
+$wire->addHookAfter('ProcessPageEdit::buildForm', function(HookEvent $event) {
+	$process = $event->object;
+	if(!is_object($process) || !method_exists($process, 'getPage')) return;
+
+	$editedPage = $process->getPage();
+	if(!$editedPage instanceof Page || !$editedPage->template || $editedPage->template->name !== 'guide') return;
+
+	$form = $event->return;
+	if(!$form instanceof InputfieldWrapper) return;
+
+	$removeInputByName = static function(InputfieldWrapper $wrapper, string $name): void {
+		$input = $wrapper->getChildByName($name);
+		if($input instanceof Inputfield && $input->parent instanceof InputfieldWrapper) {
+			$input->parent->remove($input);
+		}
+	};
+
+	$cityFieldName = '';
+	foreach(['address', 'city', 'region'] as $candidate) {
+		$cityInput = $form->getChildByName($candidate);
+		if($cityInput instanceof Inputfield) {
+			$cityFieldName = $candidate;
+			break;
+		}
+	}
+
+	$descriptionFieldName = '';
+	foreach(['content', 'summary', 'body'] as $candidate) {
+		$descriptionInput = $form->getChildByName($candidate);
+		if($descriptionInput instanceof Inputfield) {
+			$descriptionFieldName = $candidate;
+			break;
+		}
+	}
+
+	$imageFieldName = '';
+	foreach(['logo', 'images', 'image', 'photo'] as $candidate) {
+		$imageInput = $form->getChildByName($candidate);
+		if($imageInput instanceof Inputfield) {
+			$imageFieldName = $candidate;
+			break;
+		}
+	}
+
+	$allowedFieldNames = ['title'];
+	if($cityFieldName !== '') $allowedFieldNames[] = $cityFieldName;
+	if($imageFieldName !== '') $allowedFieldNames[] = $imageFieldName;
+	if($descriptionFieldName !== '') $allowedFieldNames[] = $descriptionFieldName;
+
+	if($editedPage->template->fieldgroup) {
+		foreach($editedPage->template->fieldgroup as $field) {
+			if(!$field instanceof Field || !$field->id) continue;
+			$fieldName = (string) $field->name;
+			if($fieldName === '' || in_array($fieldName, $allowedFieldNames, true)) continue;
+			$removeInputByName($form, $fieldName);
+		}
+	}
+
+	$titleInput = $form->getChildByName('title');
+	if($titleInput instanceof Inputfield) {
+		$titleInput->label = 'Имя гида';
+		if($titleInput->parent instanceof InputfieldWrapper) {
+			$titleInput->parent->remove($titleInput);
+			$form->prepend($titleInput);
+		}
+	}
+
+	if($cityFieldName !== '') {
+		$cityInput = $form->getChildByName($cityFieldName);
+		if($cityInput instanceof Inputfield) {
+			$cityInput->label = 'Город';
+		}
+	}
+
+	if($descriptionFieldName !== '') {
+		$descriptionInput = $form->getChildByName($descriptionFieldName);
+		if($descriptionInput instanceof Inputfield) {
+			$descriptionInput->label = 'Описание гида';
+		}
+	}
+
+	if($imageFieldName !== '') {
+		$imageInput = $form->getChildByName($imageFieldName);
+		if($imageInput instanceof Inputfield) {
+			$imageInput->label = 'Фото гида';
+		}
+	}
+
+	$event->return = $form;
+});
+
+$wire->addHookBefore('Pages::saveReady', function(HookEvent $event) {
+	$page = $event->arguments(0);
+	if(!$page instanceof Page || !$page->template || $page->template->name !== 'article') return;
+	if(!$page->hasField('article_guides') || !$page->hasField('article_is_advertisement')) return;
+
+	$mentionedGuides = $page->getUnformatted('article_guides');
+	$hasMentionedGuides = false;
+	if($mentionedGuides instanceof PageArray) {
+		$hasMentionedGuides = $mentionedGuides->count() > 0;
+	} elseif($mentionedGuides instanceof Page) {
+		$hasMentionedGuides = (int) $mentionedGuides->id > 0;
+	}
+
+	// Any article with explicit guide mentions must be marked as advertisement.
+	if($hasMentionedGuides) {
+		$page->set('article_is_advertisement', 1);
+	}
+});
+
 if(!$user || !$user->isSuperuser()) return;
 
 /** @var WireInput $input */
@@ -241,9 +354,12 @@ $tourDayImagesField = $ensureField('tour_day_images', 'FieldtypeImage', 'Ден�
 	'extensions' => 'jpg jpeg png gif webp',
 ]);
 $tourDaysField = $ensureField('tour_days', 'FieldtypeRepeater', 'Информация по дням');
+$tourGuideField = $ensureField('guide', 'FieldtypePage', 'Гид тура');
 
 $articleTopicField = $ensureField('article_topic', 'FieldtypeText', 'Статья: тематика');
 $articlePublishDateField = $ensureField('article_publish_date', 'FieldtypeDatetime', 'Статья: дата публикации');
+$articleGuidesField = $ensureField('article_guides', 'FieldtypePage', 'Статья: упомянутые гиды');
+$articleIsAdvertisementField = $ensureField('article_is_advertisement', 'FieldtypeCheckbox', 'Статья: рекламная');
 $articleCoverImageField = $ensureField('article_cover_image', 'FieldtypeImage', 'Статья: обложка', [
 	'maxFiles' => 1,
 	'extensions' => 'jpg jpeg png gif webp',
@@ -662,6 +778,9 @@ $syncPageReferenceField($regionFeaturedToursField, 'template=tour, include=all, 
 $syncPageReferenceField($regionFeaturedPlacesField, 'template=place, include=all, sort=title');
 $syncPageReferenceField($regionFeaturedArticlesField, 'template=article, include=all, sort=-article_publish_date');
 
+$syncPageReferenceField($tourGuideField, 'template=guide, include=all, sort=title');
+$syncPageReferenceField($articleGuidesField, 'template=guide, include=all, sort=title');
+
 $syncPageReferenceField($articlesTodayRefsField, 'template=article, include=all, sort=-article_publish_date');
 $syncPageReferenceField($articlesFirstTimeRefsField, 'template=article, include=all, sort=-article_publish_date');
 $syncPageReferenceField($hotelsFeaturedRefsField, 'template=hotel, include=all, sort=title');
@@ -1061,6 +1180,7 @@ if($tourTemplate && $tourTemplate->id) {
 	$tourContextChanged = false;
 	$tourFields = [
 		$tourRegionField,
+		$tourGuideField,
 		$tourDescriptionField,
 		$tourPriceField,
 		$tourDurationField,
@@ -1110,6 +1230,15 @@ if($tourTemplate && $tourTemplate->id) {
 		if((string) ($titleContext['label'] ?? '') !== 'Заголовок тура') {
 			$titleContext['label'] = 'Заголовок тура';
 			$tourFieldgroup->setFieldContextArray((int) $systemTitleFieldForTour->id, $titleContext);
+			$tourContextChanged = true;
+		}
+	}
+
+	if($tourGuideField && $tourGuideField->id && $tourFieldgroup->has($tourGuideField)) {
+		$guideContext = $tourFieldgroup->getFieldContextArray((int) $tourGuideField->id);
+		if((string) ($guideContext['label'] ?? '') !== 'Гид') {
+			$guideContext['label'] = 'Гид';
+			$tourFieldgroup->setFieldContextArray((int) $tourGuideField->id, $guideContext);
 			$tourContextChanged = true;
 		}
 	}
@@ -1202,6 +1331,8 @@ $syncTemplateFields = static function(?Template $template, array $templateFields
 $syncTemplateFields($articleTemplate, [
 	$articleTopicField,
 	$articlePublishDateField,
+	$articleGuidesField,
+	$articleIsAdvertisementField,
 	$articleCoverImageField,
 	$articleExcerptField,
 	$articleContentField,
