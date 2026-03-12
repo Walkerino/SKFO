@@ -30,12 +30,143 @@ $firstLetter = static function(string $value): string {
 	if ($value === '') return '?';
 	return function_exists('mb_substr') ? mb_strtoupper(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8') : strtoupper(substr($value, 0, 1));
 };
-$avatarColorKeys = ['blue', 'yellow', 'gray'];
+$avatarColorKeys = ['blue', 'yellow', 'gray', 'red'];
 $avatarClassMap = [
 	'blue' => 'is-blue',
 	'yellow' => 'is-yellow',
 	'gray' => 'is-gray',
+	'red' => 'is-red',
 ];
+$normalizeUploadedFiles = static function($filesField): array {
+	if (!is_array($filesField) || !isset($filesField['name'])) return [];
+
+	$names = $filesField['name'];
+	$tmpNames = $filesField['tmp_name'] ?? [];
+	$errors = $filesField['error'] ?? [];
+	$sizes = $filesField['size'] ?? [];
+
+	if (!is_array($names)) {
+		$names = [$names];
+		$tmpNames = [is_array($tmpNames) ? '' : (string) $tmpNames];
+		$errors = [is_array($errors) ? UPLOAD_ERR_NO_FILE : (int) $errors];
+		$sizes = [is_array($sizes) ? 0 : (int) $sizes];
+	}
+
+	$normalized = [];
+	$total = count($names);
+	for ($i = 0; $i < $total; $i++) {
+		$normalized[] = [
+			'name' => trim((string) ($names[$i] ?? '')),
+			'tmp_name' => (string) ($tmpNames[$i] ?? ''),
+			'error' => (int) ($errors[$i] ?? UPLOAD_ERR_NO_FILE),
+			'size' => (int) ($sizes[$i] ?? 0),
+		];
+	}
+
+	return $normalized;
+};
+$prepareReviewUploads = static function($filesField) use ($normalizeUploadedFiles): array {
+	$maxPhotos = 12;
+	$maxFileSize = 8 * 1024 * 1024;
+	$allowedMimeExt = [
+		'image/jpeg' => 'jpg',
+		'image/png' => 'png',
+		'image/webp' => 'webp',
+		'image/gif' => 'gif',
+	];
+	$validFiles = [];
+	$normalizedFiles = $normalizeUploadedFiles($filesField);
+
+	foreach ($normalizedFiles as $file) {
+		$errorCode = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+		if ($errorCode === UPLOAD_ERR_NO_FILE) continue;
+		if ($errorCode !== UPLOAD_ERR_OK) {
+			return ['files' => [], 'error' => 'Не удалось загрузить один из файлов. Попробуйте снова.'];
+		}
+
+		if (count($validFiles) >= $maxPhotos) {
+			return ['files' => [], 'error' => 'Можно загрузить не более 12 фотографий к одному отзыву.'];
+		}
+
+		$tmpName = (string) ($file['tmp_name'] ?? '');
+		$fileSize = (int) ($file['size'] ?? 0);
+		if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+			return ['files' => [], 'error' => 'Не удалось обработать загруженный файл.'];
+		}
+		if ($fileSize < 1) {
+			return ['files' => [], 'error' => 'Один из файлов пустой.'];
+		}
+		if ($fileSize > $maxFileSize) {
+			return ['files' => [], 'error' => 'Размер каждой фотографии должен быть не больше 8 МБ.'];
+		}
+
+		$mimeType = '';
+		if (function_exists('finfo_open')) {
+			$finfo = finfo_open(FILEINFO_MIME_TYPE);
+			if ($finfo !== false) {
+				$detectedMime = finfo_file($finfo, $tmpName);
+				if (is_string($detectedMime)) {
+					$mimeType = trim($detectedMime);
+				}
+				finfo_close($finfo);
+			}
+		}
+		if ($mimeType === '' && function_exists('mime_content_type')) {
+			$detectedMime = mime_content_type($tmpName);
+			if (is_string($detectedMime)) {
+				$mimeType = trim($detectedMime);
+			}
+		}
+		if ($mimeType === '' || !isset($allowedMimeExt[$mimeType])) {
+			return ['files' => [], 'error' => 'Поддерживаются только изображения JPG, PNG, WEBP и GIF.'];
+		}
+
+		$validFiles[] = [
+			'tmp_name' => $tmpName,
+			'ext' => $allowedMimeExt[$mimeType],
+		];
+	}
+
+	return ['files' => $validFiles, 'error' => ''];
+};
+$storeReviewPhotos = static function(int $reviewId, array $validFiles) use ($config, $log): array {
+	if ($reviewId < 1 || !count($validFiles)) {
+		return ['photos' => [], 'warning' => ''];
+	}
+
+	$reviewDirPath = rtrim((string) $config->paths->assets, '/') . '/reviews/' . $reviewId . '/';
+	$reviewDirUrl = rtrim((string) $config->urls->assets, '/') . '/reviews/' . $reviewId . '/';
+	if (!is_dir($reviewDirPath) && !@mkdir($reviewDirPath, 0755, true)) {
+		$log->save('errors', 'reviews page photo upload error: failed to create directory ' . $reviewDirPath);
+		return ['photos' => [], 'warning' => 'Отзыв сохранён, но фотографии загрузить не удалось.'];
+	}
+
+	$storedPhotos = [];
+	$hasMoveError = false;
+	foreach ($validFiles as $index => $file) {
+		$timestampPart = date('YmdHis');
+		try {
+			$randomPart = bin2hex(random_bytes(3));
+		} catch (\Throwable $e) {
+			$randomPart = (string) mt_rand(100000, 999999);
+		}
+		$fileName = sprintf('%02d-%s-%s.%s', (int) $index + 1, $timestampPart, $randomPart, (string) ($file['ext'] ?? 'jpg'));
+		$targetPath = $reviewDirPath . $fileName;
+		if (!move_uploaded_file((string) ($file['tmp_name'] ?? ''), $targetPath)) {
+			$hasMoveError = true;
+			continue;
+		}
+		@chmod($targetPath, 0644);
+		$storedPhotos[] = $reviewDirUrl . rawurlencode($fileName);
+	}
+
+	if ($hasMoveError) {
+		$log->save('errors', 'reviews page photo upload warning: not all files moved for review #' . $reviewId);
+	}
+
+	$warning = $hasMoveError ? 'Часть фотографий не удалось загрузить.' : '';
+	return ['photos' => $storedPhotos, 'warning' => $warning];
+};
 $authUser = isset($skfoAuthUser) && is_array($skfoAuthUser) ? $skfoAuthUser : null;
 $isAuthLoggedIn = $authUser !== null;
 $resolveReviewAuthor = static function(?array $user): string {
@@ -102,6 +233,7 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 	$reviewTextValue = trim((string) $input->post('review_text'));
 	$reviewRatingValue = (int) $input->post('review_rating');
 	$reviewTourIdValue = (int) $input->post('review_tour_id');
+	$preparedReviewPhotos = $prepareReviewUploads($_FILES['review_photos'] ?? null);
 
 	try {
 		$csrfValid = $session->CSRF->validate();
@@ -121,6 +253,8 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 		$reviewError = 'Добавьте текст отзыва (минимум 8 символов).';
 	} elseif ($reviewRatingValue < 1 || $reviewRatingValue > 5) {
 		$reviewError = 'Выберите оценку от 1 до 5.';
+	} elseif (($preparedReviewPhotos['error'] ?? '') !== '') {
+		$reviewError = (string) $preparedReviewPhotos['error'];
 	} else {
 		try {
 			skfoReviewsEnsureTable($database, $reviewTable);
@@ -133,31 +267,54 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 
 			$avatarColorKey = $avatarColorKeys[array_rand($avatarColorKeys)];
 			$insertReview = $database->prepare(
-				"INSERT INTO `$reviewTable` (`page_id`, `author`, `review_text`, `rating`, `avatar_color`, `content_hash`, `moderation_status`, `moderation_flags`)
-				VALUES (:page_id, :author, :review_text, :rating, :avatar_color, :content_hash, :moderation_status, :moderation_flags)"
+				"INSERT INTO `$reviewTable` (`page_id`, `author`, `review_text`, `rating`, `avatar_color`, `photos_json`, `content_hash`, `moderation_status`, `moderation_flags`)
+				VALUES (:page_id, :author, :review_text, :rating, :avatar_color, :photos_json, :content_hash, :moderation_status, :moderation_flags)"
 			);
 			$insertReview->bindValue(':page_id', $reviewTourIdValue, \PDO::PARAM_INT);
 			$insertReview->bindValue(':author', $reviewAuthorValue, \PDO::PARAM_STR);
 			$insertReview->bindValue(':review_text', $reviewTextValue, \PDO::PARAM_STR);
 			$insertReview->bindValue(':rating', $reviewRatingValue, \PDO::PARAM_INT);
 			$insertReview->bindValue(':avatar_color', $avatarColorKey, \PDO::PARAM_STR);
+			$insertReview->bindValue(':photos_json', '', \PDO::PARAM_STR);
 			$insertReview->bindValue(':content_hash', $contentHash, \PDO::PARAM_STR);
 			$insertReview->bindValue(':moderation_status', $moderationStatus, \PDO::PARAM_STR);
 			$insertReview->bindValue(':moderation_flags', $moderationFlags, \PDO::PARAM_STR);
 			$insertReview->execute();
 
+			$photoUploadWarning = '';
+			$createdReviewId = (int) $database->lastInsertId();
+			if ($createdReviewId > 0 && count((array) ($preparedReviewPhotos['files'] ?? []))) {
+				$storedPhotosResult = $storeReviewPhotos($createdReviewId, (array) $preparedReviewPhotos['files']);
+				$photosJson = skfoReviewsEncodePhotos((array) ($storedPhotosResult['photos'] ?? []));
+				$updateReviewPhotos = $database->prepare("UPDATE `$reviewTable` SET `photos_json`=:photos_json WHERE `id`=:id");
+				$updateReviewPhotos->bindValue(':photos_json', $photosJson, \PDO::PARAM_STR);
+				$updateReviewPhotos->bindValue(':id', $createdReviewId, \PDO::PARAM_INT);
+				$updateReviewPhotos->execute();
+
+				$photoUploadWarning = trim((string) ($storedPhotosResult['warning'] ?? ''));
+			}
+
 			if ($moderationStatus === 'blocked') {
 				$banLabels = skfoReviewsBanwordLabels((array) ($moderation['ban_categories'] ?? []));
 				$banSuffix = count($banLabels) ? (' (' . implode(', ', $banLabels) . ')') : '';
 				$reviewError = 'Отзыв не опубликован: обнаружены запрещенные темы' . $banSuffix . '.';
+				if ($photoUploadWarning !== '') {
+					$reviewError .= ' ' . $photoUploadWarning;
+				}
 			} elseif ($moderationStatus === 'duplicate') {
 				$reviewSuccess = 'Похожий отзыв уже есть. Ваш отзыв отправлен на модерацию.';
+				if ($photoUploadWarning !== '') {
+					$reviewSuccess .= ' ' . $photoUploadWarning;
+				}
 				$reviewAuthorValue = '';
 				$reviewTextValue = '';
 				$reviewRatingValue = 5;
 				$reviewTourIdValue = 0;
 			} else {
 				$reviewSuccess = 'Спасибо! Ваш отзыв отправлен.';
+				if ($photoUploadWarning !== '') {
+					$reviewSuccess .= ' ' . $photoUploadWarning;
+				}
 				$reviewAuthorValue = '';
 				$reviewTextValue = '';
 				$reviewRatingValue = 5;
@@ -244,6 +401,10 @@ $csrfTokenValue = $session->CSRF->getTokenValue();
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Отзывы</span>
 					</a>
+					<a class="hero-tab" href="/guides/" role="tab" aria-selected="false">
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/human.svg" alt="" aria-hidden="true" />
+						<span class="hero-tab-text">Гиды</span>
+					</a>
 					<a class="hero-tab" href="/regions/" role="tab" aria-selected="false">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Регионы</span>
@@ -318,7 +479,7 @@ $csrfTokenValue = $session->CSRF->getTokenValue();
 					<?php if (!count($tourOptions)): ?>
 						<div class="review-message is-error">Сейчас нет доступных туров для отзывов.</div>
 					<?php else: ?>
-						<form class="reviews-form" method="post" action="#reviews-form">
+						<form class="reviews-form" method="post" action="#reviews-form" enctype="multipart/form-data">
 							<input type="hidden" name="review_form" value="reviews_page" />
 							<input type="hidden" name="<?php echo $sanitizer->entities($csrfTokenName); ?>" value="<?php echo $sanitizer->entities($csrfTokenValue); ?>" />
 
@@ -352,6 +513,12 @@ $csrfTokenValue = $session->CSRF->getTokenValue();
 									<?php endfor; ?>
 								</div>
 							</div>
+
+							<label class="reviews-field reviews-field--file">
+								<span>Фотографии</span>
+								<input type="file" name="review_photos[]" accept="image/jpeg,image/png,image/webp,image/gif" multiple />
+								<small>До 12 фото, форматы JPG/PNG/WEBP/GIF, размер до 8 МБ.</small>
+							</label>
 
 							<button class="reviews-submit" type="submit">Отправить</button>
 						</form>
