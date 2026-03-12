@@ -886,7 +886,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		?>
 		<div class="container-hot-tours">
 			<div class="hot-tours-header">
-				<h2 class="section-title">Чем заняться этим летом?</h2>
+				<h2 class="section-title">Планы на долгожданную весну</h2>
 				<div class="hot-tours-actions">
 					<button class="circle-btn circle-btn--prev hot-tours-prev" type="button" aria-label="Предыдущие туры"></button>
 					<button class="circle-btn circle-btn--next hot-tours-next" type="button" aria-label="Следующие туры"></button>
@@ -1130,9 +1130,9 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					</p>
 					<a class="journal-button" href="/articles/">Выбрать статью</a>
 				</div>
-				<div class="journal-articles" aria-live="polite">
-					<?php foreach ($homeJournalArticles as $index => $homeJournalArticle): ?>
-						<a class="journal-article<?php echo $index === 0 ? ' is-active' : ''; ?>" href="<?php echo $sanitizer->entities((string) $homeJournalArticle['url']); ?>">
+					<div class="journal-articles" aria-live="polite">
+						<?php foreach ($homeJournalArticles as $index => $homeJournalArticle): ?>
+							<a class="journal-article<?php echo $index === 0 ? ' is-active' : ''; ?>" href="<?php echo $sanitizer->entities((string) $homeJournalArticle['url']); ?>">
 							<?php
 							$journalImageStyle = '';
 							$journalImageClass = '';
@@ -1152,12 +1152,13 @@ $forumExternalUrl = 'https://club.skfo.ru';
 								</h3>
 								<span class="journal-article-tag"><?php echo $sanitizer->entities((string) $homeJournalArticle['topic']); ?></span>
 							</div>
-						</a>
-					<?php endforeach; ?>
+							</a>
+						<?php endforeach; ?>
+					</div>
+					<a class="journal-button journal-button--mobile" href="/articles/">Выбрать статью</a>
 				</div>
 			</div>
-		</div>
-	</section>
+		</section>
 
 	<section class="section section--places">
 			<?php
