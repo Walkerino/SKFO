@@ -196,7 +196,7 @@ try {
 	skfoReviewsBackfillHashes($database, $reviewTable, 50);
 
 	$selectTourReviews = $database->prepare(
-		"SELECT `author`, `review_text`, `rating`, `avatar_color`
+		"SELECT `author`, `review_text`, `rating`, `avatar_color`, `photos_json`
 		FROM `$reviewTable`
 		WHERE `page_id`=:page_id
 		AND `moderation_status`='approved'
@@ -310,22 +310,24 @@ try {
 		</div>
 	</section>
 
-	<section class="tour-reviews">
+	<section class="tour-reviews" data-tour-reviews-gallery>
 		<div class="container">
 			<div class="tour-reviews-card">
 				<h2 class="tour-section-title">Отзывы о туре</h2>
 				<?php if (count($tourReviews)): ?>
 					<div class="tour-reviews-list">
 						<?php foreach ($tourReviews as $review): ?>
-							<?php
-							$rating = max(1, min(5, (int) ($review['rating'] ?? 5)));
-							$stars = str_repeat('★', $rating) . str_repeat('☆', 5 - $rating);
-							$author = (string) ($review['author'] ?? 'Гость');
-							$avatarColorKey = (string) ($review['avatar_color'] ?? '');
-							if (!isset($avatarClassMap[$avatarColorKey])) {
-								$index = abs(crc32($author)) % count($avatarColorKeys);
-								$avatarColorKey = $avatarColorKeys[$index];
-							}
+						<?php
+						$rating = max(1, min(5, (int) ($review['rating'] ?? 5)));
+						$stars = str_repeat('★', $rating) . str_repeat('☆', 5 - $rating);
+						$author = (string) ($review['author'] ?? 'Гость');
+						$reviewPhotos = skfoReviewsDecodePhotos((string) ($review['photos_json'] ?? ''));
+						$reviewPhotos = array_values(array_filter(array_map('trim', $reviewPhotos), static fn(string $url): bool => $url !== ''));
+						$avatarColorKey = (string) ($review['avatar_color'] ?? '');
+						if (!isset($avatarClassMap[$avatarColorKey])) {
+							$index = abs(crc32($author)) % count($avatarColorKeys);
+							$avatarColorKey = $avatarColorKeys[$index];
+						}
 							$avatarClass = $avatarClassMap[$avatarColorKey];
 							?>
 							<article class="review-item">
@@ -337,6 +339,22 @@ try {
 									</div>
 								</div>
 								<p class="review-text"><?php echo nl2br($sanitizer->entities((string) ($review['review_text'] ?? ''))); ?></p>
+								<?php if (count($reviewPhotos)): ?>
+									<div class="review-photo-grid">
+										<?php foreach (array_slice($reviewPhotos, 0, 8) as $photoIndex => $photoUrl): ?>
+											<button
+												class="review-photo-item review-photo-item-btn"
+												type="button"
+												data-tour-review-photo
+												data-gallery-type="image"
+												data-gallery-src="<?php echo htmlspecialchars((string) $photoUrl, ENT_QUOTES, 'UTF-8'); ?>"
+												data-gallery-alt="<?php echo $sanitizer->entities('Фото из отзыва ' . $author . ' #' . ((int) $photoIndex + 1)); ?>"
+												aria-label="<?php echo $sanitizer->entities('Открыть фото из отзыва ' . $author); ?>"
+												style="background-image: url('<?php echo htmlspecialchars((string) $photoUrl, ENT_QUOTES, 'UTF-8'); ?>');"
+											></button>
+										<?php endforeach; ?>
+									</div>
+								<?php endif; ?>
 							</article>
 						<?php endforeach; ?>
 					</div>
@@ -346,6 +364,18 @@ try {
 						<a href="/reviews/#reviews-form">Оставить первый отзыв</a>
 					</p>
 				<?php endif; ?>
+			</div>
+		</div>
+		<div class="hotel-gallery-lightbox tour-review-lightbox" data-tour-review-modal hidden>
+			<div class="hotel-gallery-lightbox-backdrop" data-gallery-close="backdrop"></div>
+			<div class="hotel-gallery-lightbox-dialog">
+				<button class="hotel-gallery-close" type="button" data-gallery-close="button" aria-label="Закрыть галерею">×</button>
+				<button class="hotel-gallery-nav hotel-gallery-nav--prev" type="button" data-gallery-nav="prev" aria-label="Предыдущее фото"></button>
+				<button class="hotel-gallery-nav hotel-gallery-nav--next" type="button" data-gallery-nav="next" aria-label="Следующее фото"></button>
+				<figure class="hotel-gallery-stage">
+					<img data-gallery-image alt="" />
+				</figure>
+				<div class="hotel-gallery-counter" data-gallery-counter></div>
 			</div>
 		</div>
 	</section>
