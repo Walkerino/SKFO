@@ -39,6 +39,9 @@ $buildInitials = static function(string $value): string {
 	return implode('', $letters);
 };
 $profileInitials = $buildInitials($displayName !== '' ? $displayName : $displayEmail);
+$profileDescription = trim((string) ($authUser['profile_bio'] ?? ''));
+$profileAvatar = trim((string) ($authUser['profile_avatar'] ?? ''));
+$profileHasAvatar = $profileAvatar !== '';
 $createdAtRaw = trim((string) ($authUser['created_at'] ?? ''));
 $memberSince = '';
 if ($createdAtRaw !== '') {
@@ -84,20 +87,70 @@ if ($createdAtRaw !== '') {
 						<button class="profile-auth-btn" type="button" data-auth-open>Войти в профиль</button>
 					</div>
 			<?php else: ?>
-					<div class="profile-card profile-card--auth">
+					<div
+						class="profile-card profile-card--auth"
+						data-profile-editor
+						data-profile-email="<?php echo $sanitizer->entities($displayEmail); ?>"
+						data-profile-default-name="<?php echo $sanitizer->entities($displayName); ?>"
+						data-profile-default-bio="<?php echo $sanitizer->entities($profileDescription); ?>"
+						data-profile-default-initials="<?php echo $sanitizer->entities($profileInitials); ?>"
+						data-profile-default-avatar="<?php echo $sanitizer->entities($profileAvatar); ?>"
+						data-profile-api-url="<?php echo $sanitizer->entities((string) $page->url); ?>"
+						data-csrf-name="<?php echo $sanitizer->entities($session->CSRF->getTokenName()); ?>"
+						data-csrf-value="<?php echo $sanitizer->entities($session->CSRF->getTokenValue()); ?>"
+					>
 						<div class="profile-head">
-							<div class="profile-avatar" aria-hidden="true"><?php echo $sanitizer->entities($profileInitials); ?></div>
+							<div class="profile-avatar-wrap">
+								<div class="profile-avatar" aria-hidden="true" data-profile-avatar>
+									<span<?php echo $profileHasAvatar ? ' hidden' : ''; ?> data-profile-avatar-initials><?php echo $sanitizer->entities($profileInitials); ?></span>
+									<img src="<?php echo $profileHasAvatar ? $sanitizer->entities($profileAvatar) : ''; ?>" alt="Аватар профиля"<?php echo $profileHasAvatar ? '' : ' hidden'; ?> data-profile-avatar-image />
+								</div>
+								<label class="profile-avatar-upload-btn" for="profile-avatar-input">Изменить фото</label>
+								<input class="profile-avatar-input" id="profile-avatar-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-profile-avatar-input />
+							</div>
 							<div class="profile-head-copy">
-								<h2 class="profile-name"><?php echo $sanitizer->entities($displayName); ?></h2>
+								<h2 class="profile-name" data-profile-name><?php echo $sanitizer->entities($displayName); ?></h2>
 								<p class="profile-email"><?php echo $sanitizer->entities($displayEmail); ?></p>
+								<p class="profile-description" data-profile-description><?php echo $sanitizer->entities($profileDescription !== '' ? $profileDescription : 'Добавьте описание профиля.'); ?></p>
 							</div>
 							<div class="profile-status">Профиль активен</div>
 						</div>
 
+						<form class="profile-edit-form" data-profile-form>
+							<div class="profile-form-row">
+								<label class="profile-form-label" for="profile-name-input">Имя</label>
+								<input
+									class="profile-form-input"
+									id="profile-name-input"
+									type="text"
+									name="profile_name"
+									maxlength="60"
+									value="<?php echo $sanitizer->entities($displayName); ?>"
+									data-profile-input-name
+								/>
+							</div>
+							<div class="profile-form-row">
+								<label class="profile-form-label" for="profile-description-input">Описание</label>
+								<textarea
+									class="profile-form-textarea"
+									id="profile-description-input"
+									name="profile_description"
+									rows="4"
+									maxlength="240"
+									placeholder="Например: люблю горные маршруты и короткие поездки на выходных."
+									data-profile-input-description
+								><?php echo $sanitizer->entities($profileDescription); ?></textarea>
+							</div>
+							<div class="profile-form-actions">
+								<button class="profile-save-btn" type="submit" data-profile-save>Сохранить изменения</button>
+								<p class="profile-save-message" role="status" aria-live="polite" data-profile-message></p>
+							</div>
+						</form>
+
 						<div class="profile-info-grid">
 							<div class="profile-info-item">
 								<span class="profile-label">Имя</span>
-								<span class="profile-value"><?php echo $sanitizer->entities($displayName); ?></span>
+								<span class="profile-value" data-profile-name-value><?php echo $sanitizer->entities($displayName); ?></span>
 							</div>
 							<div class="profile-info-item">
 								<span class="profile-label">Email</span>
