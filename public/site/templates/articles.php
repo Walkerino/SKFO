@@ -300,6 +300,7 @@ $normalizeArticles = static function(array $articles) use ($buildArticleUrl, $ex
 			'url' => $url,
 			'paragraphs' => $paragraphs,
 			'content_html' => $contentHtml,
+			'is_advertisement' => !empty($article['is_advertisement']),
 		];
 	}
 	return $normalized;
@@ -311,6 +312,16 @@ $mapCatalogArticlePage = static function(Page $articlePage) use ($getImageUrlFro
 	$topic = $articlePage->hasField('article_topic') ? trim((string) $articlePage->article_topic) : '';
 	$image = $articlePage->hasField('article_cover_image') ? $getImageUrlFromValue($articlePage->getUnformatted('article_cover_image')) : '';
 	$content = $articlePage->hasField('article_content') ? trim((string) $articlePage->article_content) : '';
+	$hasMentionedGuides = false;
+	if ($articlePage->hasField('article_guides')) {
+		$mentionedGuides = $articlePage->getUnformatted('article_guides');
+		if ($mentionedGuides instanceof PageArray) {
+			$hasMentionedGuides = $mentionedGuides->count() > 0;
+		} elseif ($mentionedGuides instanceof Page) {
+			$hasMentionedGuides = (int) $mentionedGuides->id > 0;
+		}
+	}
+	$isAdvertisement = $articlePage->hasField('article_is_advertisement') ? ((int) $articlePage->getUnformatted('article_is_advertisement') === 1) : false;
 
 	return [
 		'title' => $title,
@@ -320,6 +331,7 @@ $mapCatalogArticlePage = static function(Page $articlePage) use ($getImageUrlFro
 		'image' => $image,
 		'url' => '/articles/?article=' . rawurlencode((string) $articlePage->name),
 		'content' => $content,
+		'is_advertisement' => ($isAdvertisement || $hasMentionedGuides),
 	];
 };
 
@@ -638,6 +650,9 @@ foreach (array_merge($regionCatalogArticles, $catalogArticles) as $article) {
 	if (trim((string) ($existing['url'] ?? '')) === '/articles/' && trim((string) ($article['url'] ?? '')) !== '') {
 		$existing['url'] = $article['url'];
 	}
+	if (empty($existing['is_advertisement']) && !empty($article['is_advertisement'])) {
+		$existing['is_advertisement'] = true;
+	}
 	$articlesBySlug[$slug] = $existing;
 }
 
@@ -660,6 +675,7 @@ if ($selectedArticleSlug !== '' && $selectedArticle === null) {
 		'url' => '/articles/?article=' . rawurlencode($selectedArticleSlug),
 		'paragraphs' => $defaultArticleParagraphs,
 		'content_html' => '',
+		'is_advertisement' => false,
 	];
 }
 
@@ -740,19 +756,6 @@ if ($selectedArticle) {
 	}
 }
 
-$articleBackUrl = '/articles/';
-if ($selectedArticle) {
-	if ($backFromRequest !== '') {
-		$articleBackUrl = $backFromRequest;
-	} elseif ($sourceFromRequest === 'home') {
-		$articleBackUrl = '/';
-	} elseif ($sourceTopicSlug !== '' && isset($topicMap[$sourceTopicSlug])) {
-		$articleBackUrl = '/articles/?topic=' . rawurlencode($sourceTopicSlug);
-	} else {
-		$articleBackUrl = '/articles/';
-	}
-}
-
 $forumTitle = 'Форум СКФО';
 $forumSubtitle = "Делимся опытом и помогаем\nдруг другу планировать поездки";
 $forumButtonText = 'Присоединиться';
@@ -762,18 +765,17 @@ $forumExternalUrl = 'https://club.skfo.ru';
 
 <div id="content" class="articles-page">
 	<?php if ($selectedArticle): ?>
-		<section class="article-hero-strip">
-			<div class="container article-breadcrumb-row">
-				<a class="article-back-btn" href="<?php echo $sanitizer->entities($articleBackUrl); ?>" aria-label="Назад к предыдущей странице"></a>
-				<div class="article-breadcrumb">
+		<section class="section section--article-breadcrumb">
+			<div class="container">
+				<nav class="guides-breadcrumb" aria-label="Хлебные крошки">
 					<a href="<?php echo $sanitizer->entities($detailRootUrl); ?>"><?php echo $sanitizer->entities($detailRootLabel); ?></a>
 					<?php if ($detailMiddleLabel !== '' && $detailMiddleUrl !== ''): ?>
-						<span class="article-breadcrumb-sep">-></span>
+						<span aria-hidden="true">›</span>
 						<a href="<?php echo $sanitizer->entities($detailMiddleUrl); ?>"><?php echo $sanitizer->entities($detailMiddleLabel); ?></a>
 					<?php endif; ?>
-					<span class="article-breadcrumb-sep">-></span>
-					<span class="article-breadcrumb-current"><?php echo $sanitizer->entities((string) ($selectedArticle['title'] ?? '')); ?></span>
-				</div>
+					<span aria-hidden="true">›</span>
+					<span><?php echo $sanitizer->entities((string) ($selectedArticle['title'] ?? '')); ?></span>
+				</nav>
 			</div>
 		</section>
 
@@ -783,6 +785,9 @@ $forumExternalUrl = 'https://club.skfo.ru';
 				<h1 class="article-detail-title"><?php echo $sanitizer->entities((string) ($selectedArticle['title'] ?? '')); ?></h1>
 				<?php if (!empty($selectedArticle['date'])): ?>
 					<time class="article-detail-date" datetime="<?php echo $sanitizer->entities((string) ($selectedArticle['datetime'] ?? '')); ?>"><?php echo $sanitizer->entities((string) $selectedArticle['date']); ?></time>
+				<?php endif; ?>
+				<?php if (!empty($selectedArticle['is_advertisement'])): ?>
+					<p class="article-detail-ad">Рекламная статья</p>
 				<?php endif; ?>
 
 				<?php
@@ -833,6 +838,10 @@ $forumExternalUrl = 'https://club.skfo.ru';
 							<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
 							<span class="hero-tab-text">Отзывы</span>
 						</a>
+						<a class="hero-tab" href="/guides/" role="tab" aria-selected="false">
+							<img src="<?php echo $config->urls->templates; ?>assets/icons/human.svg" alt="" aria-hidden="true" />
+							<span class="hero-tab-text">Гиды</span>
+						</a>
 						<a class="hero-tab" href="/regions/" role="tab" aria-selected="false">
 							<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 							<span class="hero-tab-text">Регионы</span>
@@ -864,6 +873,10 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					<h2 class="articles-topic-title"><?php echo $sanitizer->entities((string) ($topicMap[$selectedTopicSlug] ?? 'Статьи')); ?></h2>
 						<div class="articles-topic-grid">
 							<?php foreach ($topicArticles as $article): ?>
+								<?php
+								$topicTag = (string) ($article['topic'] ?? '');
+								if (!empty($article['is_advertisement'])) $topicTag = trim($topicTag !== '' ? $topicTag . ' • Реклама' : 'Реклама');
+								?>
 								<a class="articles-topic-card" href="<?php echo $sanitizer->entities($withArticleContext((string) ($article['url'] ?? '/articles/'), $listSource, $articlesListUrl)); ?>">
 									<div class="articles-topic-card-media" style="background-image: url('<?php echo htmlspecialchars((string) ($article['image'] ?? $defaultCoverUrl), ENT_QUOTES, 'UTF-8'); ?>');"></div>
 									<div class="articles-topic-card-body">
@@ -871,7 +884,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 										<?php echo $sanitizer->entities((string) ($article['date'] ?? '')); ?>
 									</time>
 									<h3 class="articles-topic-card-title"><?php echo $sanitizer->entities((string) ($article['title'] ?? '')); ?></h3>
-									<p class="articles-topic-card-tag"><?php echo $sanitizer->entities((string) ($article['topic'] ?? '')); ?></p>
+									<p class="articles-topic-card-tag"><?php echo $sanitizer->entities($topicTag); ?></p>
 								</div>
 							</a>
 						<?php endforeach; ?>
@@ -885,6 +898,10 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					<div class="region-articles-card articles-read-shell">
 						<div class="articles-read-list">
 							<?php foreach ($todayArticles as $article): ?>
+								<?php
+								$topicTag = (string) ($article['topic'] ?? '');
+								if (!empty($article['is_advertisement'])) $topicTag = trim($topicTag !== '' ? $topicTag . ' • Реклама' : 'Реклама');
+								?>
 								<a class="articles-read-card" href="<?php echo $sanitizer->entities($withArticleContext((string) ($article['url'] ?? '/articles/'), $listSource, $articlesListUrl)); ?>">
 									<div class="articles-read-card-media" style="background-image: url('<?php echo htmlspecialchars((string) ($article['image'] ?? $defaultCoverUrl), ENT_QUOTES, 'UTF-8'); ?>');"></div>
 									<div class="articles-read-card-body">
@@ -892,7 +909,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 											<?php echo $sanitizer->entities((string) ($article['date'] ?? '')); ?>
 										</time>
 										<h3 class="articles-read-card-title"><?php echo $sanitizer->entities((string) ($article['title'] ?? '')); ?></h3>
-										<p class="articles-read-card-topic"><?php echo $sanitizer->entities((string) ($article['topic'] ?? '')); ?></p>
+										<p class="articles-read-card-topic"><?php echo $sanitizer->entities($topicTag); ?></p>
 									</div>
 								</a>
 							<?php endforeach; ?>
@@ -906,6 +923,10 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					<h2 class="articles-first-title">Впервые на Кавказе ?</h2>
 					<div class="articles-first-grid">
 						<?php foreach ($firstTimeArticles as $article): ?>
+							<?php
+							$topicTag = (string) ($article['topic'] ?? '');
+							if (!empty($article['is_advertisement'])) $topicTag = trim($topicTag !== '' ? $topicTag . ' • Реклама' : 'Реклама');
+							?>
 							<a class="articles-first-card" href="<?php echo $sanitizer->entities($withArticleContext((string) $article['url'], $listSource, $articlesListUrl)); ?>">
 								<div class="articles-first-card-media" style="background-image: url('<?php echo htmlspecialchars((string) $article['image'], ENT_QUOTES, 'UTF-8'); ?>');"></div>
 								<div class="articles-first-card-content">
@@ -913,7 +934,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 										<?php echo $sanitizer->entities((string) $article['date']); ?>
 									</time>
 									<h3 class="articles-first-card-title"><?php echo $sanitizer->entities((string) $article['title']); ?></h3>
-									<p class="articles-first-card-tag"><?php echo $sanitizer->entities((string) $article['topic']); ?></p>
+									<p class="articles-first-card-tag"><?php echo $sanitizer->entities($topicTag); ?></p>
 								</div>
 							</a>
 						<?php endforeach; ?>
