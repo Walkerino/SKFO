@@ -18,6 +18,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		['label' => 'Туры', 'url' => '/tours/'],
 		['label' => 'Отели', 'url' => '/hotels/'],
 		['label' => 'Отзывы', 'url' => '/reviews/'],
+		['label' => 'Гиды', 'url' => '/guides/'],
 		['label' => 'Регионы', 'url' => '/regions/'],
 		['label' => 'Статьи', 'url' => '/articles/'],
 		['label' => 'Форум', 'url' => 'https://club.skfo.ru'],
@@ -32,19 +33,22 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		$isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
 		$isHotelsRequest = preg_match('#^/hotels(?:/|$)#', (string) $requestPath) === 1;
 		$isRegionsRequest = preg_match('#^/regions(?:/|$)#', (string) $requestPath) === 1;
+		$isGuidesRequest = preg_match('#^/guides(?:/|$)#', (string) $requestPath) === 1;
 		$isPlacesRequest = preg_match('#^/places(?:/|$)#', (string) $requestPath) === 1;
 		$isArticlesRequest = preg_match('#^/articles(?:/|$)#', (string) $requestPath) === 1;
 	$isHotelsPage = $page->name === 'hotels' || $page->path === '/hotels/' || in_array($templateName, ['hotels', 'hotel'], true) || $isHotelsRequest;
 	$isHotelsCatalogPage = $templateName === 'hotels' || $page->path === '/hotels/' || $requestPath === '/hotels' || $requestPath === '/hotels/';
 	$isReviewsPage = $page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest;
+	$isGuidesPage = $page->name === 'guides' || $page->path === '/guides/' || in_array($templateName, ['guides', 'guide'], true) || $isGuidesRequest;
 	$isTourMobileHeaderPage = $isHotelsCatalogPage || $isReviewsPage;
 	$isRegionsPage = $page->name === 'regions' || $page->path === '/regions/' || in_array($templateName, ['regions', 'region', 'places', 'place'], true) || $isRegionsRequest || $isPlacesRequest;
 	$isArticlesPage = $page->name === 'articles' || $page->path === '/articles/' || $isArticlesRequest;
 	$isHomePage = $page->path === '/' || $templateName === 'home';
-	$isTourTemplate = in_array($templateName, ['tour', 'tours', 'hotel', 'reviews', 'regions', 'region', 'places', 'place', 'articles', 'article'], true) || $isReviewsPage || $isRegionsPage || $isArticlesPage;
+	$isTourTemplate = in_array($templateName, ['tour', 'tours', 'hotel', 'reviews', 'regions', 'region', 'places', 'place', 'guides', 'guide', 'articles', 'article'], true) || $isReviewsPage || $isRegionsPage || $isArticlesPage;
 	$isTourNavActive = in_array($templateName, ['tour', 'tours'], true);
 	$isHotelsNavActive = $templateName === 'hotel' || $isHotelsPage;
 	$isReviewsNavActive = $templateName === 'reviews' || $isReviewsPage;
+	$isGuidesNavActive = in_array($templateName, ['guides', 'guide'], true) || $isGuidesPage;
 	$isRegionsNavActive = in_array($templateName, ['regions', 'region', 'places', 'place'], true) || $isRegionsPage;
 	$isArticlesNavActive = $templateName === 'articles' || $isArticlesPage;
 	$isToursMenuActive = $isHomePage || $isTourNavActive;
@@ -54,7 +58,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		$isArticleDetailPath = preg_match('#^/articles/[^/]+/?$#', (string) $requestPath) === 1;
 		$isArticleDetailPage = $articleParam !== '' || $isArticleDetailPath;
 	}
-	$isSecondaryCompactHeaderPage = in_array($templateName, ['tour', 'hotel', 'region', 'place'], true) || $isArticleDetailPage;
+	$isSecondaryCompactHeaderPage = in_array($templateName, ['tour', 'hotel', 'region', 'place', 'guide'], true) || $isArticleDetailPage;
 	$normalizeHeadTitleKey = static function(string $value): string {
 		$value = trim($value);
 		$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
@@ -67,6 +71,8 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		'hotels' => 'Отели',
 		'hotel' => 'Отель',
 		'reviews' => 'Отзывы',
+		'guides' => 'Гиды',
+		'guide' => 'Гид',
 		'regions' => 'Регионы',
 		'region' => 'Регион',
 		'places' => 'Места',
@@ -82,6 +88,8 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		'tours' => 'Туры',
 		'tour' => 'Тур',
 		'reviews' => 'Отзывы',
+		'guides' => 'Гиды',
+		'guide' => 'Гид',
 		'regions' => 'Регионы',
 		'region' => 'Регион',
 		'places' => 'Места',
@@ -100,6 +108,9 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	}
 	if ($requestPath === '/regions' || $requestPath === '/regions/') {
 		$pageTitleForHead = 'Регионы';
+	}
+	if ($requestPath === '/guides' || $requestPath === '/guides/') {
+		$pageTitleForHead = 'Гиды';
 	}
 	if ($requestPath === '/places' || $requestPath === '/places/') {
 		$pageTitleForHead = 'Места';
@@ -151,6 +162,12 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$profileAriaLabel = $isAuthLoggedIn ? ('Профиль: ' . $profileButtonLabel) : 'Профиль';
 	$authCsrfTokenName = $session->CSRF->getTokenName();
 	$authCsrfTokenValue = $session->CSRF->getTokenValue();
+	$envValue = static function(string $name, string $default = ''): string {
+		$value = $_ENV[$name] ?? $_SERVER[$name] ?? getenv($name);
+		if ($value === false || $value === null) return $default;
+		return trim((string) $value);
+	};
+	$reCaptchaSiteKey = $envValue('SKFO_RECAPTCHA_SITE_KEY', '');
 	$bodyClassNames = [];
 	if ($isProfilePage) $bodyClassNames[] = 'page-profile';
 	if ($templateName !== '') {
@@ -160,6 +177,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	}
 	if ($isHotelsCatalogPage) $bodyClassNames[] = 'template-hotels-catalog';
 	if ($isTourMobileHeaderPage) $bodyClassNames[] = 'template-tour-mobile-header';
+	if ($isArticleDetailPage) $bodyClassNames[] = 'is-article-detail';
 	$bodyClassAttr = count($bodyClassNames) ? (' class="' . implode(' ', $bodyClassNames) . '"') : '';
 
 ?><!DOCTYPE html>
@@ -196,6 +214,10 @@ $home = $pages->get('/'); /** @var HomePage $home */
 										<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
 										<span class="tour-nav-text">Отзывы</span>
 									</a>
+									<a class="tour-header-link tour-nav-link<?php echo $isGuidesNavActive ? ' is-active' : ''; ?>" href="/guides/">
+										<img src="<?php echo $config->urls->templates; ?>assets/icons/human.svg" alt="" aria-hidden="true" />
+										<span class="tour-nav-text">Гиды</span>
+									</a>
 									<a class="tour-header-link tour-nav-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/">
 										<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 										<span class="tour-nav-text">Регионы</span>
@@ -229,6 +251,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 									<a class="home-mobile-menu-link<?php echo $isToursMenuActive ? ' is-active' : ''; ?>" href="<?php echo $home->url; ?>"<?php echo $isToursMenuActive ? ' aria-current="page"' : ''; ?>>Туры</a>
 									<a class="home-mobile-menu-link<?php echo $isHotelsNavActive ? ' is-active' : ''; ?>" href="/hotels/"<?php echo $isHotelsNavActive ? ' aria-current="page"' : ''; ?>>Отели</a>
 									<a class="home-mobile-menu-link<?php echo $isReviewsNavActive ? ' is-active' : ''; ?>" href="/reviews/"<?php echo $isReviewsNavActive ? ' aria-current="page"' : ''; ?>>Отзывы</a>
+									<a class="home-mobile-menu-link<?php echo $isGuidesNavActive ? ' is-active' : ''; ?>" href="/guides/"<?php echo $isGuidesNavActive ? ' aria-current="page"' : ''; ?>>Гиды</a>
 									<a class="home-mobile-menu-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/"<?php echo $isRegionsNavActive ? ' aria-current="page"' : ''; ?>>Регионы</a>
 									<a class="home-mobile-menu-link<?php echo $isArticlesNavActive ? ' is-active' : ''; ?>" href="/articles/"<?php echo $isArticlesNavActive ? ' aria-current="page"' : ''; ?>>Статьи</a>
 									<a class="home-mobile-menu-link home-mobile-menu-link--external" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">Форум</a>
@@ -271,6 +294,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 									<a class="home-mobile-menu-link<?php echo $isToursMenuActive ? ' is-active' : ''; ?>" href="<?php echo $home->url; ?>"<?php echo $isToursMenuActive ? ' aria-current="page"' : ''; ?>>Туры</a>
 									<a class="home-mobile-menu-link<?php echo $isHotelsNavActive ? ' is-active' : ''; ?>" href="/hotels/"<?php echo $isHotelsNavActive ? ' aria-current="page"' : ''; ?>>Отели</a>
 									<a class="home-mobile-menu-link<?php echo $isReviewsNavActive ? ' is-active' : ''; ?>" href="/reviews/"<?php echo $isReviewsNavActive ? ' aria-current="page"' : ''; ?>>Отзывы</a>
+									<a class="home-mobile-menu-link<?php echo $isGuidesNavActive ? ' is-active' : ''; ?>" href="/guides/"<?php echo $isGuidesNavActive ? ' aria-current="page"' : ''; ?>>Гиды</a>
 									<a class="home-mobile-menu-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/"<?php echo $isRegionsNavActive ? ' aria-current="page"' : ''; ?>>Регионы</a>
 									<a class="home-mobile-menu-link<?php echo $isArticlesNavActive ? ' is-active' : ''; ?>" href="/articles/"<?php echo $isArticlesNavActive ? ' aria-current="page"' : ''; ?>>Статьи</a>
 									<a class="home-mobile-menu-link home-mobile-menu-link--external" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">Форум</a>
@@ -361,13 +385,20 @@ $home = $pages->get('/'); /** @var HomePage $home */
 							<span class="footer-section-subtitle">Оставь свои впечатления</span>
 						</span>
 					</a>
+					<a class="footer-section-item" href="/guides/">
+						<span class="footer-section-icon"><img src="<?php echo $config->urls->templates; ?>assets/icons/human.svg" alt="" aria-hidden="true" /></span>
+						<span class="footer-section-text">
+							<span class="footer-section-title">Гиды</span>
+							<span class="footer-section-subtitle">Эксперты по регионам</span>
+						</span>
+					</a>
 				</div>
 				</div>
 			</footer>
 			<?php endif; ?>
 
 			<?php if (!$isContentAdminPage && !$isAuthLoggedIn): ?>
-				<div class="auth-modal" id="auth-modal" hidden data-auth-api-url="<?php echo $sanitizer->entities((string) $page->url); ?>" data-csrf-name="<?php echo $sanitizer->entities($authCsrfTokenName); ?>" data-csrf-value="<?php echo $sanitizer->entities($authCsrfTokenValue); ?>">
+				<div class="auth-modal" id="auth-modal" hidden data-auth-api-url="<?php echo $sanitizer->entities((string) $page->url); ?>" data-csrf-name="<?php echo $sanitizer->entities($authCsrfTokenName); ?>" data-csrf-value="<?php echo $sanitizer->entities($authCsrfTokenValue); ?>" data-recaptcha-enabled="<?php echo $reCaptchaSiteKey !== '' ? '1' : '0'; ?>">
 				<div class="auth-modal-backdrop" data-auth-close></div>
 				<div class="auth-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
 					<button class="auth-modal-close" type="button" aria-label="Закрыть" data-auth-close>×</button>
@@ -382,6 +413,11 @@ $home = $pages->get('/'); /** @var HomePage $home */
 							<label class="auth-field">
 								<input type="text" name="code" placeholder="Код из письма" autocomplete="one-time-code" inputmode="numeric" maxlength="6" required />
 							</label>
+							<?php if ($reCaptchaSiteKey !== ''): ?>
+								<div class="auth-captcha">
+									<div class="g-recaptcha" data-sitekey="<?php echo $sanitizer->entities($reCaptchaSiteKey); ?>"></div>
+								</div>
+							<?php endif; ?>
 							<button class="auth-submit-btn" type="submit">Войти</button>
 						</form>
 						<p class="auth-switch-row">Еще нет профиля? <button type="button" class="auth-switch-link" data-auth-switch="register">Регистрация</button></p>
@@ -400,6 +436,11 @@ $home = $pages->get('/'); /** @var HomePage $home */
 							<label class="auth-field">
 								<input type="text" name="code" placeholder="Код из письма" autocomplete="one-time-code" inputmode="numeric" maxlength="6" required />
 							</label>
+							<?php if ($reCaptchaSiteKey !== ''): ?>
+								<div class="auth-captcha">
+									<div class="g-recaptcha" data-sitekey="<?php echo $sanitizer->entities($reCaptchaSiteKey); ?>"></div>
+								</div>
+							<?php endif; ?>
 							<button class="auth-submit-btn" type="submit">Регистрация</button>
 						</form>
 						<p class="auth-switch-row">Уже есть профиль? <button type="button" class="auth-switch-link" data-auth-switch="login">Войти</button></p>
@@ -436,6 +477,9 @@ $home = $pages->get('/'); /** @var HomePage $home */
 			<?php endif; ?>
 
 			<?php if(!$isContentAdminPage): ?>
+			<?php if($reCaptchaSiteKey !== ''): ?>
+			<script src="https://www.google.com/recaptcha/api.js?hl=ru" async defer></script>
+			<?php endif; ?>
 			<script src="<?php echo $config->urls->templates; ?>scripts/main.js<?php echo $mainJsVersion ? '?v=' . (int) $mainJsVersion : ''; ?>"></script>
 			<?php endif; ?>
 		</body>
