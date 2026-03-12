@@ -713,16 +713,48 @@ const initHotelRoomsSearchControls = () => {
   const checkInInput = document.querySelector("input[data-hotel-booking-check-in]");
   const checkOutInput = document.querySelector("input[data-hotel-booking-check-out]");
   const guestsTotalInput = document.querySelector("input[name='guests_total'][data-people-hidden-total]");
+  const roomList = document.querySelector("[data-hotel-room-list]");
+  const roomRows = Array.from(document.querySelectorAll("[data-hotel-room-row]"));
+  const offerCards = Array.from(document.querySelectorAll("[data-room-offer-card]"));
+  const emptyState = document.querySelector("[data-hotel-rooms-empty]");
+  const emptyTitle = document.querySelector("[data-hotel-rooms-empty-title]");
+  const emptySubtitle = document.querySelector("[data-hotel-rooms-empty-subtitle]");
 
   if (
     !(summary instanceof HTMLElement) ||
     !(actionBtn instanceof HTMLButtonElement) ||
     !(checkInInput instanceof HTMLInputElement) ||
     !(checkOutInput instanceof HTMLInputElement) ||
-    !(guestsTotalInput instanceof HTMLInputElement)
+    !(guestsTotalInput instanceof HTMLInputElement) ||
+    !(roomList instanceof HTMLElement)
   ) {
     return;
   }
+
+  const hasRooms = roomRows.length > 0;
+  const emptyTitleHotel = (
+    emptyState instanceof HTMLElement ? String(emptyState.dataset.emptyTitleHotel || "").trim() : ""
+  ) || "Нет свободных номеров на данный момент, приносим свои извинения";
+  const emptyTitleSearch = (
+    emptyState instanceof HTMLElement ? String(emptyState.dataset.emptyTitleSearch || "").trim() : ""
+  ) || "Нет свободных номеров на ваши даты";
+  const emptySubtitleSearch = (
+    emptyState instanceof HTMLElement ? String(emptyState.dataset.emptySubtitleSearch || "").trim() : ""
+  ) || "Попробуйте сменить параметры или выбрать другой отель.";
+
+  const setEmptyState = (mode, isVisible) => {
+    if (!(emptyState instanceof HTMLElement)) return;
+    emptyState.hidden = !isVisible;
+    if (!isVisible) return;
+
+    if (emptyTitle instanceof HTMLElement) {
+      emptyTitle.textContent = mode === "hotel" ? emptyTitleHotel : emptyTitleSearch;
+    }
+    if (emptySubtitle instanceof HTMLElement) {
+      emptySubtitle.textContent = emptySubtitleSearch;
+      emptySubtitle.hidden = mode !== "search";
+    }
+  };
 
   const parseIsoDate = (value) => {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || "").trim());
@@ -760,6 +792,12 @@ const initHotelRoomsSearchControls = () => {
     return `${safeValue} ${many}`;
   };
 
+  const formatOfferPriceLabel = (value, prefix = "") => {
+    const safeValue = Math.max(0, Math.round(Number(value) || 0));
+    const amount = safeValue.toLocaleString("en-US");
+    return `${prefix}₽ ${amount}`;
+  };
+
   const getNights = (checkInIso, checkOutIso) => {
     if (!checkInIso || !checkOutIso) return 0;
     const [checkInYear, checkInMonth, checkInDay] = checkInIso.split("-").map(Number);
@@ -788,20 +826,118 @@ const initHotelRoomsSearchControls = () => {
     };
   };
 
+  const syncOfferCards = (state) => {
+    if (!offerCards.length) return;
+    const hasDateRange = Boolean(state.checkInIso && state.checkOutIso);
+    const selectedNights = hasDateRange ? Math.max(1, state.nights) : 1;
+
+    offerCards.forEach((offerCard) => {
+      if (!(offerCard instanceof HTMLElement)) return;
+      const priceNode = offerCard.querySelector("[data-room-offer-price]");
+      const captionNode = offerCard.querySelector("[data-room-offer-caption]");
+      if (!(priceNode instanceof HTMLElement) || !(captionNode instanceof HTMLElement)) return;
+
+      const ratePerGuest = Math.max(0, Number(offerCard.dataset.offerRatePerGuest) || 0);
+      if (ratePerGuest <= 0) return;
+
+      const defaultGuests = Math.max(1, Number(offerCard.dataset.offerDefaultGuests) || 1);
+      const selectedGuests = Math.max(1, Number(state.guestsTotal) || defaultGuests);
+      const totalPrice = ratePerGuest * selectedGuests * selectedNights;
+      const pricePrefix = String(offerCard.dataset.offerPricePrefix || "");
+
+      priceNode.textContent = formatOfferPriceLabel(totalPrice, pricePrefix);
+      const nightsLabel = formatLabel(selectedNights, "ночь", "ночи", "ночей");
+      const guestsLabel = formatLabel(selectedGuests, "гость", "гостя", "гостей");
+      captionNode.textContent = `за ${nightsLabel}, для ${guestsLabel}`;
+    });
+  };
+
+  const isOfferAvailableForState = (offerCard, state, roomMaxGuests) => {
+    if (!(offerCard instanceof HTMLElement)) return false;
+
+    const guests = Math.max(1, Number(state.guestsTotal) || 1);
+    const nights = Math.max(1, Number(state.nights) || 1);
+    if (guests > roomMaxGuests) return false;
+
+    const isClosed = String(offerCard.dataset.offerClosed || "0") === "1";
+    if (isClosed) return false;
+
+    const minGuests = Math.max(0, Number(offerCard.dataset.offerMinGuests) || 0);
+    const maxGuests = Math.max(0, Number(offerCard.dataset.offerMaxGuests) || 0);
+    const minNights = Math.max(0, Number(offerCard.dataset.offerMinNights) || 0);
+    const maxNights = Math.max(0, Number(offerCard.dataset.offerMaxNights) || 0);
+
+    if (minGuests > 0 && guests < minGuests) return false;
+    if (maxGuests > 0 && guests > maxGuests) return false;
+    if (minNights > 0 && nights < minNights) return false;
+    if (maxNights > 0 && nights > maxNights) return false;
+
+    const offerDateFrom = String(offerCard.dataset.offerDateFrom || "").trim();
+    const offerDateTo = String(offerCard.dataset.offerDateTo || "").trim();
+    if (offerDateFrom && state.checkInIso < offerDateFrom) return false;
+    if (offerDateTo && state.checkOutIso > offerDateTo) return false;
+
+    return true;
+  };
+
   const syncUi = () => {
     const state = getState();
     actionBtn.textContent = hasSearched ? "Обновить" : "Найти";
+    syncOfferCards(state);
+
+    if (!hasRooms) {
+      actionBtn.disabled = true;
+      summary.hidden = true;
+      roomList.hidden = true;
+      setEmptyState("hotel", true);
+      return;
+    }
+
     actionBtn.disabled = !state.isReady;
 
     if (!state.isReady) {
       summary.hidden = true;
+    } else {
+      const nightsLabel = formatLabel(state.nights, "ночь", "ночи", "ночей");
+      const guestsLabel = formatLabel(state.guestsTotal, "гость", "гостя", "гостей");
+      summary.textContent = `На ${nightsLabel}, ${guestsLabel}`;
+      summary.hidden = false;
+    }
+
+    if (!hasSearched || !state.isReady) {
+      roomRows.forEach((row) => {
+        row.hidden = false;
+        const rowOfferCards = Array.from(row.querySelectorAll("[data-room-offer-card]"));
+        rowOfferCards.forEach((offerCard) => {
+          offerCard.hidden = false;
+        });
+      });
+      roomList.hidden = false;
+      setEmptyState("search", false);
+      window.dispatchEvent(new Event("resize"));
       return;
     }
 
-    const nightsLabel = formatLabel(state.nights, "ночь", "ночи", "ночей");
-    const guestsLabel = formatLabel(state.guestsTotal, "гость", "гостя", "гостей");
-    summary.textContent = `На ${nightsLabel}, ${guestsLabel}`;
-    summary.hidden = false;
+    let visibleRowsCount = 0;
+    roomRows.forEach((row) => {
+      const roomMaxGuests = Math.max(1, Number(row.dataset.roomMaxGuests) || 1);
+      const rowOfferCards = Array.from(row.querySelectorAll("[data-room-offer-card]"));
+      let visibleOffersCount = 0;
+      rowOfferCards.forEach((offerCard) => {
+        const isVisible = isOfferAvailableForState(offerCard, state, roomMaxGuests);
+        offerCard.hidden = !isVisible;
+        if (isVisible) visibleOffersCount += 1;
+      });
+
+      const hasVisibleOffers = visibleOffersCount > 0;
+      row.hidden = !hasVisibleOffers;
+      if (hasVisibleOffers) visibleRowsCount += 1;
+    });
+
+    const hasVisibleRows = visibleRowsCount > 0;
+    roomList.hidden = !hasVisibleRows;
+    setEmptyState("search", !hasVisibleRows);
+    window.dispatchEvent(new Event("resize"));
   };
 
   const onSearch = () => {
@@ -1279,6 +1415,7 @@ const initAuthModal = () => {
   const apiUrl = modal.dataset.authApiUrl || window.location.pathname;
   const csrfName = modal.dataset.csrfName || "";
   const csrfValue = modal.dataset.csrfValue || "";
+  const reCaptchaEnabled = modal.dataset.recaptchaEnabled === "1";
   const forms = Array.from(modal.querySelectorAll("[data-auth-form]"));
   const paneByMode = {
     login: modal.querySelector('[data-auth-pane="login"]'),
@@ -1383,6 +1520,12 @@ const initAuthModal = () => {
     }
   };
 
+  const getCaptchaToken = (form) => {
+    const tokenInput = form.querySelector('textarea[name="g-recaptcha-response"]');
+    if (!(tokenInput instanceof HTMLTextAreaElement)) return "";
+    return String(tokenInput.value || "").trim();
+  };
+
   const setupCooldown = (button, seconds) => {
     const total = Number(seconds) || 60;
     let left = total;
@@ -1422,6 +1565,14 @@ const initAuthModal = () => {
       };
       if (mode === "register" && nameInput) {
         payload.name = nameInput.value.trim();
+      }
+      if (reCaptchaEnabled) {
+        const captchaToken = getCaptchaToken(form);
+        if (!captchaToken) {
+          setMessage("Подтвердите, что вы не робот.", "error");
+          return;
+        }
+        payload["g-recaptcha-response"] = captchaToken;
       }
 
       sendCodeBtn.disabled = true;
@@ -1653,6 +1804,204 @@ const initAuthLogout = () => {
       window.alert(message);
       button.disabled = false;
     }
+  });
+};
+
+const initProfileEditor = () => {
+  const root = document.querySelector("[data-profile-editor]");
+  if (!root) return;
+
+  const nameEl = root.querySelector("[data-profile-name]");
+  const nameValueEl = root.querySelector("[data-profile-name-value]");
+  const descriptionEl = root.querySelector("[data-profile-description]");
+  const initialsEl = root.querySelector("[data-profile-avatar-initials]");
+  const avatarImageEl = root.querySelector("[data-profile-avatar-image]");
+  const avatarInputEl = root.querySelector("[data-profile-avatar-input]");
+  const form = root.querySelector("[data-profile-form]");
+  const nameInputEl = root.querySelector("[data-profile-input-name]");
+  const descriptionInputEl = root.querySelector("[data-profile-input-description]");
+  const saveBtnEl = root.querySelector("[data-profile-save]");
+  const messageEl = root.querySelector("[data-profile-message]");
+
+  if (
+    !(nameEl instanceof HTMLElement) ||
+    !(nameValueEl instanceof HTMLElement) ||
+    !(descriptionEl instanceof HTMLElement) ||
+    !(initialsEl instanceof HTMLElement) ||
+    !(avatarImageEl instanceof HTMLImageElement) ||
+    !(avatarInputEl instanceof HTMLInputElement) ||
+    !(form instanceof HTMLFormElement) ||
+    !(nameInputEl instanceof HTMLInputElement) ||
+    !(descriptionInputEl instanceof HTMLTextAreaElement)
+  ) {
+    return;
+  }
+
+  const apiUrl = String(root.getAttribute("data-profile-api-url") || window.location.pathname || "/");
+  const csrfName = String(root.getAttribute("data-csrf-name") || "").trim();
+  const csrfValue = String(root.getAttribute("data-csrf-value") || "").trim();
+  const defaultName = String(root.getAttribute("data-profile-default-name") || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const fallbackName = defaultName || "Путешественник";
+  const defaultBio = String(root.getAttribute("data-profile-default-bio") || "").trim();
+  const defaultAvatar = String(root.getAttribute("data-profile-default-avatar") || "").trim();
+  const defaultInitials = String(root.getAttribute("data-profile-default-initials") || "SK").trim();
+  const maxAvatarBytes = 2 * 1024 * 1024;
+
+  const buildInitials = (value) => {
+    const source = String(value || "").replace(/\s+/g, " ").trim();
+    if (!source) return defaultInitials || "SK";
+    const parts = source.split(" ").filter(Boolean);
+    const letters = parts.map((part) => part.slice(0, 1).toUpperCase()).slice(0, 2);
+    if (letters.length === 0) return defaultInitials || "SK";
+    return letters.join("");
+  };
+
+  const setMessage = (text, isError = false) => {
+    if (!(messageEl instanceof HTMLElement)) return;
+    messageEl.textContent = text;
+    messageEl.style.color = isError ? "#b12828" : "#206f44";
+  };
+
+  const safeName = (value) => {
+    const normalized = String(value || "").replace(/\s+/g, " ").trim();
+    return normalized || fallbackName;
+  };
+
+  const safeDescription = (value) => String(value || "").trim().slice(0, 240);
+
+  const render = (state) => {
+    const currentName = safeName(state.name);
+    const currentDescription = safeDescription(state.description);
+    const currentAvatar = String(state.avatar || "").trim();
+
+    nameEl.textContent = currentName;
+    nameValueEl.textContent = currentName;
+    descriptionEl.textContent = currentDescription || "Добавьте описание профиля.";
+    nameInputEl.value = currentName;
+    descriptionInputEl.value = currentDescription;
+    initialsEl.textContent = buildInitials(currentName);
+
+    if (currentAvatar) {
+      avatarImageEl.src = currentAvatar;
+      avatarImageEl.hidden = false;
+      initialsEl.hidden = true;
+    } else {
+      avatarImageEl.removeAttribute("src");
+      avatarImageEl.hidden = true;
+      initialsEl.hidden = false;
+    }
+  };
+
+  const setBusy = (busy) => {
+    if (saveBtnEl instanceof HTMLButtonElement) {
+      saveBtnEl.disabled = busy;
+      saveBtnEl.textContent = busy ? "Сохранение..." : "Сохранить изменения";
+    }
+  };
+
+  const sendUpdateRequest = async (payload) => {
+    const params = new URLSearchParams();
+    params.set("auth_action", "update_profile");
+    params.set("profile_name", payload.name);
+    params.set("profile_description", payload.description);
+    params.set("profile_avatar", payload.avatar);
+    if (csrfName && csrfValue) {
+      params.set(csrfName, csrfValue);
+    }
+
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "X-Requested-With": "XMLHttpRequest",
+        Accept: "application/json",
+      },
+      body: params.toString(),
+      credentials: "same-origin",
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data || !data.ok) {
+      throw new Error((data && data.message) || "Не удалось сохранить изменения.");
+    }
+    return data;
+  };
+
+  let state = {
+    name: safeName(defaultName),
+    description: safeDescription(defaultBio),
+    avatar: defaultAvatar,
+  };
+  render(state);
+
+  avatarImageEl.addEventListener("error", () => {
+    state.avatar = "";
+    render(state);
+    setMessage("Не удалось загрузить аватар, выберите другое изображение.", true);
+  });
+
+  avatarInputEl.addEventListener("change", () => {
+    const file = avatarInputEl.files && avatarInputEl.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setMessage("Выберите файл изображения.", true);
+      avatarInputEl.value = "";
+      return;
+    }
+
+    if (file.size > maxAvatarBytes) {
+      setMessage("Изображение должно быть меньше 2 МБ.", true);
+      avatarInputEl.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") return;
+      state.avatar = reader.result;
+      render(state);
+      setMessage("Фото обновлено. Нажмите «Сохранить изменения».");
+    };
+    reader.onerror = () => {
+      setMessage("Не удалось прочитать файл.", true);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    state = {
+      ...state,
+      name: safeName(nameInputEl.value).slice(0, 60),
+      description: safeDescription(descriptionInputEl.value),
+    };
+    render(state);
+
+    setBusy(true);
+    sendUpdateRequest(state)
+      .then((data) => {
+        const user = (data && data.data && data.data.user) || null;
+        if (user && typeof user === "object") {
+          state = {
+            ...state,
+            name: safeName(typeof user.name === "string" ? user.name : state.name),
+            description: safeDescription(
+              typeof user.profile_bio === "string" ? user.profile_bio : state.description,
+            ),
+            avatar: typeof user.profile_avatar === "string" ? user.profile_avatar : state.avatar,
+          };
+          render(state);
+        }
+        setMessage((data && data.message) || "Изменения сохранены.");
+      })
+      .catch((error) => {
+        setMessage(error instanceof Error ? error.message : "Не удалось сохранить изменения.", true);
+      })
+      .finally(() => {
+        setBusy(false);
+      });
   });
 };
 
@@ -2751,7 +3100,9 @@ const initMediaLightbox = (gallerySelector, itemSelector, modalSelector) => {
   const modal = document.querySelector(modalSelector);
   if (!gallery || !modal) return;
 
-  const items = Array.from(gallery.querySelectorAll(itemSelector));
+  const items = Array.from(gallery.querySelectorAll(itemSelector)).filter(
+    (item) => !(item instanceof HTMLElement) || item.dataset.galleryType !== "video",
+  );
   const imageEl = modal.querySelector("[data-gallery-image]");
   const videoEl = modal.querySelector("[data-gallery-video]");
   const counterEl = modal.querySelector("[data-gallery-counter]");
@@ -2759,46 +3110,32 @@ const initMediaLightbox = (gallerySelector, itemSelector, modalSelector) => {
   const backdrop = modal.querySelector('[data-gallery-close="backdrop"]');
   const prevBtn = modal.querySelector('[data-gallery-nav="prev"]');
   const nextBtn = modal.querySelector('[data-gallery-nav="next"]');
-  if (!items.length || (!imageEl && !videoEl) || !counterEl || !closeBtn || !backdrop || !prevBtn || !nextBtn) return;
+  if (!items.length || !(imageEl instanceof HTMLImageElement) || !counterEl || !closeBtn || !backdrop || !prevBtn || !nextBtn) return;
 
   let activeIndex = 0;
   const hasVideo = videoEl instanceof HTMLVideoElement;
-  const hasImage = imageEl instanceof HTMLImageElement;
-
-  const resetVideo = () => {
-    if (!hasVideo) return;
+  if (hasVideo) {
     videoEl.pause();
     videoEl.removeAttribute("src");
     videoEl.load();
     videoEl.hidden = true;
-  };
+  }
 
   const updateView = () => {
     const item = items[activeIndex];
     if (!(item instanceof HTMLElement)) return;
     const src = item.dataset.gallerySrc || "";
     const alt = item.dataset.galleryAlt || "";
-    const mediaType = item.dataset.galleryType === "video" ? "video" : "image";
 
-    if (mediaType === "video" && hasVideo) {
-      if (hasImage) {
-        imageEl.hidden = true;
-        imageEl.removeAttribute("src");
-        imageEl.alt = "";
-      }
-      videoEl.hidden = false;
-      videoEl.src = src;
+    if (hasVideo) {
+      videoEl.pause();
+      videoEl.removeAttribute("src");
       videoEl.load();
-    } else if (hasImage) {
-      resetVideo();
-      imageEl.hidden = false;
-      imageEl.src = src;
-      imageEl.alt = alt;
-    } else if (hasVideo) {
-      videoEl.hidden = false;
-      videoEl.src = src;
-      videoEl.load();
+      videoEl.hidden = true;
     }
+    imageEl.hidden = false;
+    imageEl.src = src;
+    imageEl.alt = alt;
 
     counterEl.textContent = `${activeIndex + 1} / ${items.length}`;
   };
@@ -2818,7 +3155,12 @@ const initMediaLightbox = (gallerySelector, itemSelector, modalSelector) => {
     window.setTimeout(() => {
       if (!modal.classList.contains("is-open")) modal.hidden = true;
     }, 160);
-    resetVideo();
+    if (hasVideo) {
+      videoEl.pause();
+      videoEl.removeAttribute("src");
+      videoEl.load();
+      videoEl.hidden = true;
+    }
     document.body.classList.remove("hotel-lightbox-open");
   };
 
@@ -2964,8 +3306,132 @@ const initHotelMediaGallery = () => {
   initMediaLightbox("[data-hotel-gallery]", "[data-hotel-gallery-item]", "[data-hotel-gallery-modal]");
 };
 
+const initHotelRoomGallery = () => {
+  const modal = document.querySelector("[data-hotel-room-gallery-modal]");
+  if (!(modal instanceof HTMLElement)) return;
+
+  const roomItems = Array.from(document.querySelectorAll("[data-room-gallery-item]"));
+  const roomOpenButtons = Array.from(document.querySelectorAll("[data-room-gallery-open]"));
+  if (!roomItems.length || !roomOpenButtons.length) return;
+
+  const imageEl = modal.querySelector("[data-room-gallery-image]");
+  const counterEl = modal.querySelector("[data-room-gallery-counter]");
+  const closeBtn = modal.querySelector('[data-room-gallery-close="button"]');
+  const backdrop = modal.querySelector('[data-room-gallery-close="backdrop"]');
+  const prevBtn = modal.querySelector('[data-room-gallery-nav="prev"]');
+  const nextBtn = modal.querySelector('[data-room-gallery-nav="next"]');
+
+  if (
+    !(imageEl instanceof HTMLImageElement) ||
+    !(counterEl instanceof HTMLElement) ||
+    !(closeBtn instanceof HTMLButtonElement) ||
+    !(backdrop instanceof HTMLElement) ||
+    !(prevBtn instanceof HTMLButtonElement) ||
+    !(nextBtn instanceof HTMLButtonElement)
+  ) {
+    return;
+  }
+
+  let activeGroupItems = [];
+  let activeIndex = 0;
+
+  const getGroupItems = (group) =>
+    roomItems.filter(
+      (item) => item instanceof HTMLElement && String(item.dataset.roomGalleryGroup || "") === String(group || ""),
+    );
+
+  const updateView = () => {
+    const activeItem = activeGroupItems[activeIndex];
+    if (!(activeItem instanceof HTMLElement)) return;
+    imageEl.src = activeItem.dataset.gallerySrc || "";
+    imageEl.alt = activeItem.dataset.galleryAlt || "";
+    counterEl.textContent = `${activeIndex + 1} / ${activeGroupItems.length}`;
+  };
+
+  const openModal = (group, startIndex = 0) => {
+    const groupItems = getGroupItems(group);
+    if (!groupItems.length) return;
+    activeGroupItems = groupItems;
+    activeIndex = Math.max(0, Math.min(groupItems.length - 1, startIndex));
+    updateView();
+    modal.hidden = false;
+    window.requestAnimationFrame(() => {
+      modal.classList.add("is-open");
+      document.body.classList.add("hotel-lightbox-open");
+    });
+  };
+
+  const closeModal = () => {
+    modal.classList.remove("is-open");
+    window.setTimeout(() => {
+      if (!modal.classList.contains("is-open")) modal.hidden = true;
+    }, 160);
+    imageEl.removeAttribute("src");
+    imageEl.alt = "";
+    document.body.classList.remove("hotel-lightbox-open");
+  };
+
+  const showPrevious = () => {
+    if (!activeGroupItems.length) return;
+    activeIndex = (activeIndex - 1 + activeGroupItems.length) % activeGroupItems.length;
+    updateView();
+  };
+
+  const showNext = () => {
+    if (!activeGroupItems.length) return;
+    activeIndex = (activeIndex + 1) % activeGroupItems.length;
+    updateView();
+  };
+
+  roomOpenButtons.forEach((button) => {
+    if (!(button instanceof HTMLElement)) return;
+    button.addEventListener("click", () => {
+      const group = button.dataset.roomGalleryGroup || "";
+      openModal(group, 0);
+    });
+  });
+
+  roomItems.forEach((item) => {
+    if (!(item instanceof HTMLElement)) return;
+    item.addEventListener("click", () => {
+      const group = item.dataset.roomGalleryGroup || "";
+      const groupItems = getGroupItems(group);
+      const index = groupItems.indexOf(item);
+      openModal(group, index >= 0 ? index : 0);
+    });
+  });
+
+  closeBtn.addEventListener("click", closeModal);
+  backdrop.addEventListener("click", closeModal);
+  prevBtn.addEventListener("click", showPrevious);
+  nextBtn.addEventListener("click", showNext);
+
+  document.addEventListener("keydown", (event) => {
+    if (!modal.classList.contains("is-open")) return;
+    if (event.key === "Escape") {
+      closeModal();
+      return;
+    }
+    if (event.key === "ArrowLeft") {
+      showPrevious();
+      return;
+    }
+    if (event.key === "ArrowRight") {
+      showNext();
+    }
+  });
+};
+
 const initRegionMediaGallery = () => {
   initMediaLightbox("[data-region-gallery]", "[data-region-gallery-item]", "[data-region-gallery-modal]");
+};
+
+const initGuideReviewsGallery = () => {
+  initMediaLightbox("[data-guide-reviews-gallery]", "[data-guide-review-photo]", "[data-guide-review-modal]");
+};
+
+const initTourReviewsGallery = () => {
+  initMediaLightbox("[data-tour-reviews-gallery]", "[data-tour-review-photo]", "[data-tour-review-modal]");
 };
 
 const initHotelRoomOffersSlider = () => {
@@ -2984,8 +3450,13 @@ const initHotelRoomOffersSlider = () => {
       return;
     }
 
+    const getVisibleCards = () =>
+      Array.from(track.querySelectorAll(".hotel-offer-card")).filter(
+        (card) => card instanceof HTMLElement && !card.hidden,
+      );
+
     const step = () => {
-      const firstCard = track.querySelector(".hotel-offer-card");
+      const firstCard = getVisibleCards()[0];
       if (!(firstCard instanceof HTMLElement)) return 260;
       const cardWidth = firstCard.getBoundingClientRect().width;
       const styles = window.getComputedStyle(track);
@@ -2994,13 +3465,21 @@ const initHotelRoomOffersSlider = () => {
     };
 
     const updateButtons = () => {
+      const visibleCards = getVisibleCards();
+      if (!visibleCards.length) {
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+        slider.classList.remove("is-scrollable", "has-prev", "has-next");
+        return;
+      }
+
       const maxScroll = Math.max(0, track.scrollWidth - track.clientWidth);
       const left = track.scrollLeft;
       const canPrev = left > 2;
       const canNext = left < maxScroll - 2;
       prevBtn.disabled = !canPrev;
       nextBtn.disabled = !canNext;
-      slider.classList.toggle("is-scrollable", maxScroll > 2);
+      slider.classList.toggle("is-scrollable", visibleCards.length > 1 && maxScroll > 2);
       slider.classList.toggle("has-prev", canPrev);
       slider.classList.toggle("has-next", canNext);
     };
@@ -3096,13 +3575,17 @@ document.addEventListener("DOMContentLoaded", () => {
   initContactsModal();
   initHomeMobileMenu();
   initAuthLogout();
+  initProfileEditor();
   initJournalSlider();
   initDagestanSlider();
   initHotToursSlider();
   initRegionActualSlider();
   initHotelMediaGallery();
+  initHotelRoomGallery();
   initHotelRoomOffersSlider();
   initRegionMediaPreview();
   initRegionMediaGallery();
+  initGuideReviewsGallery();
+  initTourReviewsGallery();
   initTourDaysAccordion();
 });
