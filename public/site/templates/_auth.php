@@ -7,6 +7,8 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 				`id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
 				`email` VARCHAR(190) NOT NULL,
 				`name` VARCHAR(120) NOT NULL DEFAULT '',
+				`profile_bio` VARCHAR(240) NOT NULL DEFAULT '',
+				`profile_avatar` MEDIUMTEXT NULL,
 				`created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				`last_login_at` DATETIME NULL,
 				`last_ip` VARCHAR(64) NOT NULL DEFAULT '',
@@ -14,6 +16,24 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 				UNIQUE KEY `uniq_email` (`email`)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
 		);
+
+		try {
+			$columnsStmt = $database->query("SHOW COLUMNS FROM `site_auth_accounts`");
+			$columns = [];
+			if ($columnsStmt) {
+				$columns = $columnsStmt->fetchAll(\PDO::FETCH_COLUMN, 0) ?: [];
+			}
+			$hasBio = in_array('profile_bio', $columns, true);
+			$hasAvatar = in_array('profile_avatar', $columns, true);
+			if (!$hasBio) {
+				$database->exec("ALTER TABLE `site_auth_accounts` ADD COLUMN `profile_bio` VARCHAR(240) NOT NULL DEFAULT '' AFTER `name`");
+			}
+			if (!$hasAvatar) {
+				$database->exec("ALTER TABLE `site_auth_accounts` ADD COLUMN `profile_avatar` MEDIUMTEXT NULL AFTER `profile_bio`");
+			}
+		} catch (\Throwable $e) {
+			// Non-fatal: table can still work without optional columns.
+		}
 
 		$database->exec(
 			"CREATE TABLE IF NOT EXISTS `site_auth_otps` (
@@ -120,7 +140,7 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 
 	function skfoAuthFindAccountById($database, int $id): ?array {
 		if ($id <= 0) return null;
-		$stmt = $database->prepare("SELECT `id`, `email`, `name`, `created_at`, `last_login_at` FROM `site_auth_accounts` WHERE `id`=:id LIMIT 1");
+		$stmt = $database->prepare("SELECT `id`, `email`, `name`, `profile_bio`, `profile_avatar`, `created_at`, `last_login_at` FROM `site_auth_accounts` WHERE `id`=:id LIMIT 1");
 		$stmt->bindValue(':id', $id, \PDO::PARAM_INT);
 		$stmt->execute();
 		$row = $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -129,7 +149,7 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 
 	function skfoAuthFindAccountByEmail($database, string $email): ?array {
 		if ($email === '') return null;
-		$stmt = $database->prepare("SELECT `id`, `email`, `name`, `created_at`, `last_login_at` FROM `site_auth_accounts` WHERE `email`=:email LIMIT 1");
+		$stmt = $database->prepare("SELECT `id`, `email`, `name`, `profile_bio`, `profile_avatar`, `created_at`, `last_login_at` FROM `site_auth_accounts` WHERE `email`=:email LIMIT 1");
 		$stmt->bindValue(':email', $email, \PDO::PARAM_STR);
 		$stmt->execute();
 		$row = $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -160,6 +180,38 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		$update->execute();
 	}
 
+	function skfoAuthNormalizeDescription(string $rawDescription): string {
+		$description = trim($rawDescription);
+		$description = preg_replace('/\s+/u', ' ', $description) ?? $description;
+		if (function_exists('mb_substr')) return mb_substr($description, 0, 240, 'UTF-8');
+		return substr($description, 0, 240);
+	}
+
+	function skfoAuthNormalizeAvatarDataUrl(string $rawAvatar): array {
+		$avatar = trim($rawAvatar);
+		if ($avatar === '') {
+			return ['ok' => true, 'value' => null, 'message' => ''];
+		}
+
+		$matches = [];
+		$pattern = '/^data:image\/(png|jpe?g|webp|gif);base64,([A-Za-z0-9+\/=]+)$/i';
+		if (preg_match($pattern, $avatar, $matches) !== 1) {
+			return ['ok' => false, 'value' => null, 'message' => 'Некорректный формат изображения.'];
+		}
+
+		$decoded = base64_decode((string) ($matches[2] ?? ''), true);
+		if (!is_string($decoded)) {
+			return ['ok' => false, 'value' => null, 'message' => 'Не удалось обработать изображение.'];
+		}
+
+		$maxSizeBytes = 2 * 1024 * 1024;
+		if (strlen($decoded) > $maxSizeBytes) {
+			return ['ok' => false, 'value' => null, 'message' => 'Изображение должно быть меньше 2 МБ.'];
+		}
+
+		return ['ok' => true, 'value' => $avatar, 'message' => ''];
+	}
+
 	function skfoAuthGetCurrentUser($session, $database): ?array {
 		$accountId = (int) $session->get('skfo_auth_account_id');
 		if ($accountId <= 0) return null;
@@ -180,6 +232,71 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		$value = $_ENV[$name] ?? $_SERVER[$name] ?? getenv($name);
 		if ($value === false || $value === null) return $default;
 		return trim((string) $value);
+	}
+
+	function skfoAuthValidateReCaptcha(string $token, string $ip): array {
+		$serverKey = skfoAuthEnv('SKFO_RECAPTCHA_SECRET_KEY', '');
+		if ($serverKey === '') {
+			return ['ok' => false, 'message' => 'Капча не настроена на сервере.', 'status' => 503];
+		}
+
+		$token = trim($token);
+		if ($token === '') {
+			return ['ok' => false, 'message' => 'Подтвердите, что вы не робот.', 'status' => 422];
+		}
+
+		$payload = http_build_query([
+			'secret' => $serverKey,
+			'response' => $token,
+			'remoteip' => trim($ip),
+		], '', '&', PHP_QUERY_RFC3986);
+
+		$responseBody = '';
+		$responseCode = 0;
+
+		if (function_exists('curl_init')) {
+			$ch = curl_init('https://www.google.com/recaptcha/api/siteverify');
+			if ($ch !== false) {
+				curl_setopt($ch, CURLOPT_POST, true);
+				curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+				curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/x-www-form-urlencoded']);
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+				curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+				curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+				$responseBody = (string) curl_exec($ch);
+				$responseCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+				curl_close($ch);
+			}
+		} else {
+			$context = stream_context_create([
+				'http' => [
+					'method' => 'POST',
+					'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
+					'content' => $payload,
+					'timeout' => 8,
+				]
+			]);
+			$result = @file_get_contents('https://www.google.com/recaptcha/api/siteverify', false, $context);
+			$responseBody = is_string($result) ? $result : '';
+			if (!empty($http_response_header[0]) && preg_match('/\s(\d{3})\s/', (string) $http_response_header[0], $m) === 1) {
+				$responseCode = (int) ($m[1] ?? 0);
+			}
+		}
+
+		if ($responseCode !== 200 || $responseBody === '') {
+			return ['ok' => false, 'message' => 'Не удалось проверить капчу. Попробуйте ещё раз.', 'status' => 502];
+		}
+
+		$data = json_decode($responseBody, true);
+		if (!is_array($data)) {
+			return ['ok' => false, 'message' => 'Некорректный ответ проверки капчи.', 'status' => 502];
+		}
+
+		if (!empty($data['success'])) {
+			return ['ok' => true, 'message' => '', 'status' => 200];
+		}
+
+		return ['ok' => false, 'message' => 'Проверка капчи не пройдена. Повторите попытку.', 'status' => 422];
 	}
 
 	function skfoAuthMimeHeader(string $value): string {
@@ -409,8 +526,17 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		$email = skfoAuthNormalizeEmail($sanitizer, (string) $input->post('email'));
 		$name = skfoAuthNormalizeName((string) $input->post('name'));
 		$ip = skfoAuthClientIp();
+		$captchaToken = trim((string) $input->post('g-recaptcha-response'));
 		$now = time();
 		$nowSql = date('Y-m-d H:i:s', $now);
+
+		$captchaValidation = skfoAuthValidateReCaptcha($captchaToken, $ip);
+		if (empty($captchaValidation['ok'])) {
+			$status = (int) ($captchaValidation['status'] ?? 422);
+			$message = trim((string) ($captchaValidation['message'] ?? 'Проверка капчи не пройдена.'));
+			skfoAuthJson(false, $message !== '' ? $message : 'Проверка капчи не пройдена.', [], $status > 0 ? $status : 422);
+			return;
+		}
 
 		if ($email === '') {
 			skfoAuthJson(false, 'Укажите корректный email.', [], 422);
@@ -655,6 +781,73 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		skfoAuthJson(true, 'Вы вышли из профиля.', ['redirect' => '/']);
 	}
 
+	function skfoAuthUpdateProfile($input, $session, $database): void {
+		$accountId = (int) $session->get('skfo_auth_account_id');
+		if ($accountId <= 0) {
+			skfoAuthJson(false, 'Требуется авторизация.', [], 401);
+			return;
+		}
+
+		$currentUser = skfoAuthGetCurrentUser($session, $database);
+		if (!$currentUser) {
+			skfoAuthJson(false, 'Профиль не найден. Войдите заново.', [], 401);
+			return;
+		}
+
+		$name = skfoAuthNormalizeName((string) $input->post('profile_name'));
+		if (function_exists('mb_substr')) {
+			$name = mb_substr($name, 0, 60, 'UTF-8');
+		} else {
+			$name = substr($name, 0, 60);
+		}
+		if ($name === '') {
+			skfoAuthJson(false, 'Имя не может быть пустым.', [], 422);
+			return;
+		}
+
+		$description = skfoAuthNormalizeDescription((string) $input->post('profile_description'));
+		$avatarValidation = skfoAuthNormalizeAvatarDataUrl((string) $input->post('profile_avatar'));
+		if (empty($avatarValidation['ok'])) {
+			skfoAuthJson(false, (string) ($avatarValidation['message'] ?? 'Некорректное изображение.'), [], 422);
+			return;
+		}
+		$avatar = $avatarValidation['value'] ?? null;
+
+		try {
+			$update = $database->prepare(
+				"UPDATE `site_auth_accounts`
+				SET `name`=:name, `profile_bio`=:profile_bio, `profile_avatar`=:profile_avatar
+				WHERE `id`=:id
+				LIMIT 1"
+			);
+			$update->bindValue(':name', $name, \PDO::PARAM_STR);
+			$update->bindValue(':profile_bio', $description, \PDO::PARAM_STR);
+			$update->bindValue(':profile_avatar', $avatar, $avatar === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR);
+			$update->bindValue(':id', $accountId, \PDO::PARAM_INT);
+			$update->execute();
+		} catch (\Throwable $e) {
+			skfoAuthJson(false, 'Не удалось сохранить профиль в базе данных.', [], 500);
+			return;
+		}
+
+		$updatedAccount = skfoAuthFindAccountById($database, $accountId);
+		if (!$updatedAccount) {
+			skfoAuthJson(false, 'Не удалось обновить профиль.', [], 500);
+			return;
+		}
+
+		skfoAuthSetSession($session, $updatedAccount);
+		skfoAuthJson(true, 'Профиль обновлен.', [
+			'user' => [
+				'id' => (int) ($updatedAccount['id'] ?? 0),
+				'email' => (string) ($updatedAccount['email'] ?? ''),
+				'name' => (string) ($updatedAccount['name'] ?? ''),
+				'profile_bio' => (string) ($updatedAccount['profile_bio'] ?? ''),
+				'profile_avatar' => (string) ($updatedAccount['profile_avatar'] ?? ''),
+			],
+		]);
+	}
+
 	function skfoAuthHandleApiRequest($input, $session, $database, $sanitizer, $config, $log): void {
 		try {
 			$csrfValid = $session->CSRF->validate();
@@ -678,6 +871,10 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		}
 		if ($action === 'logout') {
 			skfoAuthLogout($session);
+			return;
+		}
+		if ($action === 'update_profile') {
+			skfoAuthUpdateProfile($input, $session, $database);
 			return;
 		}
 
