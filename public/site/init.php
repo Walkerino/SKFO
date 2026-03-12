@@ -44,3 +44,25 @@ if (preg_match('#^/region/([^/]+)/?$#', $requestPath, $matches) === 1) {
 		$wire->session->redirect('/regions/' . $targetSlug . '/' . $query, true);
 	}
 }
+
+$isProfileRequest = $requestPath === '/profile' || $requestPath === '/profile/';
+if ($isProfileRequest) {
+	$profilePage = $wire->pages->get('include=all, path=/profile/');
+	if (!$profilePage instanceof Page || !$profilePage->id) {
+		$profileTemplate = $wire->templates->get('basic-page');
+		$homePage = $wire->pages->get('/');
+
+		if ($profileTemplate instanceof Template && $profileTemplate->id && $homePage instanceof Page && $homePage->id) {
+			try {
+				$newProfilePage = new Page();
+				$newProfilePage->template = $profileTemplate;
+				$newProfilePage->parent = $homePage;
+				$newProfilePage->name = 'profile';
+				$newProfilePage->title = 'Профиль';
+				$newProfilePage->save();
+			} catch (\Throwable $e) {
+				// Keep request flow untouched. Existing auth modal still allows sign-in as fallback.
+			}
+		}
+	}
+}
