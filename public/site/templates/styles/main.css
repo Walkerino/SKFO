@@ -261,7 +261,7 @@ button {
 
 /* Guide detail page has no hero strip above header, so render a blue backing like other secondary pages. */
 .template-guide .tour-header {
-  background: linear-gradient(135deg, var(--blue-900), var(--blue-700));
+  background: #1f52b2;
   padding: 14px 0 16px;
 }
 
@@ -280,7 +280,7 @@ button {
 }
 
 .is-article-detail .tour-header {
-  background: linear-gradient(135deg, var(--blue-900), var(--blue-700));
+  background: #1f52b2;
   padding: 14px 0 16px;
 }
 
@@ -2366,6 +2366,18 @@ body.hotel-lightbox-open {
   gap: 1px;
 }
 
+.reviews-page .review-meta {
+  gap: 6px;
+  min-width: 0;
+}
+
+.reviews-page .review-author-line {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .review-tour-label {
   margin-top: 2px;
   color: #5c6474;
@@ -2393,11 +2405,50 @@ body.hotel-lightbox-open {
   color: #121826;
 }
 
+.reviews-page .review-author {
+  font-size: clamp(24px, 2.1vw, 32px);
+  line-height: 1.1;
+}
+
 .review-stars {
   display: inline-block;
   color: #f3a314;
   letter-spacing: 0.06em;
   font-size: 18px;
+}
+
+.reviews-page .review-stars-inline {
+  display: inline-flex;
+  align-items: center;
+  font-size: clamp(15px, 1.2vw, 18px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #fff6d8;
+}
+
+.reviews-page .review-stars-inline .is-filled {
+  color: #f4b400;
+  text-shadow: 0 1px 0 rgba(204, 138, 0, 0.2);
+}
+
+.reviews-page .review-stars-inline .is-empty {
+  color: #e7d9a3;
+}
+
+.reviews-page .review-tour-title {
+  margin: -2px 0 0;
+  color: #2c68bd;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.reviews-page a.review-tour-title:hover {
+  text-decoration-thickness: 2px;
 }
 
 .review-text {
@@ -5308,6 +5359,10 @@ a.place-card:hover {
   box-shadow: none;
 }
 
+.journal-button--mobile {
+  display: none;
+}
+
 .journal-articles {
   position: relative;
   align-self: center;
@@ -5732,7 +5787,11 @@ a.hot-tour-card:hover {
 
 .footer-sections {
   display: grid;
-  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(4, auto);
+  grid-auto-flow: column;
+  column-gap: 28px;
+  row-gap: 18px;
 }
 
 .footer-section-item {
@@ -6742,6 +6801,24 @@ body.auth-modal-open {
     margin-left: 0;
   }
 
+  .hotel-page .tour-badge {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
+    margin: 0;
+    display: inline-flex;
+    justify-content: center;
+
+    margin-top: 10px;
+  }
+
+  .hotel-page .tour-badge span {
+    padding-top: 0;
+    text-align: center;
+  }
+
   .tour-cover {
     min-height: 250px;
     width: 100%;
@@ -6945,8 +7022,14 @@ body.auth-modal-open {
   }
 
   .hotel-hero-gallery {
-    padding-top: 50px;
+    padding-top: 0;
     gap: 8px;
+  }
+
+  .hotel-page .hotel-hero-gallery .hotel-hero-gallery-strip {
+    width: 100%;
+    margin-left: 0;
+    justify-content: stretch;
   }
 
   .hotel-media-item--primary {
@@ -7269,6 +7352,15 @@ body.auth-modal-open {
 
   .review-tour-label {
     font-size: 13px;
+  }
+
+  .reviews-page .review-stars-inline {
+    font-size: 15px;
+    padding: 2px 7px;
+  }
+
+  .reviews-page .review-tour-title {
+    font-size: clamp(19px, 6vw, 25px);
   }
 
   .reviews-form-title {
@@ -7598,18 +7690,25 @@ body.auth-modal-open {
 
   .footer-sections {
     order: 3;
-    width: min(260px, 100%);
+    width: min(340px, 100%);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-auto-flow: row;
     justify-items: stretch;
-    gap: 14px;
+    gap: 10px;
     margin-top: 16px;
   }
 
   .footer-section-item {
-    grid-template-columns: 40px minmax(0, 1fr);
-    align-items: start;
+    grid-template-columns: 36px minmax(0, 1fr);
+    align-items: center;
     text-align: left;
     gap: 8px;
     width: 100%;
+    min-height: 44px;
+    padding: 8px;
+    border-radius: 12px;
+    background: #ffffff;
   }
 
   .footer-section-icon {
@@ -7626,7 +7725,7 @@ body.auth-modal-open {
   .footer-section-text {
     justify-items: start;
     text-align: left;
-    gap: 2px;
+    gap: 0;
   }
 
   .footer-menu a,
@@ -7642,9 +7741,7 @@ body.auth-modal-open {
   }
 
   .footer-section-subtitle {
-    font-size: 11px;
-    line-height: 1.35;
-    max-width: none;
+    display: none;
   }
 
   .hero {
@@ -8287,7 +8384,24 @@ body.auth-modal-open {
   }
 
   .journal-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 12px;
+    padding: 12px 24px;
+    min-height: 44px;
+    font-size: 16px;
+    border-radius: 12px;
+  }
+
+  .journal-card-header .journal-button {
     display: none;
+  }
+
+  .journal-button--mobile {
+    display: inline-flex;
+    align-self: center;
+    margin-top: 0;
   }
 
   .journal-articles {
@@ -9048,6 +9162,38 @@ body.auth-modal-open {
   padding: 24px 0 20px;
 }
 
+.guide-slider {
+  min-width: 0;
+  position: relative;
+}
+
+.guide-slider-actions {
+  display: none;
+}
+
+.guide-slider-progress {
+  display: none;
+}
+
+.guide-tours-grid--slider {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.guide-reviews-list--slider {
+  margin-top: 22px;
+  display: grid;
+  gap: 0;
+}
+
+.section--guide-reviews .guide-reviews-list--slider .guide-review-card {
+  border-top: 1px solid #dce2ec;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 24px 0 20px;
+  height: auto;
+}
+
 .guide-review-card {
   background: #ffffff;
   border-radius: 16px;
@@ -9322,7 +9468,7 @@ body.auth-modal-open {
 
 .guide-article-link {
   margin-top: auto;
-  width: fit-content;
+  margin-top: 20px;
   max-width: 100%;
 }
 
@@ -9353,6 +9499,7 @@ body.auth-modal-open {
   }
 
   .guide-tours-grid,
+  .guide-tours-grid--slider,
   .guide-articles-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -9389,6 +9536,18 @@ body.auth-modal-open {
   .guide-card {
     padding: 16px;
     border-radius: 16px;
+  }
+
+  .guide-card-action {
+    width: 100%;
+    margin-top: 6px;
+    padding-inline: 6px;
+    box-sizing: border-box;
+  }
+
+  .guide-card-offers-btn {
+    width: 100%;
+    max-width: 100%;
   }
 
   .guide-card-main {
@@ -9461,8 +9620,112 @@ body.auth-modal-open {
   }
 
   .guide-tours-grid,
+  .guide-tours-grid--slider,
   .guide-articles-grid {
     grid-template-columns: 1fr;
+  }
+
+  .guide-slider.is-enabled {
+    padding-bottom: 10px;
+  }
+
+  .guide-slider.is-enabled .guide-slider-actions {
+    position: absolute;
+    top: 50%;
+    left: -8px;
+    right: -8px;
+    z-index: 3;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 0;
+    pointer-events: none;
+    transform: translateY(-50%);
+  }
+
+  .guide-slider.is-enabled .guide-slider-actions .circle-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 1px solid #c5cfdf;
+    background: rgba(255, 255, 255, 0.96);
+    color: #2d5fb6;
+    box-shadow: 0 6px 18px rgba(20, 42, 87, 0.18);
+    pointer-events: auto;
+  }
+
+  .guide-slider.is-enabled .guide-slider-actions .circle-btn--next {
+    color: #2d5fb6;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 6px 18px rgba(20, 42, 87, 0.18);
+  }
+
+  .guide-slider.is-enabled .guide-slider-actions .circle-btn.is-disabled,
+  .guide-slider.is-enabled .guide-slider-actions .circle-btn:disabled {
+    opacity: 0.4;
+  }
+
+  .guide-tours-grid--slider,
+  .guide-reviews-list--slider {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    gap: 12px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    padding: 0 30px;
+  }
+
+  .guide-tours-grid--slider::-webkit-scrollbar,
+  .guide-reviews-list--slider::-webkit-scrollbar {
+    display: none;
+  }
+
+  .guide-tours-grid--slider {
+    margin-top: 16px;
+    grid-auto-columns: calc(100% - 64px);
+  }
+
+  .guide-reviews-list--slider {
+    margin-top: 16px;
+    grid-auto-columns: calc(100% - 40px);
+    gap: 14px;
+  }
+
+  .guide-tours-grid--slider .guide-tour-card,
+  .guide-reviews-list--slider .guide-review-card {
+    scroll-snap-align: center;
+  }
+
+  .section--guide-reviews .guide-reviews-list--slider .guide-review-card {
+    border-top: 0;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 5px 20px rgba(16, 37, 89, 0.08);
+    padding: 16px;
+  }
+
+  .guide-slider.is-enabled .guide-slider-progress {
+    display: block;
+    margin: 12px 30px 0;
+  }
+
+  .guide-slider-progress-track {
+    width: 100%;
+    height: 4px;
+    border-radius: 999px;
+    background: #d5dae3;
+    overflow: hidden;
+  }
+
+  .guide-slider-progress-fill {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: #2f5fb8;
+    transition: width 0.18s ease, transform 0.18s ease;
   }
 
   .guide-reviews-list--single {
@@ -9488,8 +9751,14 @@ body.auth-modal-open {
     padding: 2px 7px;
   }
 
+  .section--guide-reviews .review-author {
+    font-size: 18px;
+    line-height: 1.2;
+  }
+
   .section--guide-reviews .review-tour-title {
-    font-size: clamp(19px, 6vw, 25px);
+    font-size: 16px;
+    line-height: 1.28;
   }
 
   .section--guide-reviews .guide-section-title {
@@ -9543,5 +9812,59 @@ body.auth-modal-open {
 
   .guide-tour-price {
     font-size: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  :where(.template-home) :is(
+    .search-btn,
+    .hot-tours-more-btn,
+    .places-more-btn,
+    .journal-button,
+    .forum-button
+  ) {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+}
+
+:where(.template-home) :is(
+  .hot-tours-more-btn,
+  .places-more-btn,
+  .forum-button
+) {
+  border-radius: 16px;
+  padding: 20px 108px;
+  min-height: 56px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+@media (max-width: 768px) {
+  :where(.template-home) :is(
+    .hot-tours-more-btn,
+    .places-more-btn,
+    .forum-button
+  ) {
+    border-radius: 12px;
+    padding: 12px 24px;
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  :where(.template-home) :is(
+    .hot-tours-more-btn,
+    .places-more-btn,
+    .forum-button
+  ) {
+    width: calc(100% - 24px);
+    max-width: calc(100% - 24px);
+    margin-left: auto;
+    margin-right: auto;
   }
 }
