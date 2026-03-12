@@ -430,7 +430,8 @@ $csrfTokenValue = $session->CSRF->getTokenValue();
 					<?php foreach ($reviews as $review): ?>
 						<?php
 						$rating = max(1, min(5, (int) ($review['rating'] ?? 5)));
-						$stars = str_repeat('★', $rating) . str_repeat('☆', 5 - $rating);
+						$starsFilled = str_repeat('★', $rating);
+						$starsEmpty = str_repeat('★', 5 - $rating);
 						$author = (string) ($review['author'] ?? 'Гость');
 						$avatarColorKey = (string) ($review['avatar_color'] ?? '');
 						$reviewTour = isset($review['tour']) && is_array($review['tour']) ? $review['tour'] : null;
@@ -446,15 +447,18 @@ $csrfTokenValue = $session->CSRF->getTokenValue();
 							<div class="review-top">
 								<span class="review-avatar <?php echo $avatarClass; ?>" aria-hidden="true"><?php echo $sanitizer->entities($firstLetter($author)); ?></span>
 								<div class="review-meta">
-									<h2 class="review-author"><?php echo $sanitizer->entities($author); ?></h2>
-									<span class="review-stars" aria-label="Оценка <?php echo $rating; ?> из 5"><?php echo $stars; ?></span>
-									<?php if ($reviewTourTitle !== '' && $reviewTourUrl !== ''): ?>
-										<div class="review-tour-label">
-											Тур:
-											<a class="review-tour-link" href="<?php echo $sanitizer->entities($reviewTourUrl); ?>">
-												<?php echo $sanitizer->entities($reviewTourTitle); ?>
-											</a>
-										</div>
+									<div class="review-author-line">
+										<strong class="review-author"><?php echo $sanitizer->entities($author); ?></strong>
+										<span class="review-stars-inline" aria-label="Оценка <?php echo $rating; ?> из 5">
+											<span class="is-filled"><?php echo $starsFilled; ?></span><?php if ($starsEmpty !== ''): ?><span class="is-empty"><?php echo $starsEmpty; ?></span><?php endif; ?>
+										</span>
+									</div>
+									<?php if ($reviewTourTitle !== ''): ?>
+										<?php if ($reviewTourUrl !== ''): ?>
+											<a class="review-tour-title" href="<?php echo $sanitizer->entities($reviewTourUrl); ?>"><?php echo $sanitizer->entities($reviewTourTitle); ?></a>
+										<?php else: ?>
+											<p class="review-tour-title"><?php echo $sanitizer->entities($reviewTourTitle); ?></p>
+										<?php endif; ?>
 									<?php endif; ?>
 								</div>
 							</div>
