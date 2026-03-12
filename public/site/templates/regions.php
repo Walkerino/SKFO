@@ -415,6 +415,10 @@ if (!count($regions)) {
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Отзывы</span>
 					</a>
+					<a class="hero-tab" href="/guides/" role="tab" aria-selected="false">
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/human.svg" alt="" aria-hidden="true" />
+						<span class="hero-tab-text">Гиды</span>
+					</a>
 					<a class="hero-tab is-active" href="/regions/" role="tab" aria-selected="true">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Регионы</span>
