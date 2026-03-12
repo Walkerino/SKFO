@@ -392,6 +392,13 @@ $home = $pages->get('/'); /** @var HomePage $home */
 							<span class="footer-section-subtitle">Эксперты по регионам</span>
 						</span>
 					</a>
+					<a class="footer-section-item" href="/places/">
+						<span class="footer-section-icon"><img src="<?php echo $config->urls->templates; ?>assets/icons/location_on.svg" alt="" aria-hidden="true" /></span>
+						<span class="footer-section-text">
+							<span class="footer-section-title">Места</span>
+							<span class="footer-section-subtitle">Локации для путешествий</span>
+						</span>
+					</a>
 				</div>
 				</div>
 			</footer>
