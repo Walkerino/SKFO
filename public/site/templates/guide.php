@@ -438,6 +438,8 @@ if (isset($pages) && $pages instanceof Pages) {
 
 $reviewCount = max(0, (int) ($reviewStats['count'] ?? 0));
 $tourCount = count($tourCards);
+$guideToursHasSlider = $tourCount > 3;
+$guideReviewsHasSlider = count($reviews) > 3;
 ?>
 
 <div id="content" class="guide-page">
@@ -467,28 +469,43 @@ $tourCount = count($tourCards);
 		</div>
 	</section>
 
-	<section class="section section--guide-tours">
-		<div class="container">
-			<h2 class="section-title guide-section-title">Туры гида</h2>
-			<?php if (count($tourCards)): ?>
-				<div class="guide-tours-grid">
-					<?php foreach ($tourCards as $tourCard): ?>
-						<article class="guide-tour-card">
-							<div class="guide-tour-image" style="background-image: url('<?php echo htmlspecialchars((string) ($tourCard['image'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>');"></div>
-							<h3 class="guide-tour-title"><?php echo $sanitizer->entities((string) ($tourCard['title'] ?? '')); ?></h3>
-							<div class="guide-tour-meta">
-								<?php if (!empty($tourCard['region'])): ?><span><?php echo $sanitizer->entities((string) $tourCard['region']); ?></span><?php endif; ?>
-								<?php if (!empty($tourCard['duration'])): ?><span><?php echo $sanitizer->entities((string) $tourCard['duration']); ?></span><?php endif; ?>
+		<section class="section section--guide-tours">
+			<div class="container">
+				<h2 class="section-title guide-section-title">Туры гида</h2>
+				<?php if (count($tourCards)): ?>
+					<div class="guide-slider guide-slider--tours<?php echo $guideToursHasSlider ? ' is-enabled' : ''; ?>"<?php echo $guideToursHasSlider ? ' data-guide-slider' : ''; ?>>
+						<?php if ($guideToursHasSlider): ?>
+							<div class="guide-slider-actions">
+								<button class="circle-btn circle-btn--prev" type="button" data-guide-slider-nav="prev" aria-label="Предыдущие туры"></button>
+								<button class="circle-btn circle-btn--next" type="button" data-guide-slider-nav="next" aria-label="Следующие туры"></button>
 							</div>
-							<div class="guide-tour-footer">
-								<?php if (!empty($tourCard['price'])): ?><span class="guide-tour-price"><?php echo $sanitizer->entities((string) $tourCard['price']); ?></span><?php endif; ?>
-								<a class="guide-tour-link" href="<?php echo $sanitizer->entities((string) ($tourCard['url'] ?? '/')); ?>">Подробнее</a>
+						<?php endif; ?>
+						<div class="guide-tours-grid<?php echo $guideToursHasSlider ? ' guide-tours-grid--slider' : ''; ?>"<?php echo $guideToursHasSlider ? ' data-guide-slider-track' : ''; ?>>
+							<?php foreach ($tourCards as $tourCard): ?>
+								<article class="guide-tour-card">
+									<div class="guide-tour-image" style="background-image: url('<?php echo htmlspecialchars((string) ($tourCard['image'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>');"></div>
+									<h3 class="guide-tour-title"><?php echo $sanitizer->entities((string) ($tourCard['title'] ?? '')); ?></h3>
+									<div class="guide-tour-meta">
+										<?php if (!empty($tourCard['region'])): ?><span><?php echo $sanitizer->entities((string) $tourCard['region']); ?></span><?php endif; ?>
+										<?php if (!empty($tourCard['duration'])): ?><span><?php echo $sanitizer->entities((string) $tourCard['duration']); ?></span><?php endif; ?>
+									</div>
+									<div class="guide-tour-footer">
+										<?php if (!empty($tourCard['price'])): ?><span class="guide-tour-price"><?php echo $sanitizer->entities((string) $tourCard['price']); ?></span><?php endif; ?>
+										<a class="guide-tour-link" href="<?php echo $sanitizer->entities((string) ($tourCard['url'] ?? '/')); ?>">Подробнее</a>
+									</div>
+								</article>
+							<?php endforeach; ?>
+						</div>
+						<?php if ($guideToursHasSlider): ?>
+							<div class="guide-slider-progress" data-guide-slider-progress>
+								<div class="guide-slider-progress-track">
+									<span class="guide-slider-progress-fill" data-guide-slider-progress-fill></span>
+								</div>
 							</div>
-						</article>
-					<?php endforeach; ?>
-				</div>
-			<?php else: ?>
-				<div class="guide-empty">У этого гида пока нет опубликованных туров.</div>
+						<?php endif; ?>
+					</div>
+				<?php else: ?>
+					<div class="guide-empty">У этого гида пока нет опубликованных туров.</div>
 			<?php endif; ?>
 		</div>
 	</section>
@@ -533,67 +550,82 @@ $tourCount = count($tourCards);
 						</div>
 					<?php endif; ?>
 
-					<div class="guide-reviews-list guide-reviews-list--single">
-						<?php foreach ($reviews as $review): ?>
-							<?php
-							$author = (string) ($review['author'] ?? 'Гость');
-							$rating = max(1, min(5, (int) ($review['rating'] ?? 5)));
-							$starsFilled = str_repeat('★', $rating);
-							$starsEmpty = str_repeat('★', 5 - $rating);
-							$avatarColorKey = (string) ($review['avatar_color'] ?? '');
-							$reviewPhotos = is_array($review['photos'] ?? null) ? $review['photos'] : [];
-							if (!isset($avatarClassMap[$avatarColorKey])) {
-								$index = abs(crc32($author)) % count($avatarColorKeys);
-								$avatarColorKey = $avatarColorKeys[$index];
-							}
-							$avatarClass = $avatarClassMap[$avatarColorKey];
-							?>
-							<article class="guide-review-card review-item review-item--detailed">
-								<div class="review-head-row">
-									<div class="review-top">
-										<span class="review-avatar <?php echo $avatarClass; ?>" aria-hidden="true"><?php echo $sanitizer->entities($firstLetter($author)); ?></span>
-										<div class="review-meta">
-											<div class="review-author-line">
-												<strong class="review-author"><?php echo $sanitizer->entities($author); ?></strong>
-												<span class="review-stars-inline" aria-label="Оценка <?php echo $rating; ?> из 5">
-													<span class="is-filled"><?php echo $starsFilled; ?></span><?php if ($starsEmpty !== ''): ?><span class="is-empty"><?php echo $starsEmpty; ?></span><?php endif; ?>
-												</span>
+						<div class="guide-slider guide-slider--reviews<?php echo $guideReviewsHasSlider ? ' is-enabled' : ''; ?>"<?php echo $guideReviewsHasSlider ? ' data-guide-slider' : ''; ?>>
+							<?php if ($guideReviewsHasSlider): ?>
+								<div class="guide-slider-actions">
+									<button class="circle-btn circle-btn--prev" type="button" data-guide-slider-nav="prev" aria-label="Предыдущие отзывы"></button>
+									<button class="circle-btn circle-btn--next" type="button" data-guide-slider-nav="next" aria-label="Следующие отзывы"></button>
+								</div>
+							<?php endif; ?>
+								<div class="guide-reviews-list<?php echo $guideReviewsHasSlider ? ' guide-reviews-list--slider' : ' guide-reviews-list--single'; ?>"<?php echo $guideReviewsHasSlider ? ' data-guide-slider-track' : ''; ?>>
+								<?php foreach ($reviews as $review): ?>
+									<?php
+									$author = (string) ($review['author'] ?? 'Гость');
+									$rating = max(1, min(5, (int) ($review['rating'] ?? 5)));
+									$starsFilled = str_repeat('★', $rating);
+									$starsEmpty = str_repeat('★', 5 - $rating);
+									$avatarColorKey = (string) ($review['avatar_color'] ?? '');
+									$reviewPhotos = is_array($review['photos'] ?? null) ? $review['photos'] : [];
+									if (!isset($avatarClassMap[$avatarColorKey])) {
+										$index = abs(crc32($author)) % count($avatarColorKeys);
+										$avatarColorKey = $avatarColorKeys[$index];
+									}
+									$avatarClass = $avatarClassMap[$avatarColorKey];
+									?>
+									<article class="guide-review-card review-item review-item--detailed">
+										<div class="review-head-row">
+											<div class="review-top">
+												<span class="review-avatar <?php echo $avatarClass; ?>" aria-hidden="true"><?php echo $sanitizer->entities($firstLetter($author)); ?></span>
+												<div class="review-meta">
+													<div class="review-author-line">
+														<strong class="review-author"><?php echo $sanitizer->entities($author); ?></strong>
+														<span class="review-stars-inline" aria-label="Оценка <?php echo $rating; ?> из 5">
+															<span class="is-filled"><?php echo $starsFilled; ?></span><?php if ($starsEmpty !== ''): ?><span class="is-empty"><?php echo $starsEmpty; ?></span><?php endif; ?>
+														</span>
+													</div>
+													<?php if (!empty($review['tour_title'])): ?>
+														<?php if (!empty($review['tour_url'])): ?>
+															<a class="review-tour-title" href="<?php echo $sanitizer->entities((string) $review['tour_url']); ?>"><?php echo $sanitizer->entities((string) $review['tour_title']); ?></a>
+														<?php else: ?>
+															<p class="review-tour-title"><?php echo $sanitizer->entities((string) $review['tour_title']); ?></p>
+														<?php endif; ?>
+													<?php endif; ?>
+												</div>
 											</div>
-											<?php if (!empty($review['tour_title'])): ?>
-												<?php if (!empty($review['tour_url'])): ?>
-													<a class="review-tour-title" href="<?php echo $sanitizer->entities((string) $review['tour_url']); ?>"><?php echo $sanitizer->entities((string) $review['tour_title']); ?></a>
-												<?php else: ?>
-													<p class="review-tour-title"><?php echo $sanitizer->entities((string) $review['tour_title']); ?></p>
-												<?php endif; ?>
+											<?php if (!empty($review['date_label'])): ?>
+												<time class="review-date" datetime="<?php echo $sanitizer->entities((string) ($review['date_iso'] ?? '')); ?>"><?php echo $sanitizer->entities((string) $review['date_label']); ?></time>
 											<?php endif; ?>
 										</div>
-									</div>
-									<?php if (!empty($review['date_label'])): ?>
-										<time class="review-date" datetime="<?php echo $sanitizer->entities((string) ($review['date_iso'] ?? '')); ?>"><?php echo $sanitizer->entities((string) $review['date_label']); ?></time>
-									<?php endif; ?>
+										<p class="guide-review-text review-text review-text--detailed"><?php echo nl2br($sanitizer->entities((string) ($review['text'] ?? ''))); ?></p>
+										<?php if (count($reviewPhotos)): ?>
+											<div class="review-photo-grid">
+												<?php foreach (array_slice($reviewPhotos, 0, 8) as $photoIndex => $photoUrl): ?>
+													<button
+														class="review-photo-item review-photo-item-btn"
+														type="button"
+														data-guide-review-photo
+														data-gallery-type="image"
+														data-gallery-src="<?php echo htmlspecialchars((string) $photoUrl, ENT_QUOTES, 'UTF-8'); ?>"
+														data-gallery-alt="<?php echo $sanitizer->entities('Фото из отзыва ' . $author . ' #' . ((int) $photoIndex + 1)); ?>"
+														aria-label="<?php echo $sanitizer->entities('Открыть фото из отзыва ' . $author); ?>"
+														style="background-image: url('<?php echo htmlspecialchars((string) $photoUrl, ENT_QUOTES, 'UTF-8'); ?>');"
+													></button>
+												<?php endforeach; ?>
+											</div>
+										<?php endif; ?>
+									</article>
+									<?php endforeach; ?>
 								</div>
-								<p class="guide-review-text review-text review-text--detailed"><?php echo nl2br($sanitizer->entities((string) ($review['text'] ?? ''))); ?></p>
-								<?php if (count($reviewPhotos)): ?>
-									<div class="review-photo-grid">
-										<?php foreach (array_slice($reviewPhotos, 0, 8) as $photoIndex => $photoUrl): ?>
-											<button
-												class="review-photo-item review-photo-item-btn"
-												type="button"
-												data-guide-review-photo
-												data-gallery-type="image"
-												data-gallery-src="<?php echo htmlspecialchars((string) $photoUrl, ENT_QUOTES, 'UTF-8'); ?>"
-												data-gallery-alt="<?php echo $sanitizer->entities('Фото из отзыва ' . $author . ' #' . ((int) $photoIndex + 1)); ?>"
-												aria-label="<?php echo $sanitizer->entities('Открыть фото из отзыва ' . $author); ?>"
-												style="background-image: url('<?php echo htmlspecialchars((string) $photoUrl, ENT_QUOTES, 'UTF-8'); ?>');"
-											></button>
-										<?php endforeach; ?>
+								<?php if ($guideReviewsHasSlider): ?>
+									<div class="guide-slider-progress" data-guide-slider-progress>
+										<div class="guide-slider-progress-track">
+											<span class="guide-slider-progress-fill" data-guide-slider-progress-fill></span>
+										</div>
 									</div>
 								<?php endif; ?>
-							</article>
-						<?php endforeach; ?>
-					</div>
-				</div>
-			<?php else: ?>
+							</div>
+						</div>
+				<?php else: ?>
 				<div class="guide-empty">Отзывы по турам этого гида пока не опубликованы.</div>
 			<?php endif; ?>
 		</div>
