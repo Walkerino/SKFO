@@ -1,3 +1,6 @@
+const HOME_SLIDER_AUTOPLAY_DELAY = 7000;
+const isHomeTemplate = () => document.body.classList.contains("template-home");
+
 const initHeroTabs = () => {
   const tabs = document.querySelector(".hero-tabs-group");
   if (!tabs) return;
@@ -2013,8 +2016,8 @@ const initJournalSlider = () => {
   if (articles.length < 2) return;
 
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (prefersReducedMotion) return;
-  const autoplayDelay = 4000;
+  if (prefersReducedMotion || !isHomeTemplate()) return;
+  const autoplayDelay = HOME_SLIDER_AUTOPLAY_DELAY;
 
   let index = articles.findIndex((item) => item.classList.contains("is-active"));
   if (index === -1) index = 0;
@@ -2036,14 +2039,28 @@ const initJournalSlider = () => {
     index = nextIndex;
   };
 
-  let timer = window.setInterval(advance, autoplayDelay);
+  let timer = 0;
 
-  slider.addEventListener("mouseenter", () => {
+  const stopAutoplay = () => {
+    if (!timer) return;
     window.clearInterval(timer);
-  });
+    timer = 0;
+  };
 
-  slider.addEventListener("mouseleave", () => {
+  const startAutoplay = () => {
+    if (document.hidden || timer) return;
     timer = window.setInterval(advance, autoplayDelay);
+  };
+
+  startAutoplay();
+
+  slider.addEventListener("mouseenter", stopAutoplay);
+  slider.addEventListener("mouseleave", startAutoplay);
+  slider.addEventListener("focusin", stopAutoplay);
+  slider.addEventListener("focusout", startAutoplay);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stopAutoplay();
+    else startAutoplay();
   });
 };
 
@@ -2111,6 +2128,36 @@ const initHotToursSlider = () => {
   let loopSyncTimer = 0;
   let isExpanded = false;
   const loopBuffer = 2;
+  const shouldAutoplay = isHomeTemplate() && !prefersReducedMotion;
+  let autoplayTimer = 0;
+
+  const stopAutoplay = () => {
+    if (!autoplayTimer) return;
+    window.clearInterval(autoplayTimer);
+    autoplayTimer = 0;
+  };
+
+  const canAutoplay = () => {
+    if (!shouldAutoplay || document.hidden || isExpanded) return false;
+    const visibleCount = Math.max(1, getVisibleCount());
+    return cards.length > visibleCount;
+  };
+
+  const startAutoplay = () => {
+    if (!canAutoplay() || autoplayTimer) return;
+    autoplayTimer = window.setInterval(() => {
+      if (!canAutoplay()) {
+        stopAutoplay();
+        return;
+      }
+      advanceAutoplay();
+    }, HOME_SLIDER_AUTOPLAY_DELAY);
+  };
+
+  const restartAutoplay = () => {
+    stopAutoplay();
+    startAutoplay();
+  };
 
   const getRenderedCards = () => Array.from(track.querySelectorAll(".hot-tour-card"));
 
@@ -2236,6 +2283,20 @@ const initHotToursSlider = () => {
     update();
   };
 
+  const advanceAutoplay = () => {
+    if (isExpanded) return;
+    if (loopActive) {
+      loopVirtualIndex += 1;
+      update();
+      return;
+    }
+    const visibleCount = Math.max(1, getVisibleCount());
+    const maxStart = Math.max(0, cards.length - visibleCount);
+    if (maxStart <= 0) return;
+    startIndex = startIndex >= maxStart ? 0 : startIndex + 1;
+    update();
+  };
+
   const update = ({ forceNoTransition = false } = {}) => {
     const visibleCount = Math.max(1, getVisibleCount());
     const isMobile = isMobileLayout();
@@ -2266,6 +2327,7 @@ const initHotToursSlider = () => {
       nextBtn.disabled = true;
       prevBtn.classList.add("is-disabled");
       nextBtn.classList.add("is-disabled");
+      stopAutoplay();
       return;
     }
 
@@ -2281,6 +2343,7 @@ const initHotToursSlider = () => {
       nextBtn.disabled = true;
       prevBtn.classList.add("is-disabled");
       nextBtn.classList.add("is-disabled");
+      stopAutoplay();
       return;
     }
 
@@ -2348,17 +2411,27 @@ const initHotToursSlider = () => {
         }, getLoopFallbackDelay());
       }
     }
+
+    if (canAutoplay()) startAutoplay();
+    else stopAutoplay();
   };
 
-  prevBtn.addEventListener("click", goPrev);
+  prevBtn.addEventListener("click", () => {
+    goPrev();
+    restartAutoplay();
+  });
 
-  nextBtn.addEventListener("click", goNext);
+  nextBtn.addEventListener("click", () => {
+    goNext();
+    restartAutoplay();
+  });
 
   if (moreBtn) {
     moreBtn.addEventListener("click", () => {
       if (isExpanded) return;
       isExpanded = true;
       update();
+      stopAutoplay();
     });
   }
 
@@ -2380,6 +2453,7 @@ const initHotToursSlider = () => {
     "touchstart",
     (event) => {
       if (!isMobileLayout() || isExpanded) return;
+      stopAutoplay();
       const touch = event.changedTouches && event.changedTouches[0];
       if (!touch) return;
       touchStartX = touch.clientX;
@@ -2401,6 +2475,7 @@ const initHotToursSlider = () => {
 
       if (deltaX < 0) goNext();
       else goPrev();
+      restartAutoplay();
     },
     { passive: true }
   );
@@ -2411,6 +2486,7 @@ const initHotToursSlider = () => {
 
   grid.addEventListener("mousedown", (event) => {
     if (!isMobileLayout() || isExpanded || event.button !== 0) return;
+    stopAutoplay();
     isDragActive = true;
     dragStartX = event.clientX;
     dragStartY = event.clientY;
@@ -2426,11 +2502,23 @@ const initHotToursSlider = () => {
 
     if (deltaX < 0) goNext();
     else goPrev();
+    restartAutoplay();
   });
 
   grid.addEventListener("mouseleave", () => {
     isDragActive = false;
+    startAutoplay();
   });
+
+  section.addEventListener("mouseenter", stopAutoplay);
+  section.addEventListener("mouseleave", startAutoplay);
+  section.addEventListener("focusin", stopAutoplay);
+  section.addEventListener("focusout", startAutoplay);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stopAutoplay();
+    else startAutoplay();
+  });
+  window.addEventListener("pagehide", stopAutoplay);
 
   window.addEventListener("resize", update);
   window.addEventListener("load", update);
@@ -2502,6 +2590,36 @@ const initDagestanSlider = () => {
   let loopSyncTimer = 0;
   let isExpanded = false;
   const loopBuffer = 2;
+  const shouldAutoplay = isHomeTemplate() && !prefersReducedMotion;
+  let autoplayTimer = 0;
+
+  const stopAutoplay = () => {
+    if (!autoplayTimer) return;
+    window.clearInterval(autoplayTimer);
+    autoplayTimer = 0;
+  };
+
+  const canAutoplay = () => {
+    if (!shouldAutoplay || document.hidden || isExpanded) return false;
+    const visibleCount = Math.max(1, getVisibleCount());
+    return cards.length > visibleCount;
+  };
+
+  const startAutoplay = () => {
+    if (!canAutoplay() || autoplayTimer) return;
+    autoplayTimer = window.setInterval(() => {
+      if (!canAutoplay()) {
+        stopAutoplay();
+        return;
+      }
+      advanceAutoplay();
+    }, HOME_SLIDER_AUTOPLAY_DELAY);
+  };
+
+  const restartAutoplay = () => {
+    stopAutoplay();
+    startAutoplay();
+  };
 
   const getRenderedCards = () => Array.from(track.querySelectorAll(".place-card"));
 
@@ -2627,6 +2745,20 @@ const initDagestanSlider = () => {
     update();
   };
 
+  const advanceAutoplay = () => {
+    if (isExpanded) return;
+    if (loopActive) {
+      loopVirtualIndex += 1;
+      update();
+      return;
+    }
+    const visibleCount = Math.max(1, getVisibleCount());
+    const maxStart = Math.max(0, cards.length - visibleCount);
+    if (maxStart <= 0) return;
+    startIndex = startIndex >= maxStart ? 0 : startIndex + 1;
+    update();
+  };
+
   const update = ({ forceNoTransition = false } = {}) => {
     const visibleCount = Math.max(1, getVisibleCount());
     const isMobile = isMobileLayout();
@@ -2657,6 +2789,7 @@ const initDagestanSlider = () => {
       nextBtn.disabled = true;
       prevBtn.classList.add("is-disabled");
       nextBtn.classList.add("is-disabled");
+      stopAutoplay();
       return;
     }
 
@@ -2672,6 +2805,7 @@ const initDagestanSlider = () => {
       nextBtn.disabled = true;
       prevBtn.classList.add("is-disabled");
       nextBtn.classList.add("is-disabled");
+      stopAutoplay();
       return;
     }
 
@@ -2739,17 +2873,27 @@ const initDagestanSlider = () => {
         }, getLoopFallbackDelay());
       }
     }
+
+    if (canAutoplay()) startAutoplay();
+    else stopAutoplay();
   };
 
-  prevBtn.addEventListener("click", goPrev);
+  prevBtn.addEventListener("click", () => {
+    goPrev();
+    restartAutoplay();
+  });
 
-  nextBtn.addEventListener("click", goNext);
+  nextBtn.addEventListener("click", () => {
+    goNext();
+    restartAutoplay();
+  });
 
   if (moreBtn) {
     moreBtn.addEventListener("click", () => {
       if (isExpanded) return;
       isExpanded = true;
       update();
+      stopAutoplay();
     });
   }
 
@@ -2771,6 +2915,7 @@ const initDagestanSlider = () => {
     "touchstart",
     (event) => {
       if (!isMobileLayout() || isExpanded) return;
+      stopAutoplay();
       const touch = event.changedTouches && event.changedTouches[0];
       if (!touch) return;
       touchStartX = touch.clientX;
@@ -2792,6 +2937,7 @@ const initDagestanSlider = () => {
 
       if (deltaX < 0) goNext();
       else goPrev();
+      restartAutoplay();
     },
     { passive: true }
   );
@@ -2802,6 +2948,7 @@ const initDagestanSlider = () => {
 
   grid.addEventListener("mousedown", (event) => {
     if (!isMobileLayout() || isExpanded || event.button !== 0) return;
+    stopAutoplay();
     isDragActive = true;
     dragStartX = event.clientX;
     dragStartY = event.clientY;
@@ -2817,11 +2964,23 @@ const initDagestanSlider = () => {
 
     if (deltaX < 0) goNext();
     else goPrev();
+    restartAutoplay();
   });
 
   grid.addEventListener("mouseleave", () => {
     isDragActive = false;
+    startAutoplay();
   });
+
+  section.addEventListener("mouseenter", stopAutoplay);
+  section.addEventListener("mouseleave", startAutoplay);
+  section.addEventListener("focusin", stopAutoplay);
+  section.addEventListener("focusout", startAutoplay);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stopAutoplay();
+    else startAutoplay();
+  });
+  window.addEventListener("pagehide", stopAutoplay);
 
   window.addEventListener("resize", update);
   window.addEventListener("load", update);
@@ -2850,8 +3009,38 @@ const initRegionActualSlider = () => {
 
     const isMobileLayout = () => window.matchMedia("(max-width: 768px)").matches;
     const getVisibleCount = () => (isMobileLayout() ? 1 : 2);
+    const shouldAutoplay = isHomeTemplate() && !prefersReducedMotion;
     let startIndex = 0;
     let maxStart = 0;
+    let autoplayTimer = 0;
+
+    const stopAutoplay = () => {
+      if (!autoplayTimer) return;
+      window.clearInterval(autoplayTimer);
+      autoplayTimer = 0;
+    };
+
+    const canAutoplay = () => {
+      if (!shouldAutoplay || document.hidden) return false;
+      const visibleCount = Math.max(1, getVisibleCount());
+      return cards.length > visibleCount;
+    };
+
+    const startAutoplay = () => {
+      if (!canAutoplay() || autoplayTimer) return;
+      autoplayTimer = window.setInterval(() => {
+        if (!canAutoplay()) {
+          stopAutoplay();
+          return;
+        }
+        advanceAutoplay();
+      }, HOME_SLIDER_AUTOPLAY_DELAY);
+    };
+
+    const restartAutoplay = () => {
+      stopAutoplay();
+      startAutoplay();
+    };
 
     const goPrev = () => {
       if (maxStart <= 0) return;
@@ -2862,6 +3051,12 @@ const initRegionActualSlider = () => {
     const goNext = () => {
       if (maxStart <= 0) return;
       startIndex = Math.min(maxStart, startIndex + 1);
+      update();
+    };
+
+    const advanceAutoplay = () => {
+      if (maxStart <= 0) return;
+      startIndex = startIndex >= maxStart ? 0 : startIndex + 1;
       update();
     };
 
@@ -2899,6 +3094,7 @@ const initRegionActualSlider = () => {
         track.style.transition = "";
         grid.style.height = cards.length ? `${Math.ceil(cards[0].getBoundingClientRect().height)}px` : "";
         syncProgress(false, visibleCount);
+        stopAutoplay();
         return;
       }
 
@@ -2912,6 +3108,9 @@ const initRegionActualSlider = () => {
       track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
       grid.style.height = `${Math.ceil(cards[0].getBoundingClientRect().height)}px`;
       syncProgress(true, visibleCount);
+
+      if (canAutoplay()) startAutoplay();
+      else stopAutoplay();
     };
 
     const setIndexByPointer = (clientX) => {
@@ -2928,6 +3127,7 @@ const initRegionActualSlider = () => {
 
       progressTrack.addEventListener("pointerdown", (event) => {
         if (maxStart <= 0) return;
+        stopAutoplay();
         draggingPointerId = event.pointerId;
         progressTrack.setPointerCapture(event.pointerId);
         setIndexByPointer(event.clientX);
@@ -2944,6 +3144,7 @@ const initRegionActualSlider = () => {
         if (progressTrack.hasPointerCapture(event.pointerId)) {
           progressTrack.releasePointerCapture(event.pointerId);
         }
+        restartAutoplay();
       };
 
       progressTrack.addEventListener("pointerup", stopDragging);
@@ -2954,17 +3155,21 @@ const initRegionActualSlider = () => {
         if (event.key === "ArrowLeft") {
           event.preventDefault();
           goPrev();
+          restartAutoplay();
         } else if (event.key === "ArrowRight") {
           event.preventDefault();
           goNext();
+          restartAutoplay();
         } else if (event.key === "Home") {
           event.preventDefault();
           startIndex = 0;
           update();
+          restartAutoplay();
         } else if (event.key === "End") {
           event.preventDefault();
           startIndex = maxStart;
           update();
+          restartAutoplay();
         }
       });
     }
@@ -2976,6 +3181,7 @@ const initRegionActualSlider = () => {
       "touchstart",
       (event) => {
         if (!isMobileLayout() || maxStart <= 0) return;
+        stopAutoplay();
         const touch = event.changedTouches && event.changedTouches[0];
         if (!touch) return;
         touchStartX = touch.clientX;
@@ -2995,6 +3201,7 @@ const initRegionActualSlider = () => {
         if (Math.abs(deltaX) < 42 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
         if (deltaX < 0) goNext();
         else goPrev();
+        restartAutoplay();
       },
       { passive: true }
     );
@@ -3005,6 +3212,7 @@ const initRegionActualSlider = () => {
 
     grid.addEventListener("mousedown", (event) => {
       if (!isMobileLayout() || maxStart <= 0 || event.button !== 0) return;
+      stopAutoplay();
       isDragActive = true;
       dragStartX = event.clientX;
       dragStartY = event.clientY;
@@ -3018,11 +3226,23 @@ const initRegionActualSlider = () => {
       if (Math.abs(deltaX) < 42 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
       if (deltaX < 0) goNext();
       else goPrev();
+      restartAutoplay();
     });
 
     grid.addEventListener("mouseleave", () => {
       isDragActive = false;
+      startAutoplay();
     });
+
+    section.addEventListener("mouseenter", stopAutoplay);
+    section.addEventListener("mouseleave", startAutoplay);
+    section.addEventListener("focusin", stopAutoplay);
+    section.addEventListener("focusout", startAutoplay);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) stopAutoplay();
+      else startAutoplay();
+    });
+    window.addEventListener("pagehide", stopAutoplay);
 
     window.addEventListener("resize", update);
     window.addEventListener("load", update);
@@ -3499,6 +3719,114 @@ const initHotelRoomOffersSlider = () => {
   });
 };
 
+const initGuideContentSliders = () => {
+  const sliders = Array.from(document.querySelectorAll("[data-guide-slider]"));
+  if (sliders.length === 0) return;
+
+  sliders.forEach((slider) => {
+    const track = slider.querySelector("[data-guide-slider-track]");
+    const prevBtn = slider.querySelector("[data-guide-slider-nav='prev']");
+    const nextBtn = slider.querySelector("[data-guide-slider-nav='next']");
+    if (
+      !(track instanceof HTMLElement) ||
+      !(prevBtn instanceof HTMLButtonElement) ||
+      !(nextBtn instanceof HTMLButtonElement)
+    ) {
+      return;
+    }
+    const progress = slider.querySelector("[data-guide-slider-progress]");
+    const progressFill = slider.querySelector("[data-guide-slider-progress-fill]");
+    const progressTrack = slider.querySelector(".guide-slider-progress-track");
+
+    const getVisibleCards = () =>
+      Array.from(track.children).filter((card) => card instanceof HTMLElement && !card.hidden);
+
+    const isMobile = () => window.matchMedia("(max-width: 768px)").matches;
+
+    const step = () => {
+      const firstCard = getVisibleCards()[0];
+      if (!(firstCard instanceof HTMLElement)) return Math.max(220, track.clientWidth * 0.9);
+      const cardWidth = firstCard.getBoundingClientRect().width;
+      const styles = window.getComputedStyle(track);
+      const gap = parseFloat(styles.columnGap || styles.gap || "0") || 0;
+      return cardWidth + gap;
+    };
+
+    const updateButtons = () => {
+      const visibleCards = getVisibleCards();
+      const mobile = isMobile();
+      if (!visibleCards.length) {
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+        slider.classList.remove("is-scrollable", "has-prev", "has-next");
+        if (progress instanceof HTMLElement) progress.hidden = true;
+        if (progressFill instanceof HTMLElement) {
+          progressFill.style.width = "0%";
+          progressFill.style.transform = "translateX(0)";
+        }
+        return;
+      }
+
+      if (!mobile) {
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+        slider.classList.remove("is-scrollable", "has-prev", "has-next");
+        track.scrollLeft = 0;
+        if (progress instanceof HTMLElement) progress.hidden = true;
+        if (progressFill instanceof HTMLElement) {
+          progressFill.style.width = "0%";
+          progressFill.style.transform = "translateX(0)";
+        }
+        return;
+      }
+
+      const maxScroll = Math.max(0, track.scrollWidth - track.clientWidth);
+      const left = track.scrollLeft;
+      const canPrev = left > 2;
+      const canNext = left < maxScroll - 2;
+      prevBtn.disabled = !canPrev;
+      nextBtn.disabled = !canNext;
+      slider.classList.toggle("is-scrollable", visibleCards.length > 1 && maxScroll > 2);
+      slider.classList.toggle("has-prev", canPrev);
+      slider.classList.toggle("has-next", canNext);
+
+      if (progress instanceof HTMLElement) {
+        const hasOverflow = visibleCards.length > 1 && maxScroll > 2;
+        progress.hidden = !hasOverflow;
+        if (progressFill instanceof HTMLElement) {
+          if (!hasOverflow) {
+            progressFill.style.width = "100%";
+            progressFill.style.transform = "translateX(0)";
+          } else {
+            const viewportRatio = Math.min(1, track.clientWidth / track.scrollWidth);
+            const indicatorRatio = Math.max(0.18, viewportRatio);
+            const ratio = Math.min(1, Math.max(0, left / maxScroll));
+            const progressTrackWidth =
+              progressTrack instanceof HTMLElement ? progressTrack.clientWidth : progress.clientWidth;
+            const indicatorWidth = progressTrackWidth * indicatorRatio;
+            const maxTranslate = Math.max(0, progressTrackWidth - indicatorWidth);
+            progressFill.style.width = `${indicatorWidth.toFixed(2)}px`;
+            progressFill.style.transform = `translateX(${(ratio * maxTranslate).toFixed(2)}px)`;
+          }
+        }
+      }
+    };
+
+    prevBtn.addEventListener("click", () => {
+      track.scrollBy({ left: -step(), behavior: "smooth" });
+    });
+
+    nextBtn.addEventListener("click", () => {
+      track.scrollBy({ left: step(), behavior: "smooth" });
+    });
+
+    track.addEventListener("scroll", updateButtons, { passive: true });
+    window.addEventListener("resize", updateButtons);
+    window.addEventListener("load", updateButtons);
+    updateButtons();
+  });
+};
+
 const initTourDaysAccordion = () => {
   const cards = Array.from(document.querySelectorAll(".tour-day-card"));
   if (cards.length === 0) return;
@@ -3586,6 +3914,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initRegionMediaPreview();
   initRegionMediaGallery();
   initGuideReviewsGallery();
+  initGuideContentSliders();
   initTourReviewsGallery();
   initTourDaysAccordion();
 });
