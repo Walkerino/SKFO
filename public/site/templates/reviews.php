@@ -1,14 +1,18 @@
 <?php namespace ProcessWire;
 
-$reviewTable = 'tour_reviews';
 require_once __DIR__ . '/_reviews_moderation.php';
+
+$reviewTables = [
+	'tour' => 'tour_reviews',
+	'hotel' => 'hotel_reviews',
+];
 
 $reviewError = '';
 $reviewSuccess = '';
 $reviewAuthorValue = '';
 $reviewTextValue = '';
 $reviewRatingValue = 5;
-$reviewTourIdValue = 0;
+$reviewSubjectValue = '';
 $flashPrefix = 'reviews_form_';
 $pullFlash = static function($session, string $key) {
 	$value = $session->get($key);
@@ -129,13 +133,15 @@ $prepareReviewUploads = static function($filesField) use ($normalizeUploadedFile
 
 	return ['files' => $validFiles, 'error' => ''];
 };
-$storeReviewPhotos = static function(int $reviewId, array $validFiles) use ($config, $log): array {
+$storeReviewPhotos = static function(int $reviewId, array $validFiles, string $scope = '') use ($config, $log): array {
 	if ($reviewId < 1 || !count($validFiles)) {
 		return ['photos' => [], 'warning' => ''];
 	}
 
-	$reviewDirPath = rtrim((string) $config->paths->assets, '/') . '/reviews/' . $reviewId . '/';
-	$reviewDirUrl = rtrim((string) $config->urls->assets, '/') . '/reviews/' . $reviewId . '/';
+	$scope = trim(preg_replace('/[^a-z0-9_-]+/i', '', $scope) ?? '');
+	$reviewDirRelative = '/reviews/' . ($scope !== '' ? ($scope . '/') : '') . $reviewId . '/';
+	$reviewDirPath = rtrim((string) $config->paths->assets, '/') . $reviewDirRelative;
+	$reviewDirUrl = rtrim((string) $config->urls->assets, '/') . $reviewDirRelative;
 	if (!is_dir($reviewDirPath) && !@mkdir($reviewDirPath, 0755, true)) {
 		$log->save('errors', 'reviews page photo upload error: failed to create directory ' . $reviewDirPath);
 		return ['photos' => [], 'warning' => 'Отзыв сохранён, но фотографии загрузить не удалось.'];
@@ -192,6 +198,29 @@ $resolveTourTitle = static function(Page $tourPage): string {
 	if ($title === '') $title = trim((string) $tourPage->name);
 	return $title;
 };
+$resolveHotelTitle = static function(Page $hotelPage): string {
+	$title = trim((string) $hotelPage->title);
+	if ($title === '' && $hotelPage->hasField('hotel_title')) {
+		$title = trim((string) $hotelPage->getUnformatted('hotel_title'));
+	}
+	if ($title === '') $title = trim((string) $hotelPage->name);
+	return $title;
+};
+$buildReviewSubject = static function(string $type, int $id): string {
+	$type = trim($type);
+	if ($type === '' || $id < 1) return '';
+	return $type . ':' . $id;
+};
+$parseReviewSubject = static function(string $value): array {
+	$value = trim($value);
+	if (preg_match('/^(tour|hotel):(\d+)$/', $value, $matches) !== 1) {
+		return ['type' => '', 'id' => 0, 'subject' => ''];
+	}
+	$type = (string) ($matches[1] ?? '');
+	$id = (int) ($matches[2] ?? 0);
+	if ($id < 1) return ['type' => '', 'id' => 0, 'subject' => ''];
+	return ['type' => $type, 'id' => $id, 'subject' => $type . ':' . $id];
+};
 
 $tourOptions = [];
 $tourOptionMap = [];
@@ -214,17 +243,70 @@ try {
 } catch (\Throwable $e) {
 	$log->save('errors', "reviews page tours list error: " . $e->getMessage());
 }
+$hotelOptions = [];
+$hotelOptionMap = [];
+try {
+	$hotelPages = $pages->find('template=hotel, include=all, check_access=0, status<1024, sort=title, limit=500');
+	foreach ($hotelPages as $hotelPage) {
+		if (!$hotelPage instanceof Page || !$hotelPage->id) continue;
+
+		$hotelTitle = $resolveHotelTitle($hotelPage);
+		if ($hotelTitle === '') continue;
+
+		$hotelOption = [
+			'id' => (int) $hotelPage->id,
+			'title' => $hotelTitle,
+			'url' => (string) $hotelPage->url,
+		];
+		$hotelOptions[] = $hotelOption;
+		$hotelOptionMap[(int) $hotelPage->id] = $hotelOption;
+	}
+} catch (\Throwable $e) {
+	$log->save('errors', "reviews page hotels list error: " . $e->getMessage());
+}
+$reviewTargetMap = [];
+foreach ($tourOptions as $tourOption) {
+	$targetId = (int) ($tourOption['id'] ?? 0);
+	if ($targetId < 1) continue;
+	$subject = $buildReviewSubject('tour', $targetId);
+	$reviewTargetMap[$subject] = [
+		'type' => 'tour',
+		'id' => $targetId,
+		'title' => (string) ($tourOption['title'] ?? ''),
+		'url' => (string) ($tourOption['url'] ?? ''),
+	];
+}
+foreach ($hotelOptions as $hotelOption) {
+	$targetId = (int) ($hotelOption['id'] ?? 0);
+	if ($targetId < 1) continue;
+	$subject = $buildReviewSubject('hotel', $targetId);
+	$reviewTargetMap[$subject] = [
+		'type' => 'hotel',
+		'id' => $targetId,
+		'title' => (string) ($hotelOption['title'] ?? ''),
+		'url' => (string) ($hotelOption['url'] ?? ''),
+	];
+}
+$reviewTargetTypeLabels = [
+	'tour' => 'Тур',
+	'hotel' => 'Отель',
+];
+$hasReviewTargets = count($reviewTargetMap) > 0;
 
 $reviewError = (string) ($pullFlash($session, $flashPrefix . 'error') ?? '');
 $reviewSuccess = (string) ($pullFlash($session, $flashPrefix . 'success') ?? '');
 $reviewTextValue = (string) ($pullFlash($session, $flashPrefix . 'text') ?? '');
 $reviewRatingFlash = (int) ($pullFlash($session, $flashPrefix . 'rating') ?? 0);
-$reviewTourFlash = (int) ($pullFlash($session, $flashPrefix . 'tour_id') ?? 0);
+$reviewSubjectFlash = trim((string) ($pullFlash($session, $flashPrefix . 'subject') ?? ''));
+if ($reviewSubjectFlash !== '' && isset($reviewTargetMap[$reviewSubjectFlash])) {
+	$reviewSubjectValue = $reviewSubjectFlash;
+}
 if ($reviewRatingFlash >= 1 && $reviewRatingFlash <= 5) {
 	$reviewRatingValue = $reviewRatingFlash;
 }
-if ($reviewTourFlash > 0) {
-	$reviewTourIdValue = $reviewTourFlash;
+$reviewSubjectRequest = trim((string) $input->get('review_subject'));
+if ($reviewSubjectRequest !== '' && isset($reviewTargetMap[$reviewSubjectRequest])) {
+	$reviewSubjectValue = $reviewSubjectRequest;
 }
 $reviewAuthorValue = $resolveReviewAuthor($authUser);
 
@@ -232,7 +314,18 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 	$reviewAuthorValue = $resolveReviewAuthor($authUser);
 	$reviewTextValue = trim((string) $input->post('review_text'));
 	$reviewRatingValue = (int) $input->post('review_rating');
-	$reviewTourIdValue = (int) $input->post('review_tour_id');
+	$reviewSubjectRaw = trim((string) $input->post('review_subject'));
+	if ($reviewSubjectRaw === '') {
+		$legacyTourId = (int) $input->post('review_tour_id');
+		if ($legacyTourId > 0) {
+			$reviewSubjectRaw = $buildReviewSubject('tour', $legacyTourId);
+		}
+	}
+	$reviewSubjectParsed = $parseReviewSubject($reviewSubjectRaw);
+	$reviewTargetType = (string) ($reviewSubjectParsed['type'] ?? '');
+	$reviewTargetId = (int) ($reviewSubjectParsed['id'] ?? 0);
+	$reviewSubjectValue = (string) ($reviewSubjectParsed['subject'] ?? '');
+	$reviewTarget = $reviewSubjectValue !== '' ? ($reviewTargetMap[$reviewSubjectValue] ?? null) : null;
 	$preparedReviewPhotos = $prepareReviewUploads($_FILES['review_photos'] ?? null);
 
 	try {
@@ -245,10 +338,10 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 		$reviewError = 'Чтобы оставить отзыв, войдите в свой аккаунт.';
 	} elseif (!$csrfValid) {
 		$reviewError = 'Ошибка безопасности формы. Обновите страницу и попробуйте снова.';
-	} elseif (!count($tourOptions)) {
-		$reviewError = 'Сейчас нет доступных туров для отзывов.';
-	} elseif (!isset($tourOptionMap[$reviewTourIdValue])) {
-		$reviewError = 'Выберите тур из списка.';
+	} elseif (!$hasReviewTargets) {
+		$reviewError = 'Сейчас нет доступных туров и отелей для отзывов.';
+	} elseif (!$reviewTarget || $reviewTargetId < 1 || !isset($reviewTables[$reviewTargetType])) {
+		$reviewError = 'Выберите тур или отель из списка.';
 	} elseif ($reviewTextValue === '' || $textLength($reviewTextValue) < 8) {
 		$reviewError = 'Добавьте текст отзыва (минимум 8 символов).';
 	} elseif ($reviewRatingValue < 1 || $reviewRatingValue > 5) {
@@ -256,11 +349,13 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 	} elseif (($preparedReviewPhotos['error'] ?? '') !== '') {
 		$reviewError = (string) $preparedReviewPhotos['error'];
 	} else {
+		$reviewTable = (string) $reviewTables[$reviewTargetType];
+		$photoScope = $reviewTargetType === 'tour' ? '' : $reviewTargetType;
 		try {
 			skfoReviewsEnsureTable($database, $reviewTable);
 			skfoReviewsBackfillHashes($database, $reviewTable, 50);
 
-			$moderation = skfoReviewsBuildModerationDecision($database, $reviewTable, $reviewTourIdValue, $reviewTextValue);
+			$moderation = skfoReviewsBuildModerationDecision($database, $reviewTable, $reviewTargetId, $reviewTextValue);
 			$moderationStatus = (string) ($moderation['status'] ?? 'approved');
 			$contentHash = (string) ($moderation['content_hash'] ?? '');
 			$moderationFlags = skfoReviewsEncodeFlags((array) ($moderation['flags'] ?? []));
@@ -270,7 +365,7 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 				"INSERT INTO `$reviewTable` (`page_id`, `author`, `review_text`, `rating`, `avatar_color`, `photos_json`, `content_hash`, `moderation_status`, `moderation_flags`)
 				VALUES (:page_id, :author, :review_text, :rating, :avatar_color, :photos_json, :content_hash, :moderation_status, :moderation_flags)"
 			);
-			$insertReview->bindValue(':page_id', $reviewTourIdValue, \PDO::PARAM_INT);
+			$insertReview->bindValue(':page_id', $reviewTargetId, \PDO::PARAM_INT);
 			$insertReview->bindValue(':author', $reviewAuthorValue, \PDO::PARAM_STR);
 			$insertReview->bindValue(':review_text', $reviewTextValue, \PDO::PARAM_STR);
 			$insertReview->bindValue(':rating', $reviewRatingValue, \PDO::PARAM_INT);
@@ -284,7 +379,7 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 			$photoUploadWarning = '';
 			$createdReviewId = (int) $database->lastInsertId();
 			if ($createdReviewId > 0 && count((array) ($preparedReviewPhotos['files'] ?? []))) {
-				$storedPhotosResult = $storeReviewPhotos($createdReviewId, (array) $preparedReviewPhotos['files']);
+				$storedPhotosResult = $storeReviewPhotos($createdReviewId, (array) $preparedReviewPhotos['files'], $photoScope);
 				$photosJson = skfoReviewsEncodePhotos((array) ($storedPhotosResult['photos'] ?? []));
 				$updateReviewPhotos = $database->prepare("UPDATE `$reviewTable` SET `photos_json`=:photos_json WHERE `id`=:id");
 				$updateReviewPhotos->bindValue(':photos_json', $photosJson, \PDO::PARAM_STR);
@@ -306,19 +401,15 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 				if ($photoUploadWarning !== '') {
 					$reviewSuccess .= ' ' . $photoUploadWarning;
 				}
-				$reviewAuthorValue = '';
 				$reviewTextValue = '';
 				$reviewRatingValue = 5;
-				$reviewTourIdValue = 0;
 			} else {
 				$reviewSuccess = 'Спасибо! Ваш отзыв отправлен.';
 				if ($photoUploadWarning !== '') {
 					$reviewSuccess .= ' ' . $photoUploadWarning;
 				}
-				$reviewAuthorValue = '';
 				$reviewTextValue = '';
 				$reviewRatingValue = 5;
-				$reviewTourIdValue = 0;
 			}
 		} catch (\Throwable $e) {
 			$reviewError = 'Не удалось сохранить отзыв. Попробуйте позже.';
@@ -330,49 +421,71 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 		$setFlash($session, $flashPrefix . 'error', $reviewError);
 		$setFlash($session, $flashPrefix . 'text', $reviewTextValue);
 		$setFlash($session, $flashPrefix . 'rating', $reviewRatingValue);
-		$setFlash($session, $flashPrefix . 'tour_id', $reviewTourIdValue);
+		$setFlash($session, $flashPrefix . 'subject', $reviewSubjectValue);
 	} else {
 		$setFlash($session, $flashPrefix . 'success', $reviewSuccess);
 		$session->remove($flashPrefix . 'text');
 		$session->remove($flashPrefix . 'rating');
-		$session->remove($flashPrefix . 'tour_id');
+		$session->remove($flashPrefix . 'subject');
 	}
 
-	$session->redirect($page->url . '#reviews-form');
+	$redirectUrl = (string) $page->url;
+	if ($reviewSubjectValue !== '') {
+		$redirectUrl .= '?review_subject=' . rawurlencode($reviewSubjectValue);
+	}
+	$session->redirect($redirectUrl . '#reviews-form');
 }
 
 $reviews = [];
 try {
-	skfoReviewsEnsureTable($database, $reviewTable);
-	skfoReviewsBackfillHashes($database, $reviewTable, 50);
-	if (count($tourOptionMap)) {
-		$tourIds = array_keys($tourOptionMap);
+	foreach ($reviewTables as $targetType => $reviewTable) {
+		$targetOptions = $targetType === 'hotel' ? $hotelOptionMap : $tourOptionMap;
+		if (!count($targetOptions)) continue;
+
+		$targetIds = array_keys($targetOptions);
+		if (!count($targetIds)) continue;
+
+		skfoReviewsEnsureTable($database, $reviewTable);
+		skfoReviewsBackfillHashes($database, $reviewTable, 50);
+
 		$placeholders = [];
-		foreach ($tourIds as $index => $tourId) {
-			$placeholders[] = ':tour_id_' . $index;
+		foreach ($targetIds as $index => $targetId) {
+			$placeholders[] = ':target_id_' . $index;
 		}
 
-		$selectReviewsSql = "SELECT `page_id`, `author`, `review_text`, `rating`, `avatar_color`
+		$selectReviewsSql = "SELECT `id`, `page_id`, `author`, `review_text`, `rating`, `avatar_color`, `created_at`
 			FROM `$reviewTable`
 			WHERE `moderation_status`='approved'
 			AND `page_id` IN (" . implode(', ', $placeholders) . ")
 			ORDER BY `created_at` DESC, `id` DESC
 			LIMIT 500";
 		$selectReviews = $database->prepare($selectReviewsSql);
-		foreach ($tourIds as $index => $tourId) {
-			$selectReviews->bindValue(':tour_id_' . $index, (int) $tourId, \PDO::PARAM_INT);
+		foreach ($targetIds as $index => $targetId) {
+			$selectReviews->bindValue(':target_id_' . $index, (int) $targetId, \PDO::PARAM_INT);
 		}
 		$selectReviews->execute();
 		$rawReviews = $selectReviews->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
 		foreach ($rawReviews as $rawReview) {
-			$tourId = (int) ($rawReview['page_id'] ?? 0);
-			if (!isset($tourOptionMap[$tourId])) continue;
+			$targetId = (int) ($rawReview['page_id'] ?? 0);
+			if (!isset($targetOptions[$targetId])) continue;
 
-			$rawReview['tour'] = $tourOptionMap[$tourId];
+			$rawReview['subject'] = [
+				'type' => $targetType,
+				'title' => (string) ($targetOptions[$targetId]['title'] ?? ''),
+				'url' => (string) ($targetOptions[$targetId]['url'] ?? ''),
+			];
 			$reviews[] = $rawReview;
 		}
 	}
+	usort($reviews, static function(array $a, array $b): int {
+		$leftCreated = (string) ($a['created_at'] ?? '');
+		$rightCreated = (string) ($b['created_at'] ?? '');
+		if ($leftCreated === $rightCreated) {
+			return (int) ($b['id'] ?? 0) <=> (int) ($a['id'] ?? 0);
+		}
+		return strcmp($rightCreated, $leftCreated);
+	});
 } catch (\Throwable $e) {
 	$log->save('errors', "reviews page read error: " . $e->getMessage());
 }
@@ -409,6 +522,10 @@ $csrfTokenValue = $session->CSRF->getTokenValue();
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Регионы</span>
 					</a>
+					<a class="hero-tab" href="/places/" role="tab" aria-selected="false">
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/location_on.svg" alt="" aria-hidden="true" />
+						<span class="hero-tab-text">Места</span>
+					</a>
 					<a class="hero-tab" href="/articles/" role="tab" aria-selected="false">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/journal.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Статьи</span>
@@ -434,9 +551,11 @@ $csrfTokenValue = $session->CSRF->getTokenValue();
 						$starsEmpty = str_repeat('★', 5 - $rating);
 						$author = (string) ($review['author'] ?? 'Гость');
 						$avatarColorKey = (string) ($review['avatar_color'] ?? '');
-						$reviewTour = isset($review['tour']) && is_array($review['tour']) ? $review['tour'] : null;
-						$reviewTourTitle = $reviewTour ? (string) ($reviewTour['title'] ?? '') : '';
-						$reviewTourUrl = $reviewTour ? (string) ($reviewTour['url'] ?? '') : '';
+						$reviewSubject = isset($review['subject']) && is_array($review['subject']) ? $review['subject'] : null;
+						$reviewSubjectType = $reviewSubject ? (string) ($reviewSubject['type'] ?? '') : '';
+						$reviewSubjectTitle = $reviewSubject ? (string) ($reviewSubject['title'] ?? '') : '';
+						$reviewSubjectUrl = $reviewSubject ? (string) ($reviewSubject['url'] ?? '') : '';
+						$reviewSubjectPrefix = (string) ($reviewTargetTypeLabels[$reviewSubjectType] ?? 'Объект');
 						if (!isset($avatarClassMap[$avatarColorKey])) {
 							$index = abs(crc32($author)) % count($avatarColorKeys);
 							$avatarColorKey = $avatarColorKeys[$index];
@@ -453,11 +572,12 @@ $csrfTokenValue = $session->CSRF->getTokenValue();
 											<span class="is-filled"><?php echo $starsFilled; ?></span><?php if ($starsEmpty !== ''): ?><span class="is-empty"><?php echo $starsEmpty; ?></span><?php endif; ?>
 										</span>
 									</div>
-									<?php if ($reviewTourTitle !== ''): ?>
-										<?php if ($reviewTourUrl !== ''): ?>
-											<a class="review-tour-title" href="<?php echo $sanitizer->entities($reviewTourUrl); ?>"><?php echo $sanitizer->entities($reviewTourTitle); ?></a>
+									<?php if ($reviewSubjectTitle !== ''): ?>
+										<?php $reviewSubjectLabel = $reviewSubjectPrefix . ': ' . $reviewSubjectTitle; ?>
+										<?php if ($reviewSubjectUrl !== ''): ?>
+											<a class="review-tour-title" href="<?php echo $sanitizer->entities($reviewSubjectUrl); ?>"><?php echo $sanitizer->entities($reviewSubjectLabel); ?></a>
 										<?php else: ?>
-											<p class="review-tour-title"><?php echo $sanitizer->entities($reviewTourTitle); ?></p>
+											<p class="review-tour-title"><?php echo $sanitizer->entities($reviewSubjectLabel); ?></p>
 										<?php endif; ?>
 									<?php endif; ?>
 								</div>
@@ -480,27 +600,49 @@ $csrfTokenValue = $session->CSRF->getTokenValue();
 					<div class="review-message">Чтобы оставить отзыв, войдите в свой профиль.</div>
 					<button class="reviews-submit reviews-auth-submit" type="button" data-auth-open data-auth-mode="login">Войти в профиль</button>
 				<?php else: ?>
-					<?php if (!count($tourOptions)): ?>
-						<div class="review-message is-error">Сейчас нет доступных туров для отзывов.</div>
+					<?php if (!$hasReviewTargets): ?>
+						<div class="review-message is-error">Сейчас нет доступных туров и отелей для отзывов.</div>
 					<?php else: ?>
 						<form class="reviews-form" method="post" action="#reviews-form" enctype="multipart/form-data">
 							<input type="hidden" name="review_form" value="reviews_page" />
 							<input type="hidden" name="<?php echo $sanitizer->entities($csrfTokenName); ?>" value="<?php echo $sanitizer->entities($csrfTokenValue); ?>" />
 
 							<label class="reviews-field">
-								<span>Тур</span>
-								<select name="review_tour_id" required aria-label="Выберите тур">
-									<option value="" disabled<?php echo $reviewTourIdValue < 1 ? ' selected' : ''; ?>>Выберите тур</option>
-									<?php foreach ($tourOptions as $tourOption): ?>
-										<?php
-										$tourId = (int) ($tourOption['id'] ?? 0);
-										$tourTitle = (string) ($tourOption['title'] ?? '');
-										$isSelected = $reviewTourIdValue === $tourId;
-										?>
-										<option value="<?php echo $tourId; ?>"<?php echo $isSelected ? ' selected' : ''; ?>>
-											<?php echo $sanitizer->entities($tourTitle); ?>
-										</option>
-									<?php endforeach; ?>
+								<span>Тур или отель</span>
+								<select name="review_subject" required aria-label="Выберите тур или отель">
+									<option value="" disabled<?php echo $reviewSubjectValue === '' ? ' selected' : ''; ?>>Выберите тур или отель</option>
+									<?php if (count($tourOptions)): ?>
+										<optgroup label="Туры">
+											<?php foreach ($tourOptions as $tourOption): ?>
+												<?php
+												$tourId = (int) ($tourOption['id'] ?? 0);
+												$tourTitle = (string) ($tourOption['title'] ?? '');
+												if ($tourId < 1 || $tourTitle === '') continue;
+												$subjectValue = $buildReviewSubject('tour', $tourId);
+												$isSelected = $reviewSubjectValue === $subjectValue;
+												?>
+												<option value="<?php echo $sanitizer->entities($subjectValue); ?>"<?php echo $isSelected ? ' selected' : ''; ?>>
+													<?php echo $sanitizer->entities($tourTitle); ?>
+												</option>
+											<?php endforeach; ?>
+										</optgroup>
+									<?php endif; ?>
+									<?php if (count($hotelOptions)): ?>
+										<optgroup label="Отели">
+											<?php foreach ($hotelOptions as $hotelOption): ?>
+												<?php
+												$hotelId = (int) ($hotelOption['id'] ?? 0);
+												$hotelTitle = (string) ($hotelOption['title'] ?? '');
+												if ($hotelId < 1 || $hotelTitle === '') continue;
+												$subjectValue = $buildReviewSubject('hotel', $hotelId);
+												$isSelected = $reviewSubjectValue === $subjectValue;
+												?>
+												<option value="<?php echo $sanitizer->entities($subjectValue); ?>"<?php echo $isSelected ? ' selected' : ''; ?>>
+													<?php echo $sanitizer->entities($hotelTitle); ?>
+												</option>
+											<?php endforeach; ?>
+										</optgroup>
+									<?php endif; ?>
 								</select>
 							</label>
 
