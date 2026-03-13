@@ -20,6 +20,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		['label' => 'Отзывы', 'url' => '/reviews/'],
 		['label' => 'Гиды', 'url' => '/guides/'],
 		['label' => 'Регионы', 'url' => '/regions/'],
+		['label' => 'Места', 'url' => '/places/'],
 		['label' => 'Статьи', 'url' => '/articles/'],
 		['label' => 'Форум', 'url' => 'https://club.skfo.ru'],
 	];
@@ -35,13 +36,15 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		$isRegionsRequest = preg_match('#^/regions(?:/|$)#', (string) $requestPath) === 1;
 		$isGuidesRequest = preg_match('#^/guides(?:/|$)#', (string) $requestPath) === 1;
 		$isPlacesRequest = preg_match('#^/places(?:/|$)#', (string) $requestPath) === 1;
+		$isPlaceDetailRequest = preg_match('#^/places/[^/]+/?$#', (string) $requestPath) === 1;
 		$isArticlesRequest = preg_match('#^/articles(?:/|$)#', (string) $requestPath) === 1;
 	$isHotelsPage = $page->name === 'hotels' || $page->path === '/hotels/' || in_array($templateName, ['hotels', 'hotel'], true) || $isHotelsRequest;
 	$isHotelsCatalogPage = $templateName === 'hotels' || $page->path === '/hotels/' || $requestPath === '/hotels' || $requestPath === '/hotels/';
 	$isReviewsPage = $page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest;
 	$isGuidesPage = $page->name === 'guides' || $page->path === '/guides/' || in_array($templateName, ['guides', 'guide'], true) || $isGuidesRequest;
 	$isTourMobileHeaderPage = $isHotelsCatalogPage || $isReviewsPage;
-	$isRegionsPage = $page->name === 'regions' || $page->path === '/regions/' || in_array($templateName, ['regions', 'region', 'places', 'place'], true) || $isRegionsRequest || $isPlacesRequest;
+	$isRegionsPage = $page->name === 'regions' || $page->path === '/regions/' || in_array($templateName, ['regions', 'region'], true) || $isRegionsRequest;
+	$isPlacesPage = $page->name === 'places' || $page->path === '/places/' || in_array($templateName, ['places', 'place'], true) || $isPlacesRequest;
 	$isArticlesPage = $page->name === 'articles' || $page->path === '/articles/' || $isArticlesRequest;
 	$isHomePage = $page->path === '/' || $templateName === 'home';
 	$isTourTemplate = in_array($templateName, ['tour', 'tours', 'hotel', 'reviews', 'regions', 'region', 'places', 'place', 'guides', 'guide', 'articles', 'article'], true) || $isReviewsPage || $isRegionsPage || $isArticlesPage;
@@ -49,8 +52,10 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$isHotelsNavActive = $templateName === 'hotel' || $isHotelsPage;
 	$isReviewsNavActive = $templateName === 'reviews' || $isReviewsPage;
 	$isGuidesNavActive = in_array($templateName, ['guides', 'guide'], true) || $isGuidesPage;
-	$isRegionsNavActive = in_array($templateName, ['regions', 'region', 'places', 'place'], true) || $isRegionsPage;
+	$isRegionsNavActive = in_array($templateName, ['regions', 'region'], true) || $isRegionsPage;
+	$isPlacesNavActive = in_array($templateName, ['places', 'place'], true) || $isPlacesPage;
 	$isArticlesNavActive = $templateName === 'articles' || $isArticlesPage;
+	$isTourNavMoreActive = $isRegionsNavActive || $isPlacesNavActive || $isArticlesNavActive;
 	$isToursMenuActive = $isHomePage || $isTourNavActive;
 	$isArticleDetailPage = $templateName === 'article';
 	if (!$isArticleDetailPage && $templateName === 'articles') {
@@ -58,7 +63,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		$isArticleDetailPath = preg_match('#^/articles/[^/]+/?$#', (string) $requestPath) === 1;
 		$isArticleDetailPage = $articleParam !== '' || $isArticleDetailPath;
 	}
-	$isSecondaryCompactHeaderPage = in_array($templateName, ['tour', 'hotel', 'region', 'place', 'guide'], true) || $isArticleDetailPage;
+	$isSecondaryCompactHeaderPage = in_array($templateName, ['tour', 'hotel', 'region', 'place', 'guide'], true) || $isArticleDetailPage || $isPlaceDetailRequest;
 	$normalizeHeadTitleKey = static function(string $value): string {
 		$value = trim($value);
 		$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
@@ -175,6 +180,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		$templateClassName = strtolower($templateClassName);
 		if ($templateClassName !== '') $bodyClassNames[] = 'template-' . $templateClassName;
 	}
+	if ($isPlaceDetailRequest) $bodyClassNames[] = 'template-place';
 	if ($isHotelsCatalogPage) $bodyClassNames[] = 'template-hotels-catalog';
 	if ($isTourMobileHeaderPage) $bodyClassNames[] = 'template-tour-mobile-header';
 	if ($isArticleDetailPage) $bodyClassNames[] = 'is-article-detail';
@@ -218,20 +224,28 @@ $home = $pages->get('/'); /** @var HomePage $home */
 										<img src="<?php echo $config->urls->templates; ?>assets/icons/human.svg" alt="" aria-hidden="true" />
 										<span class="tour-nav-text">Гиды</span>
 									</a>
-									<a class="tour-header-link tour-nav-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/">
-										<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
-										<span class="tour-nav-text">Регионы</span>
-									</a>
-									<a class="tour-header-link tour-nav-link<?php echo $isArticlesNavActive ? ' is-active' : ''; ?>" href="/articles/">
-										<img src="<?php echo $config->urls->templates; ?>assets/icons/journal.svg" alt="" aria-hidden="true" />
-										<span class="tour-nav-text">Статьи</span>
-									</a>
 								</div>
-								<a class="tour-header-link tour-nav-link tour-nav-link--forum" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">
-									<img src="<?php echo $config->urls->templates; ?>assets/icons/forum.svg" alt="" aria-hidden="true" />
-									<span class="tour-nav-text">Форум</span>
-									<img class="tour-header-link-external" src="<?php echo $config->urls->templates; ?>assets/icons/external_site.svg" alt="" aria-hidden="true" />
-								</a>
+								<div class="tour-nav-more<?php echo $isTourNavMoreActive ? ' is-active' : ''; ?>" data-tour-nav-more>
+									<button class="tour-header-link tour-nav-link tour-nav-more-toggle<?php echo $isTourNavMoreActive ? ' is-active' : ''; ?>" type="button" aria-expanded="false" aria-controls="tour-nav-more-menu" data-tour-nav-more-toggle>
+										<span class="tour-nav-text">Ещё</span>
+										<span class="tour-nav-more-caret" aria-hidden="true"></span>
+									</button>
+									<div class="tour-nav-more-menu" id="tour-nav-more-menu" hidden data-tour-nav-more-menu>
+										<a class="tour-nav-more-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/">
+											<span>Регионы</span>
+										</a>
+										<a class="tour-nav-more-link<?php echo $isPlacesNavActive ? ' is-active' : ''; ?>" href="/places/">
+											<span>Места</span>
+										</a>
+										<a class="tour-nav-more-link<?php echo $isArticlesNavActive ? ' is-active' : ''; ?>" href="/articles/">
+											<span>Статьи</span>
+										</a>
+										<a class="tour-nav-more-link tour-nav-more-link--external" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">
+											<span>Форум</span>
+											<img class="tour-header-link-external" src="<?php echo $config->urls->templates; ?>assets/icons/external_site.svg" alt="" aria-hidden="true" />
+										</a>
+									</div>
+								</div>
 							</nav>
 							<div class="tour-header-actions">
 								<a class="icon-btn tour-header-action" href="/profile/" aria-label="<?php echo $sanitizer->entities($profileAriaLabel); ?>"<?php echo $profileLinkAttrs; ?>>
@@ -253,6 +267,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 									<a class="home-mobile-menu-link<?php echo $isReviewsNavActive ? ' is-active' : ''; ?>" href="/reviews/"<?php echo $isReviewsNavActive ? ' aria-current="page"' : ''; ?>>Отзывы</a>
 									<a class="home-mobile-menu-link<?php echo $isGuidesNavActive ? ' is-active' : ''; ?>" href="/guides/"<?php echo $isGuidesNavActive ? ' aria-current="page"' : ''; ?>>Гиды</a>
 									<a class="home-mobile-menu-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/"<?php echo $isRegionsNavActive ? ' aria-current="page"' : ''; ?>>Регионы</a>
+									<a class="home-mobile-menu-link<?php echo $isPlacesNavActive ? ' is-active' : ''; ?>" href="/places/"<?php echo $isPlacesNavActive ? ' aria-current="page"' : ''; ?>>Места</a>
 									<a class="home-mobile-menu-link<?php echo $isArticlesNavActive ? ' is-active' : ''; ?>" href="/articles/"<?php echo $isArticlesNavActive ? ' aria-current="page"' : ''; ?>>Статьи</a>
 									<a class="home-mobile-menu-link home-mobile-menu-link--external" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">Форум</a>
 								</nav>
@@ -296,6 +311,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 									<a class="home-mobile-menu-link<?php echo $isReviewsNavActive ? ' is-active' : ''; ?>" href="/reviews/"<?php echo $isReviewsNavActive ? ' aria-current="page"' : ''; ?>>Отзывы</a>
 									<a class="home-mobile-menu-link<?php echo $isGuidesNavActive ? ' is-active' : ''; ?>" href="/guides/"<?php echo $isGuidesNavActive ? ' aria-current="page"' : ''; ?>>Гиды</a>
 									<a class="home-mobile-menu-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/"<?php echo $isRegionsNavActive ? ' aria-current="page"' : ''; ?>>Регионы</a>
+									<a class="home-mobile-menu-link<?php echo $isPlacesNavActive ? ' is-active' : ''; ?>" href="/places/"<?php echo $isPlacesNavActive ? ' aria-current="page"' : ''; ?>>Места</a>
 									<a class="home-mobile-menu-link<?php echo $isArticlesNavActive ? ' is-active' : ''; ?>" href="/articles/"<?php echo $isArticlesNavActive ? ' aria-current="page"' : ''; ?>>Статьи</a>
 									<a class="home-mobile-menu-link home-mobile-menu-link--external" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">Форум</a>
 								</nav>
