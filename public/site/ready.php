@@ -364,6 +364,9 @@ $articleCoverImageField = $ensureField('article_cover_image', 'FieldtypeImage', 
 	'maxFiles' => 1,
 	'extensions' => 'jpg jpeg png gif webp',
 ]);
+$articleImagesField = $ensureField('article_images', 'FieldtypeImage', 'Статья: изображения в тексте', [
+	'extensions' => 'jpg jpeg png gif webp',
+]);
 $articleExcerptField = $ensureField('article_excerpt', 'FieldtypeTextarea', 'Статья: краткое описание');
 $articleContentField = $ensureField('article_content', 'FieldtypeTextarea', 'Статья: текст');
 
@@ -635,6 +638,27 @@ foreach($catalogImageFields as $fieldName => $field) {
 	if($imageChanged) {
 		$fields->save($field);
 		$log->save('actual-cards-setup', "Updated field '{$fieldName}' settings.");
+	}
+}
+
+if($articleImagesField && $articleImagesField->id) {
+	$articleImagesChanged = false;
+
+	// Keep this field multi-file so TinyMCE/CKEditor can upload inline content images.
+	if((int) $articleImagesField->get('maxFiles') === 1) {
+		$articleImagesField->set('maxFiles', 0);
+		$articleImagesChanged = true;
+	}
+
+	$articleImagesExtensions = trim((string) $articleImagesField->get('extensions'));
+	if($articleImagesExtensions === '') {
+		$articleImagesField->set('extensions', 'jpg jpeg png gif webp');
+		$articleImagesChanged = true;
+	}
+
+	if($articleImagesChanged) {
+		$fields->save($articleImagesField);
+		$log->save('actual-cards-setup', "Updated field 'article_images' settings.");
 	}
 }
 
@@ -1334,6 +1358,7 @@ $syncTemplateFields($articleTemplate, [
 	$articleGuidesField,
 	$articleIsAdvertisementField,
 	$articleCoverImageField,
+	$articleImagesField,
 	$articleExcerptField,
 	$articleContentField,
 ], "Updated fields on template 'article'.");
