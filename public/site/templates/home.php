@@ -700,6 +700,10 @@ $forumExternalUrl = 'https://club.skfo.ru';
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Регионы</span>
 					</a>
+					<a class="hero-tab" href="/places/" role="tab" aria-selected="false">
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/location_on.svg" alt="" aria-hidden="true" />
+						<span class="hero-tab-text">Места</span>
+					</a>
 					<a class="hero-tab" href="/articles/" role="tab" aria-selected="false">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/journal.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Статьи</span>
@@ -994,12 +998,14 @@ $forumExternalUrl = 'https://club.skfo.ru';
 				if ($card->hasField('card_image')) {
 					$imageUrl = $getImageUrlFromValue($card->getUnformatted('card_image'));
 				}
+				$title = $card->hasField('card_title') ? trim((string) $card->card_title) : '';
+				$titleKey = $title !== '' ? $toLower($title) : '';
 				$addActualCard([
-					'title' => $card->hasField('card_title') ? trim((string) $card->card_title) : '',
+					'title' => $title,
 					'text' => $card->hasField('card_text') ? trim((string) $card->card_text) : '',
 					'region' => $card->hasField('card_region') ? trim((string) $card->card_region) : '',
 					'image' => $imageUrl,
-					'url' => '',
+					'url' => $titleKey !== '' ? trim((string) ($placeUrlByTitle[$titleKey] ?? '')) : '',
 				]);
 			}
 		}
@@ -1016,12 +1022,32 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					<?php foreach ($actualCards as $card): ?>
 						<?php
 						$backgroundStyle = '';
+						$cardTitle = trim((string) ($card['title'] ?? ''));
+						$cardUrl = trim((string) ($card['url'] ?? ''));
+						if ($cardUrl === '' && $cardTitle !== '') {
+							$cardTitleKey = $toLower($cardTitle);
+							if (isset($placeUrlByTitle[$cardTitleKey])) {
+								$cardUrl = trim((string) $placeUrlByTitle[$cardTitleKey]);
+							}
+						}
+						if ($cardUrl !== '') {
+							$cardUrl = $appendLocalQueryParams($cardUrl, [
+								'from' => 'home',
+								'back' => '/',
+								'cover' => trim((string) ($card['image'] ?? '')),
+							]);
+						}
+						$isCardLink = $cardUrl !== '';
 						if (!empty($card['image'])) {
 							$image = htmlspecialchars((string) $card['image'], ENT_QUOTES, 'UTF-8');
 							$backgroundStyle = " style=\"background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.25), rgba(17, 24, 39, 0.15)), url('{$image}');\"";
 						}
 						?>
-						<article class="actual-card">
+						<?php if ($isCardLink): ?>
+							<a class="actual-card" href="<?php echo $sanitizer->entities($cardUrl); ?>" aria-label="<?php echo $sanitizer->entities((string) $card['title']); ?>">
+						<?php else: ?>
+							<article class="actual-card">
+						<?php endif; ?>
 							<div class="actual-card-image"<?php echo $backgroundStyle; ?>></div>
 							<div class="actual-card-body">
 								<h3 class="actual-card-title"><?php echo $sanitizer->entities((string) $card['title']); ?></h3>
@@ -1030,7 +1056,11 @@ $forumExternalUrl = 'https://club.skfo.ru';
 									<span class="tag-location"><?php echo $sanitizer->entities((string) $card['region']); ?></span>
 								</div>
 							</div>
-						</article>
+						<?php if ($isCardLink): ?>
+							</a>
+						<?php else: ?>
+							</article>
+						<?php endif; ?>
 					<?php endforeach; ?>
 				</div>
 			</div>
