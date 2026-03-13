@@ -1,0 +1,43 @@
+server {
+    listen 80;
+    server_name skfo.ru www.skfo.ru;
+
+    root /var/www/skfo/current/public;
+    index index.php index.html;
+
+    client_max_body_size 32m;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        try_files $uri =404;
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.2-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        fastcgi_param DOCUMENT_ROOT $realpath_root;
+        fastcgi_read_timeout 300;
+    }
+
+    # Block hidden files except ACME challenge
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+
+    # Block access to source/config/backup files
+    location ~* (?:\.(?:bak|conf|dist|in[ci]|log|orig|sh|sql|sw[op])|~)$ {
+        deny all;
+    }
+
+    location ~* \.(?:inc|info|module)$ {
+        deny all;
+    }
+
+    # Cache static files
+    location ~* \.(?:css|js|jpg|jpeg|gif|png|svg|ico|webp|woff|woff2)$ {
+        expires 7d;
+        access_log off;
+        add_header Cache-Control "public";
+    }
+}
