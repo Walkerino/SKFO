@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+
+if [[ -f "${SCRIPT_DIR}/.env.deploy" ]]; then
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/.env.deploy"
+fi
+
+: "${DEPLOY_HOST:?Set DEPLOY_HOST in ops/.env.deploy}"
+: "${DEPLOY_USER:?Set DEPLOY_USER in ops/.env.deploy}"
+: "${DEPLOY_PATH:?Set DEPLOY_PATH in ops/.env.deploy}"
+
+DEPLOY_PORT="${DEPLOY_PORT:-22}"
+DEPLOY_KEEP_RELEASES="${DEPLOY_KEEP_RELEASES:-5}"
+DEPLOY_COMPOSER_BIN="${DEPLOY_COMPOSER_BIN:-composer}"
+SKIP_COMPOSER="${SKIP_COMPOSER:-0}"
+
+RELEASE_ID="$(date -u +"%Y%m%d%H%M%S")"
+REMOTE_RELEASES_PATH="${DEPLOY_PATH}/releases"
+REMOTE_RELEASE_PATH="${REMOTE_RELEASES_PATH}/${RELEASE_ID}"
+REMOTE_SHARED_PATH="${DEPLOY_PATH}/shared"
+REMOTE_CURRENT_PATH="${DEPLOY_PATH}/current"
+
+SSH_TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
+SSH_OPTS=(-p "${DEPLOY_PORT}")
+
+echo "==> Preparing remote directories"
+ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" "mkdir -p '${REMOTE_RELEASE_PATH}' '${REMOTE_SHARED_PATH}/site-assets-files' '${REMOTE_SHARED_PATH}/site-assets-sessions' '${REMOTE_SHARED_PATH}/site-assets-logs'"
+
+echo "==> Uploading release ${RELEASE_ID}"
+rsync -az --delete \
+  --exclude '.git/' \
+  --exclude '.ddev/' \
+  --exclude '.vscode/' \
+  --exclude '_import/' \
+  --exclude 'ops/.env.deploy' \
+  --exclude 'public/site/assets/files/' \
+  --exclude 'public/site/assets/sessions/' \
+  --exclude 'public/site/assets/cache/' \
+  --exclude 'public/site/assets/logs/' \
+  -e "ssh -p ${DEPLOY_PORT}" \
+  "${PROJECT_ROOT}/" "${SSH_TARGET}:${REMOTE_RELEASE_PATH}/"
+
+echo "==> Finalizing release on server"
+ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" \
+  "RELEASE_PATH=$(printf '%q' "${REMOTE_RELEASE_PATH}") RELEASES_PATH=$(printf '%q' "${REMOTE_RELEASES_PATH}") SHARED_PATH=$(printf '%q' "${REMOTE_SHARED_PATH}") CURRENT_PATH=$(printf '%q' "${REMOTE_CURRENT_PATH}") KEEP_RELEASES=$(printf '%q' "${DEPLOY_KEEP_RELEASES}") COMPOSER_BIN=$(printf '%q' "${DEPLOY_COMPOSER_BIN}") SKIP_COMPOSER=$(printf '%q' "${SKIP_COMPOSER}") bash -s" << 'EOF_REMOTE'
+set -Eeuo pipefail
+
+mkdir -p "$RELEASE_PATH/public/site/assets/cache" \
+  "$SHARED_PATH/site-assets-files" \
+  "$SHARED_PATH/site-assets-sessions" \
+  "$SHARED_PATH/site-assets-logs"
+
+rm -rf "$RELEASE_PATH/public/site/assets/files" "$RELEASE_PATH/public/site/assets/sessions" "$RELEASE_PATH/public/site/assets/logs"
+ln -sfn "$SHARED_PATH/site-assets-files" "$RELEASE_PATH/public/site/assets/files"
+ln -sfn "$SHARED_PATH/site-assets-sessions" "$RELEASE_PATH/public/site/assets/sessions"
+ln -sfn "$SHARED_PATH/site-assets-logs" "$RELEASE_PATH/public/site/assets/logs"
+
+chmod -R ug+rwX "$RELEASE_PATH/public/site/assets/cache" "$SHARED_PATH/site-assets-files" "$SHARED_PATH/site-assets-sessions" "$SHARED_PATH/site-assets-logs" || true
+
+if [[ "$SKIP_COMPOSER" != "1" && -f "$RELEASE_PATH/public/composer.json" ]]; then
+  if command -v "$COMPOSER_BIN" >/dev/null 2>&1; then
+    (cd "$RELEASE_PATH/public" && "$COMPOSER_BIN" install --no-dev --prefer-dist --no-interaction --optimize-autoloader)
+  else
+    echo "WARN: composer not found, skipping composer install"
+  fi
+fi
+
+ln -sfn "$RELEASE_PATH" "$CURRENT_PATH"
+
+if [[ -d "$RELEASES_PATH" ]]; then
+  mapfile -t old_releases < <(ls -1dt "$RELEASES_PATH"/* 2>/dev/null | tail -n "+$((KEEP_RELEASES + 1))" || true)
+  if ((${#old_releases[@]})); then
+    rm -rf "${old_releases[@]}"
+  fi
+fi
+EOF_REMOTE
+
+echo "==> Deploy complete"
+echo "Release: ${RELEASE_ID}"
+echo "Current: ${REMOTE_CURRENT_PATH}"
