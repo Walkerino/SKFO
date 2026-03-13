@@ -205,6 +205,31 @@ $appendArticleQuery = static function(string $url, array $params): string {
 	return $path . $query . $fragment;
 };
 
+$appendLocalQueryParams = static function(string $url, array $params): string {
+	$url = trim($url);
+	if ($url === '') return '';
+
+	$parts = parse_url($url);
+	if ($parts === false) return $url;
+	if (!empty($parts['scheme']) || !empty($parts['host'])) return $url;
+
+	$queryParams = [];
+	if (!empty($parts['query'])) parse_str((string) $parts['query'], $queryParams);
+	foreach ($params as $key => $value) {
+		$key = trim((string) $key);
+		$value = trim((string) $value);
+		if ($key === '' || $value === '') continue;
+		$queryParams[$key] = $value;
+	}
+
+	$path = (string) ($parts['path'] ?? '/');
+	if ($path === '') $path = '/';
+	if ($path[0] !== '/') $path = '/' . ltrim($path, '/');
+	$query = count($queryParams) ? '?' . http_build_query($queryParams, '', '&', PHP_QUERY_RFC3986) : '';
+	$fragment = isset($parts['fragment']) && $parts['fragment'] !== '' ? '#' . (string) $parts['fragment'] : '';
+	return $path . $query . $fragment;
+};
+
 $buildArticleUrl = static function(string $title, string $url = '', string $source = '', string $back = '') use ($slugifyArticle, $appendArticleQuery): string {
 	$url = trim($url);
 	if ($url !== '' && $url !== '/articles' && $url !== '/articles/') {
@@ -720,6 +745,23 @@ if (!count($adventureCards)) {
 	}
 }
 
+$placeUrlByTitle = [];
+$placePagesByRegion = [];
+$regionPlacePages = $pages->find('template=place, include=all, sort=title, limit=300');
+foreach ($regionPlacePages as $placePage) {
+	if (!$placePage instanceof Page) continue;
+	$placeRegion = $placePage->hasField('place_region') ? trim((string) $placePage->getUnformatted('place_region')) : '';
+	if (!$matchesCurrentRegion($placeRegion)) continue;
+
+	$placePagesByRegion[] = $placePage;
+	$title = $normalizeDisplayText((string) $placePage->title);
+	if ($title === '') continue;
+	$titleKey = $toLower($title);
+	if (!isset($placeUrlByTitle[$titleKey])) {
+		$placeUrlByTitle[$titleKey] = trim((string) $placePage->url);
+	}
+}
+
 $interestingPlaces = [];
 if ($page->hasField('region_featured_places') && $page->region_featured_places->count()) {
 	foreach ($page->region_featured_places as $placePage) {
@@ -733,6 +775,7 @@ if ($page->hasField('region_featured_places') && $page->region_featured_places->
 			'title' => $title,
 			'text' => $text,
 			'image' => $imageUrl,
+			'url' => trim((string) $placePage->url),
 		];
 	}
 }
@@ -748,11 +791,13 @@ if (!count($interestingPlaces) && $page->hasField('region_places_cards') && $pag
 		$text = $card->hasField('region_place_text') ? $normalizeDisplayText((string) $card->region_place_text) : '';
 		if ($text === '' && $imageUrl === '') continue;
 		if ($title === '' && $text === '' && $imageUrl === '') continue;
+		$titleKey = $title !== '' ? $toLower($title) : '';
 
 		$interestingPlaces[] = [
 			'title' => $title,
 			'text' => $text,
 			'image' => $imageUrl,
+			'url' => $titleKey !== '' ? trim((string) ($placeUrlByTitle[$titleKey] ?? '')) : '',
 		];
 	}
 }
@@ -765,12 +810,8 @@ if (count($interestingPlaces) < 2) {
 		$existingPlaceKeys[$toLower($existingTitle)] = true;
 	}
 
-	$placePagesByRegion = $pages->find('template=place, include=all, sort=title, limit=300');
 	foreach ($placePagesByRegion as $placePage) {
 		if (!$placePage instanceof Page) continue;
-		$placeRegion = $placePage->hasField('place_region') ? trim((string) $placePage->getUnformatted('place_region')) : '';
-		if (!$matchesCurrentRegion($placeRegion)) continue;
-
 		$imageUrl = $getFirstImageUrlFromPage($placePage, ['place_image', 'images']);
 
 		$title = $normalizeDisplayText((string) $placePage->title);
@@ -783,6 +824,7 @@ if (count($interestingPlaces) < 2) {
 			'title' => $title,
 			'text' => $text,
 			'image' => $imageUrl,
+			'url' => trim((string) $placePage->url),
 		];
 		if ($placeKey !== '') $existingPlaceKeys[$placeKey] = true;
 	}
@@ -801,11 +843,13 @@ if (!count($interestingPlaces) && $homePage && $homePage->id && $homePage->hasFi
 		$title = $card->hasField('card_title') ? $normalizeDisplayText((string) $card->card_title) : '';
 		$text = $card->hasField('card_text') ? $normalizeDisplayText((string) $card->card_text) : '';
 		if ($title === '' && $text === '' && $imageUrl === '') continue;
+		$titleKey = $title !== '' ? $toLower($title) : '';
 
 		$interestingPlaces[] = [
 			'title' => $title,
 			'text' => $text,
 			'image' => $imageUrl,
+			'url' => $titleKey !== '' ? trim((string) ($placeUrlByTitle[$titleKey] ?? '')) : '',
 		];
 	}
 }
@@ -1212,12 +1256,32 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					<?php foreach ($interestingPlaces as $card): ?>
 						<?php
 						$backgroundStyle = '';
+						$cardTitle = trim((string) ($card['title'] ?? ''));
+						$cardUrl = trim((string) ($card['url'] ?? ''));
+						if ($cardUrl === '' && $cardTitle !== '') {
+							$cardTitleKey = $toLower($cardTitle);
+							if (isset($placeUrlByTitle[$cardTitleKey])) {
+								$cardUrl = trim((string) $placeUrlByTitle[$cardTitleKey]);
+							}
+						}
+						if ($cardUrl !== '') {
+							$cardUrl = $appendLocalQueryParams($cardUrl, [
+								'from' => 'region',
+								'back' => (string) $page->url,
+								'cover' => trim((string) ($card['image'] ?? '')),
+							]);
+						}
+						$isCardLink = $cardUrl !== '';
 						if (!empty($card['image'])) {
 							$image = htmlspecialchars((string) $card['image'], ENT_QUOTES, 'UTF-8');
 							$backgroundStyle = " style=\"background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.25), rgba(17, 24, 39, 0.15)), url('{$image}');\"";
 						}
 						?>
-						<article class="actual-card">
+						<?php if ($isCardLink): ?>
+							<a class="actual-card" href="<?php echo $sanitizer->entities($cardUrl); ?>" aria-label="<?php echo $sanitizer->entities((string) $card['title']); ?>">
+						<?php else: ?>
+							<article class="actual-card">
+						<?php endif; ?>
 							<div class="actual-card-image"<?php echo $backgroundStyle; ?>></div>
 							<div class="actual-card-body">
 								<h3 class="actual-card-title"><?php echo $sanitizer->entities((string) $card['title']); ?></h3>
@@ -1226,7 +1290,11 @@ $forumExternalUrl = 'https://club.skfo.ru';
 									<span class="tag-location"><?php echo $sanitizer->entities($regionLabel); ?></span>
 								</div>
 							</div>
-						</article>
+						<?php if ($isCardLink): ?>
+							</a>
+						<?php else: ?>
+							</article>
+						<?php endif; ?>
 					<?php endforeach; ?>
 				</div>
 			</div>
