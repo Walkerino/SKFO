@@ -361,7 +361,7 @@ try {
 				<?php else: ?>
 					<p class="tour-reviews-empty">
 						Пока нет отзывов об этом туре.
-						<a href="/reviews/#reviews-form">Оставить первый отзыв</a>
+						<a href="/reviews/?review_subject=<?php echo rawurlencode('tour:' . (int) $page->id); ?>#reviews-form">Оставить первый отзыв</a>
 					</p>
 				<?php endif; ?>
 			</div>
