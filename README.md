@@ -8,6 +8,15 @@ SKFO.RU is a ProcessWire-based travel portal focused on the North Caucasus.
 - PHP 8.2
 - DDEV (nginx-fpm + MariaDB 11.8)
 
+## Deployment (Production)
+
+Deployment instructions and scripts are in:
+
+- `DEPLOY.md`
+- `ops/deploy.sh`
+- `ops/rollback.sh`
+- `ops/backup.sh`
+
 ## Quick Start (Local)
 
 1. Start containers:
