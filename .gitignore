@@ -1,4 +1,3 @@
-cat > .gitignore << 'EOF'
 # DDEV
 .ddev/.dbimageBuild/
 .ddev/.ddev-docker-compose-*.yaml
@@ -9,9 +8,10 @@ public/site/assets/cache/
 public/site/assets/files/
 public/site/assets/sessions/
 public/wire/cache/
+public/site/assets/logs/*.txt
 
-# ProcessWire config with DB creds (do not commit)
-public/site/config.php
+# Local deployment secrets
+ops/.env.deploy
 
 # If installer folder exists
 public/site/install/
@@ -21,7 +21,3 @@ public/site/install/
 .idea/
 .vscode/
 _import/
-EOF
-
-# ProcessWire runtime logs
-public/site/assets/logs/*.txt
