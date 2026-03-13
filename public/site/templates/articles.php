@@ -68,14 +68,73 @@ $sanitizeArticleHref = static function(string $href): string {
 	return '';
 };
 
-$sanitizeArticleHtml = static function(string $value) use ($sanitizeArticleHref): string {
+$sanitizeArticleImageSrc = static function(string $src): string {
+	$src = trim(html_entity_decode($src, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+	if ($src === '') return '';
+	if (strpos($src, '//') === 0) return '';
+	if (preg_match('/^(data|javascript|vbscript):/iu', $src) === 1) return '';
+	if (preg_match('~^(https?://|/)~iu', $src)) return $src;
+	return '';
+};
+
+$sanitizeArticleHtml = static function(string $value) use ($sanitizeArticleHref, $sanitizeArticleImageSrc): string {
 	$value = str_replace("\0", '', trim($value));
 	if ($value === '') return '';
 
 	$value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 	$value = preg_replace('#<\s*/?\s*(script|style|iframe|object|embed|form|input|button|textarea|select|meta|link)[^>]*>#iu', '', $value) ?? $value;
-	$value = strip_tags($value, '<p><br><strong><b><em><i><u><s><strike><h1><h2><h3><h4><h5><h6><ul><ol><li><blockquote><a>');
-	$value = preg_replace('/<(\/?)(p|br|strong|b|em|i|u|s|strike|h1|h2|h3|h4|h5|h6|ul|ol|li|blockquote)\b[^>]*>/iu', '<$1$2>', $value) ?? $value;
+	$value = strip_tags($value, '<p><br><strong><b><em><i><u><s><strike><h1><h2><h3><h4><h5><h6><ul><ol><li><blockquote><a><figure><figcaption><img>');
+	$value = preg_replace('/<(\/?)(p|br|strong|b|em|i|u|s|strike|h1|h2|h3|h4|h5|h6|ul|ol|li|blockquote|figure|figcaption)\b[^>]*>/iu', '<$1$2>', $value) ?? $value;
+	$value = preg_replace_callback('/<img\b([^>]*)>/iu', static function(array $matches) use ($sanitizeArticleImageSrc): string {
+		$attrs = (string) ($matches[1] ?? '');
+		$srcRaw = '';
+		$altRaw = '';
+		$titleRaw = '';
+		$loadingRaw = '';
+
+		if (preg_match('/\bsrc\s*=\s*(["\'])(.*?)\1/iu', $attrs, $srcMatch)) {
+			$srcRaw = (string) ($srcMatch[2] ?? '');
+		} elseif (preg_match('/\bsrc\s*=\s*([^\s"\'>]+)/iu', $attrs, $srcMatch)) {
+			$srcRaw = (string) ($srcMatch[1] ?? '');
+		}
+
+		if (preg_match('/\balt\s*=\s*(["\'])(.*?)\1/iu', $attrs, $altMatch)) {
+			$altRaw = (string) ($altMatch[2] ?? '');
+		} elseif (preg_match('/\balt\s*=\s*([^\s"\'>]+)/iu', $attrs, $altMatch)) {
+			$altRaw = (string) ($altMatch[1] ?? '');
+		}
+
+		if (preg_match('/\btitle\s*=\s*(["\'])(.*?)\1/iu', $attrs, $titleMatch)) {
+			$titleRaw = (string) ($titleMatch[2] ?? '');
+		} elseif (preg_match('/\btitle\s*=\s*([^\s"\'>]+)/iu', $attrs, $titleMatch)) {
+			$titleRaw = (string) ($titleMatch[1] ?? '');
+		}
+
+		if (preg_match('/\bloading\s*=\s*(["\'])(.*?)\1/iu', $attrs, $loadingMatch)) {
+			$loadingRaw = (string) ($loadingMatch[2] ?? '');
+		} elseif (preg_match('/\bloading\s*=\s*([^\s"\'>]+)/iu', $attrs, $loadingMatch)) {
+			$loadingRaw = (string) ($loadingMatch[1] ?? '');
+		}
+
+		$src = $sanitizeArticleImageSrc($srcRaw);
+		if ($src === '') return '';
+
+		$tag = '<img src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '"';
+
+		$alt = trim(html_entity_decode($altRaw, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+		if ($alt !== '') $tag .= ' alt="' . htmlspecialchars($alt, ENT_QUOTES, 'UTF-8') . '"';
+
+		$title = trim(html_entity_decode($titleRaw, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+		if ($title !== '') $tag .= ' title="' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '"';
+
+		$loading = strtolower(trim($loadingRaw));
+		if ($loading === 'lazy' || $loading === 'eager') {
+			$tag .= ' loading="' . $loading . '"';
+		}
+
+		$tag .= '>';
+		return $tag;
+	}, $value) ?? $value;
 	$value = preg_replace_callback('/<a\b([^>]*)>/iu', static function(array $matches) use ($sanitizeArticleHref): string {
 		$attrs = (string) ($matches[1] ?? '');
 		$hrefRaw = '';
@@ -98,6 +157,8 @@ $sanitizeArticleHtml = static function(string $value) use ($sanitizeArticleHref)
 		return $tag;
 	}, $value) ?? $value;
 	$value = preg_replace('/<a>\s*<\/a>/iu', '', $value) ?? $value;
+	$value = preg_replace('/<figure>\s*<\/figure>/iu', '', $value) ?? $value;
+	$value = preg_replace('/<figcaption>\s*<\/figcaption>/iu', '', $value) ?? $value;
 
 	return trim($value);
 };
@@ -799,21 +860,11 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					<?php
 					$articleParagraphs = (array) ($selectedArticle['paragraphs'] ?? []);
 					if (!count($articleParagraphs)) $articleParagraphs = $defaultArticleParagraphs;
-					$middle = (int) ceil(count($articleParagraphs) / 2);
-					$leftParagraphs = array_slice($articleParagraphs, 0, $middle);
-					$rightParagraphs = array_slice($articleParagraphs, $middle);
 					?>
-					<div class="article-detail-columns">
-						<div class="article-detail-column">
-							<?php foreach ($leftParagraphs as $paragraph): ?>
-								<p><?php echo $sanitizer->entities((string) $paragraph); ?></p>
-							<?php endforeach; ?>
-						</div>
-						<div class="article-detail-column">
-							<?php foreach ($rightParagraphs as $paragraph): ?>
-								<p><?php echo $sanitizer->entities((string) $paragraph); ?></p>
-							<?php endforeach; ?>
-						</div>
+					<div class="article-detail-richtext">
+						<?php foreach ($articleParagraphs as $paragraph): ?>
+							<p><?php echo $sanitizer->entities((string) $paragraph); ?></p>
+						<?php endforeach; ?>
 					</div>
 				<?php endif; ?>
 			</div>
@@ -845,6 +896,10 @@ $forumExternalUrl = 'https://club.skfo.ru';
 						<a class="hero-tab" href="/regions/" role="tab" aria-selected="false">
 							<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 							<span class="hero-tab-text">Регионы</span>
+						</a>
+						<a class="hero-tab" href="/places/" role="tab" aria-selected="false">
+							<img src="<?php echo $config->urls->templates; ?>assets/icons/location_on.svg" alt="" aria-hidden="true" />
+							<span class="hero-tab-text">Места</span>
 						</a>
 						<a class="hero-tab is-active" href="/articles/" role="tab" aria-selected="true">
 							<img src="<?php echo $config->urls->templates; ?>assets/icons/journal.svg" alt="" aria-hidden="true" />
