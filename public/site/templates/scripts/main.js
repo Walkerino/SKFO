@@ -65,13 +65,16 @@ const initTourNavTabs = () => {
     target.style.transform = `translateX(${offset}px)`;
   };
 
-  const setActive = (el) => {
-    links.forEach((link) => link.classList.toggle("is-active", link === el));
-    setIndicator(el, indicator);
+  const updateActiveIndicator = () => {
+    const activeLink = tabs.querySelector(".tour-nav-link.is-active");
+    if (!(activeLink instanceof HTMLElement)) {
+      indicator.style.opacity = "0";
+      return;
+    }
+    indicator.style.opacity = "1";
+    setIndicator(activeLink, indicator);
   };
-
-  const active = tabs.querySelector(".tour-nav-link.is-active") || links[0];
-  setActive(active);
+  updateActiveIndicator();
 
   links.forEach((link) => {
     link.addEventListener("mouseenter", () => {
@@ -88,9 +91,54 @@ const initTourNavTabs = () => {
     hover.style.opacity = "0";
   });
 
-  window.addEventListener("resize", () => {
-    const current = tabs.querySelector(".tour-nav-link.is-active") || links[0];
-    setIndicator(current, indicator);
+  window.addEventListener("resize", updateActiveIndicator);
+};
+
+const initTourNavMoreMenu = () => {
+  const menus = Array.from(document.querySelectorAll("[data-tour-nav-more]"));
+  if (menus.length === 0) return;
+
+  const setOpen = (menuRoot, shouldOpen) => {
+    const toggle = menuRoot.querySelector("[data-tour-nav-more-toggle]");
+    const panel = menuRoot.querySelector("[data-tour-nav-more-menu]");
+    if (!(toggle instanceof HTMLButtonElement) || !(panel instanceof HTMLElement)) return;
+    menuRoot.classList.toggle("is-open", shouldOpen);
+    toggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+    panel.hidden = !shouldOpen;
+  };
+
+  const closeAll = (exceptRoot = null) => {
+    menus.forEach((menuRoot) => {
+      if (menuRoot === exceptRoot) return;
+      setOpen(menuRoot, false);
+    });
+  };
+
+  menus.forEach((menuRoot) => {
+    const toggle = menuRoot.querySelector("[data-tour-nav-more-toggle]");
+    const panel = menuRoot.querySelector("[data-tour-nav-more-menu]");
+    if (!(toggle instanceof HTMLButtonElement) || !(panel instanceof HTMLElement)) return;
+
+    setOpen(menuRoot, false);
+
+    toggle.addEventListener("click", (event) => {
+      event.preventDefault();
+      const nextOpenState = !menuRoot.classList.contains("is-open");
+      closeAll(menuRoot);
+      setOpen(menuRoot, nextOpenState);
+    });
+
+    menuRoot.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      setOpen(menuRoot, false);
+      toggle.focus();
+    });
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!(event.target instanceof Node)) return;
+    const clickedInsideSomeMenu = menus.some((menuRoot) => menuRoot.contains(event.target));
+    if (!clickedInsideSomeMenu) closeAll();
   });
 };
 
@@ -3250,6 +3298,131 @@ const initRegionActualSlider = () => {
   });
 };
 
+const initPlacesFilters = () => {
+  const form = document.querySelector(".places-filters");
+  if (!form) return;
+
+  const dropdowns = Array.from(form.querySelectorAll("[data-places-dropdown]"));
+  if (dropdowns.length === 0) return;
+
+  const closeAll = (except = null) => {
+    dropdowns.forEach((dropdown) => {
+      if (except && dropdown === except) return;
+      const trigger = dropdown.querySelector("[data-places-dropdown-trigger]");
+      dropdown.classList.remove("is-open");
+      if (trigger instanceof HTMLElement) trigger.setAttribute("aria-expanded", "false");
+    });
+  };
+
+  dropdowns.forEach((dropdown) => {
+    const trigger = dropdown.querySelector("[data-places-dropdown-trigger]");
+    const panel = dropdown.querySelector("[data-places-dropdown-panel]");
+    const label = dropdown.querySelector("[data-places-dropdown-label]");
+    if (!(trigger instanceof HTMLElement) || !(panel instanceof HTMLElement) || !(label instanceof HTMLElement)) {
+      return;
+    }
+
+    const defaultLabel = String(label.dataset.defaultLabel || label.textContent || "").trim();
+    const type = String(dropdown.getAttribute("data-places-dropdown-type") || "single").trim();
+    const inputs = Array.from(dropdown.querySelectorAll("input")).filter(
+      (input) => input instanceof HTMLInputElement,
+    );
+
+    const resolveInputLabel = (input) => {
+      if (!(input instanceof HTMLInputElement)) return "";
+      const option = input.closest(".places-filter-option");
+      if (!(option instanceof HTMLElement)) return String(input.value || "").trim();
+      const textNode = option.querySelector(".places-filter-option-text");
+      if (!(textNode instanceof HTMLElement)) return String(input.value || "").trim();
+      return String(textNode.textContent || "").trim();
+    };
+
+    const syncLabel = () => {
+      if (type === "multi") {
+        const checked = inputs.filter((input) => input.checked);
+        if (checked.length === 0) {
+          label.textContent = defaultLabel;
+          return;
+        }
+        if (checked.length === 1) {
+          label.textContent = resolveInputLabel(checked[0]) || defaultLabel;
+          return;
+        }
+        label.textContent = `${defaultLabel} (${checked.length})`;
+        return;
+      }
+
+      const selected = inputs.find((input) => input.checked);
+      label.textContent = selected ? resolveInputLabel(selected) || defaultLabel : defaultLabel;
+    };
+
+    syncLabel();
+
+    trigger.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const willOpen = !dropdown.classList.contains("is-open");
+      closeAll(dropdown);
+      dropdown.classList.toggle("is-open", willOpen);
+      trigger.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    });
+
+    panel.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+
+    inputs.forEach((input) => {
+      input.addEventListener("change", () => {
+        syncLabel();
+        if (type !== "multi") closeAll();
+      });
+    });
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!(event.target instanceof Node) || !form.contains(event.target)) closeAll();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    closeAll();
+  });
+};
+
+const initPlacesCatalog = () => {
+  const grid = document.querySelector("[data-places-grid]");
+  if (!(grid instanceof HTMLElement)) return;
+
+  const cards = Array.from(grid.querySelectorAll("[data-place-card]")).filter(
+    (card) => card instanceof HTMLElement,
+  );
+  if (cards.length === 0) return;
+
+  const moreBtn = document.querySelector("[data-places-more]");
+  const batchRaw = Number(grid.dataset.placesBatch || "8");
+  const batch = Number.isFinite(batchRaw) && batchRaw > 0 ? Math.floor(batchRaw) : 8;
+  let visibleCount = Math.min(batch, cards.length);
+
+  const update = () => {
+    cards.forEach((card, index) => {
+      card.hidden = index >= visibleCount;
+    });
+
+    if (!(moreBtn instanceof HTMLElement)) return;
+    const hasMore = visibleCount < cards.length;
+    moreBtn.hidden = !hasMore;
+    moreBtn.setAttribute("aria-hidden", hasMore ? "false" : "true");
+  };
+
+  update();
+
+  if (!(moreBtn instanceof HTMLElement)) return;
+  moreBtn.addEventListener("click", () => {
+    visibleCount = Math.min(cards.length, visibleCount + batch);
+    update();
+  });
+};
+
 const initRegionMediaPreview = () => {
   const grid = document.querySelector("[data-region-media-grid]");
   const moreBtn = document.querySelector("[data-region-media-more]");
@@ -3646,6 +3819,10 @@ const initRegionMediaGallery = () => {
   initMediaLightbox("[data-region-gallery]", "[data-region-gallery-item]", "[data-region-gallery-modal]");
 };
 
+const initPlaceGallery = () => {
+  initMediaLightbox("[data-place-gallery]", "[data-place-gallery-item]", "[data-place-gallery-modal]");
+};
+
 const initGuideReviewsGallery = () => {
   initMediaLightbox("[data-guide-reviews-gallery]", "[data-guide-review-photo]", "[data-guide-review-modal]");
 };
@@ -3893,6 +4070,7 @@ const initTourDaysAccordion = () => {
 document.addEventListener("DOMContentLoaded", () => {
   initHeroTabs();
   initTourNavTabs();
+  initTourNavMoreMenu();
   initPeoplePicker();
   initHotelDateFields();
   initHotelRoomsSearchControls();
@@ -3906,6 +4084,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initProfileEditor();
   initJournalSlider();
   initDagestanSlider();
+  initPlacesFilters();
+  initPlacesCatalog();
   initHotToursSlider();
   initRegionActualSlider();
   initHotelMediaGallery();
@@ -3913,6 +4093,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initHotelRoomOffersSlider();
   initRegionMediaPreview();
   initRegionMediaGallery();
+  initPlaceGallery();
   initGuideReviewsGallery();
   initGuideContentSliders();
   initTourReviewsGallery();
