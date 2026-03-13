@@ -269,6 +269,10 @@ if ($pageTitle === '') $pageTitle = 'Гиды Кавказа';
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Регионы</span>
 					</a>
+					<a class="hero-tab" href="/places/" role="tab" aria-selected="false">
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/location_on.svg" alt="" aria-hidden="true" />
+						<span class="hero-tab-text">Места</span>
+					</a>
 					<a class="hero-tab" href="/articles/" role="tab" aria-selected="false">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/journal.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Статьи</span>
