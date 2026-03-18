@@ -2124,7 +2124,7 @@ const initHotToursSlider = () => {
   const moreBtn = section.querySelector(".hot-tours-more-btn");
   const footer = section.querySelector(".hot-tours-footer");
   const actions = section.querySelector(".hot-tours-actions");
-  if (!header || !grid || !track || !prevBtn || !nextBtn) return;
+  if (!header || !grid || !track) return;
 
   let progress = section.querySelector(".hot-tours-progress");
   if (!progress) {
@@ -2371,10 +2371,12 @@ const initHotToursSlider = () => {
       grid.style.height = "";
       syncCardInteractivity(0, false);
       if (progressFill) progressFill.style.width = "100%";
-      prevBtn.disabled = true;
-      nextBtn.disabled = true;
-      prevBtn.classList.add("is-disabled");
-      nextBtn.classList.add("is-disabled");
+      if (prevBtn && nextBtn) {
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+        prevBtn.classList.add("is-disabled");
+        nextBtn.classList.add("is-disabled");
+      }
       stopAutoplay();
       return;
     }
@@ -2387,10 +2389,12 @@ const initHotToursSlider = () => {
       track.style.transition = forceNoTransition || prefersReducedMotion ? "none" : "transform 420ms ease";
       grid.style.height = `${Math.ceil(track.scrollHeight)}px`;
       syncCardInteractivity(0, false);
-      prevBtn.disabled = true;
-      nextBtn.disabled = true;
-      prevBtn.classList.add("is-disabled");
-      nextBtn.classList.add("is-disabled");
+      if (prevBtn && nextBtn) {
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+        prevBtn.classList.add("is-disabled");
+        nextBtn.classList.add("is-disabled");
+      }
       stopAutoplay();
       return;
     }
@@ -2434,15 +2438,19 @@ const initHotToursSlider = () => {
     }
 
     if (loopActive) {
-      prevBtn.disabled = false;
-      nextBtn.disabled = false;
-      prevBtn.classList.remove("is-disabled");
-      nextBtn.classList.remove("is-disabled");
+      if (prevBtn && nextBtn) {
+        prevBtn.disabled = false;
+        nextBtn.disabled = false;
+        prevBtn.classList.remove("is-disabled");
+        nextBtn.classList.remove("is-disabled");
+      }
     } else {
-      prevBtn.disabled = startIndex <= 0;
-      nextBtn.disabled = startIndex >= maxStart;
-      prevBtn.classList.toggle("is-disabled", prevBtn.disabled);
-      nextBtn.classList.toggle("is-disabled", nextBtn.disabled);
+      if (prevBtn && nextBtn) {
+        prevBtn.disabled = startIndex <= 0;
+        nextBtn.disabled = startIndex >= maxStart;
+        prevBtn.classList.toggle("is-disabled", prevBtn.disabled);
+        nextBtn.classList.toggle("is-disabled", nextBtn.disabled);
+      }
     }
 
     if (loopActive) {
@@ -2464,15 +2472,19 @@ const initHotToursSlider = () => {
     else stopAutoplay();
   };
 
-  prevBtn.addEventListener("click", () => {
-    goPrev();
-    restartAutoplay();
-  });
+  if (prevBtn) {
+    prevBtn.addEventListener("click", () => {
+      goPrev();
+      restartAutoplay();
+    });
+  }
 
-  nextBtn.addEventListener("click", () => {
-    goNext();
-    restartAutoplay();
-  });
+  if (nextBtn) {
+    nextBtn.addEventListener("click", () => {
+      goNext();
+      restartAutoplay();
+    });
+  }
 
   if (moreBtn) {
     moreBtn.addEventListener("click", () => {
@@ -2581,12 +2593,34 @@ const initDagestanSlider = () => {
   const header = section.querySelector(".places-banner-header");
   const grid = section.querySelector(".places-grid");
   const track = section.querySelector(".places-track");
-  const prevBtn = section.querySelector(".places-prev");
-  const nextBtn = section.querySelector(".places-next");
   const moreBtn = section.querySelector(".places-more-btn");
   const footer = section.querySelector(".places-footer");
-  const actions = section.querySelector(".places-banner-actions");
-  if (!banner || !header || !grid || !track || !prevBtn || !nextBtn) return;
+  let actions = section.querySelector(".places-banner-actions");
+  if (!banner || !header || !grid || !track) return;
+
+  if (!actions) {
+    actions = document.createElement("div");
+    actions.className = "places-banner-actions";
+    header.appendChild(actions);
+  }
+
+  let prevBtn = section.querySelector(".places-prev");
+  if (!(prevBtn instanceof HTMLButtonElement)) {
+    prevBtn = document.createElement("button");
+    prevBtn.type = "button";
+    prevBtn.className = "circle-btn circle-btn--prev places-prev";
+    prevBtn.setAttribute("aria-label", "Предыдущие места");
+    actions.appendChild(prevBtn);
+  }
+
+  let nextBtn = section.querySelector(".places-next");
+  if (!(nextBtn instanceof HTMLButtonElement)) {
+    nextBtn = document.createElement("button");
+    nextBtn.type = "button";
+    nextBtn.className = "circle-btn circle-btn--next places-next";
+    nextBtn.setAttribute("aria-label", "Следующие места");
+    actions.appendChild(nextBtn);
+  }
 
   let progress = section.querySelector(".places-progress");
   if (!progress) {
@@ -2613,15 +2647,15 @@ const initDagestanSlider = () => {
   const actionsInitialNextSibling = actions ? actions.nextSibling : null;
   let actionsInOverlay = false;
 
-  const syncActionsPlacement = (isMobile) => {
+  const syncActionsPlacement = (shouldOverlay) => {
     if (!actions || !actionsInitialParent) return;
-    if (isMobile && !actionsInOverlay) {
+    if (shouldOverlay && !actionsInOverlay) {
       grid.appendChild(actions);
       actions.classList.add("is-overlay");
       actionsInOverlay = true;
       return;
     }
-    if (!isMobile && actionsInOverlay) {
+    if (!shouldOverlay && actionsInOverlay) {
       if (actionsInitialNextSibling && actionsInitialNextSibling.parentNode === actionsInitialParent) {
         actionsInitialParent.insertBefore(actions, actionsInitialNextSibling);
       } else {
@@ -3049,6 +3083,34 @@ const initRegionActualSlider = () => {
     const progressFill = section.querySelector("[data-actual-progress-fill]");
     if (!grid || !track) return;
 
+    const actionsHost = grid.parentElement || section;
+    let actions = section.querySelector(".actual-slider-actions");
+    if (!actions) {
+      actions = document.createElement("div");
+      actions.className = "actual-slider-actions";
+    }
+    if (actions.parentNode !== actionsHost) {
+      actionsHost.appendChild(actions);
+    }
+
+    let prevBtn = section.querySelector(".actual-prev");
+    if (!(prevBtn instanceof HTMLButtonElement)) {
+      prevBtn = document.createElement("button");
+      prevBtn.type = "button";
+      prevBtn.className = "circle-btn circle-btn--prev actual-prev";
+      prevBtn.setAttribute("aria-label", "Предыдущие места");
+      actions.appendChild(prevBtn);
+    }
+
+    let nextBtn = section.querySelector(".actual-next");
+    if (!(nextBtn instanceof HTMLButtonElement)) {
+      nextBtn = document.createElement("button");
+      nextBtn.type = "button";
+      nextBtn.className = "circle-btn circle-btn--next actual-next";
+      nextBtn.setAttribute("aria-label", "Следующие места");
+      actions.appendChild(nextBtn);
+    }
+
     const cards = Array.from(track.querySelectorAll(".actual-card"));
     if (!cards.length) {
       if (progress) progress.hidden = true;
@@ -3135,6 +3197,7 @@ const initRegionActualSlider = () => {
       const visibleCount = Math.max(1, getVisibleCount());
       const hasOverflow = cards.length > visibleCount;
       maxStart = Math.max(0, cards.length - visibleCount);
+      if (actions) actions.hidden = !hasOverflow;
 
       if (!hasOverflow) {
         startIndex = 0;
@@ -3142,6 +3205,10 @@ const initRegionActualSlider = () => {
         track.style.transition = "";
         grid.style.height = cards.length ? `${Math.ceil(cards[0].getBoundingClientRect().height)}px` : "";
         syncProgress(false, visibleCount);
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+        prevBtn.classList.add("is-disabled");
+        nextBtn.classList.add("is-disabled");
         stopAutoplay();
         return;
       }
@@ -3156,10 +3223,25 @@ const initRegionActualSlider = () => {
       track.style.transition = prefersReducedMotion ? "none" : "transform 420ms ease";
       grid.style.height = `${Math.ceil(cards[0].getBoundingClientRect().height)}px`;
       syncProgress(true, visibleCount);
+      prevBtn.disabled = startIndex <= 0;
+      nextBtn.disabled = startIndex >= maxStart;
+      prevBtn.classList.toggle("is-disabled", prevBtn.disabled);
+      nextBtn.classList.toggle("is-disabled", nextBtn.disabled);
+      updateActionsPosition();
 
       if (canAutoplay()) startAutoplay();
       else stopAutoplay();
     };
+
+    prevBtn.addEventListener("click", () => {
+      goPrev();
+      restartAutoplay();
+    });
+
+    nextBtn.addEventListener("click", () => {
+      goNext();
+      restartAutoplay();
+    });
 
     const setIndexByPointer = (clientX) => {
       if (!progressTrack || maxStart <= 0) return;
@@ -3168,6 +3250,24 @@ const initRegionActualSlider = () => {
       const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       startIndex = Math.round(ratio * maxStart);
       update();
+    };
+
+    const updateActionsPosition = () => {
+      if (!actions || !actionsHost || !grid) return;
+      const gridRect = grid.getBoundingClientRect();
+      const hostRect = actionsHost.getBoundingClientRect();
+      const isMobile = isMobileLayout();
+
+      if (isMobile) {
+        actions.style.left = `${Math.max(0, gridRect.left - hostRect.left + 6)}px`;
+        actions.style.width = `${Math.max(0, gridRect.width - 12)}px`;
+      } else {
+        const sideGap = 74;
+        actions.style.left = `${gridRect.left - hostRect.left - sideGap}px`;
+        actions.style.width = `${gridRect.width + sideGap * 2}px`;
+      }
+
+      actions.style.top = `${gridRect.top - hostRect.top + gridRect.height / 2}px`;
     };
 
     if (progressTrack) {
@@ -3294,6 +3394,9 @@ const initRegionActualSlider = () => {
 
     window.addEventListener("resize", update);
     window.addEventListener("load", update);
+    window.addEventListener("resize", updateActionsPosition);
+    window.addEventListener("load", updateActionsPosition);
+    updateActionsPosition();
     update();
   });
 };
@@ -3815,6 +3918,118 @@ const initHotelRoomGallery = () => {
   });
 };
 
+const initHotelsListCardGallery = () => {
+  const modal = document.querySelector("[data-hotel-cards-gallery-modal]");
+  if (!(modal instanceof HTMLElement)) return;
+
+  const cardItems = Array.from(document.querySelectorAll("[data-hotel-card-gallery-item]"));
+  const openButtons = Array.from(document.querySelectorAll("[data-hotel-card-open-gallery]"));
+  if (!cardItems.length || !openButtons.length) return;
+
+  const imageEl = modal.querySelector("[data-gallery-image]");
+  const counterEl = modal.querySelector("[data-gallery-counter]");
+  const closeBtn = modal.querySelector('[data-gallery-close="button"]');
+  const backdrop = modal.querySelector('[data-gallery-close="backdrop"]');
+  const prevBtn = modal.querySelector('[data-gallery-nav="prev"]');
+  const nextBtn = modal.querySelector('[data-gallery-nav="next"]');
+
+  if (
+    !(imageEl instanceof HTMLImageElement) ||
+    !(counterEl instanceof HTMLElement) ||
+    !(closeBtn instanceof HTMLButtonElement) ||
+    !(backdrop instanceof HTMLElement) ||
+    !(prevBtn instanceof HTMLButtonElement) ||
+    !(nextBtn instanceof HTMLButtonElement)
+  ) {
+    return;
+  }
+
+  let activeGroupItems = [];
+  let activeIndex = 0;
+
+  const getGroupItems = (group) =>
+    cardItems.filter(
+      (item) =>
+        item instanceof HTMLElement &&
+        String(item.dataset.hotelCardGalleryGroup || "") === String(group || "") &&
+        String(item.dataset.galleryType || "image") !== "video",
+    );
+
+  const updateView = () => {
+    const activeItem = activeGroupItems[activeIndex];
+    if (!(activeItem instanceof HTMLElement)) return;
+
+    imageEl.src = activeItem.dataset.gallerySrc || "";
+    imageEl.alt = activeItem.dataset.galleryAlt || "";
+    counterEl.textContent = `${activeIndex + 1} / ${activeGroupItems.length}`;
+  };
+
+  const openModal = (group, startIndex = 0) => {
+    const groupItems = getGroupItems(group);
+    if (!groupItems.length) return;
+
+    activeGroupItems = groupItems;
+    activeIndex = Math.max(0, Math.min(groupItems.length - 1, startIndex));
+    updateView();
+    modal.hidden = false;
+
+    window.requestAnimationFrame(() => {
+      modal.classList.add("is-open");
+      document.body.classList.add("hotel-lightbox-open");
+    });
+  };
+
+  const closeModal = () => {
+    modal.classList.remove("is-open");
+    window.setTimeout(() => {
+      if (!modal.classList.contains("is-open")) modal.hidden = true;
+    }, 160);
+    imageEl.removeAttribute("src");
+    imageEl.alt = "";
+    document.body.classList.remove("hotel-lightbox-open");
+  };
+
+  const showPrevious = () => {
+    if (!activeGroupItems.length) return;
+    activeIndex = (activeIndex - 1 + activeGroupItems.length) % activeGroupItems.length;
+    updateView();
+  };
+
+  const showNext = () => {
+    if (!activeGroupItems.length) return;
+    activeIndex = (activeIndex + 1) % activeGroupItems.length;
+    updateView();
+  };
+
+  openButtons.forEach((button) => {
+    if (!(button instanceof HTMLElement)) return;
+    button.addEventListener("click", () => {
+      const group = button.dataset.hotelCardGalleryGroup || "";
+      openModal(group, 0);
+    });
+  });
+
+  closeBtn.addEventListener("click", closeModal);
+  backdrop.addEventListener("click", closeModal);
+  prevBtn.addEventListener("click", showPrevious);
+  nextBtn.addEventListener("click", showNext);
+
+  document.addEventListener("keydown", (event) => {
+    if (!modal.classList.contains("is-open")) return;
+    if (event.key === "Escape") {
+      closeModal();
+      return;
+    }
+    if (event.key === "ArrowLeft") {
+      showPrevious();
+      return;
+    }
+    if (event.key === "ArrowRight") {
+      showNext();
+    }
+  });
+};
+
 const initRegionMediaGallery = () => {
   initMediaLightbox("[data-region-gallery]", "[data-region-gallery-item]", "[data-region-gallery-modal]");
 };
@@ -4089,6 +4304,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initHotToursSlider();
   initRegionActualSlider();
   initHotelMediaGallery();
+  initHotelsListCardGallery();
   initHotelRoomGallery();
   initHotelRoomOffersSlider();
   initRegionMediaPreview();

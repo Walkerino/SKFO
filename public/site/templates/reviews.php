@@ -34,12 +34,15 @@ $firstLetter = static function(string $value): string {
 	if ($value === '') return '?';
 	return function_exists('mb_substr') ? mb_strtoupper(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8') : strtoupper(substr($value, 0, 1));
 };
-$avatarColorKeys = ['blue', 'yellow', 'gray', 'red'];
+$avatarColorKeys = ['blue', 'yellow', 'gray', 'red', 'green', 'cyan', 'purple'];
 $avatarClassMap = [
 	'blue' => 'is-blue',
 	'yellow' => 'is-yellow',
 	'gray' => 'is-gray',
 	'red' => 'is-red',
+	'green' => 'is-green',
+	'cyan' => 'is-cyan',
+	'purple' => 'is-purple',
 ];
 $normalizeUploadedFiles = static function($filesField): array {
 	if (!is_array($filesField) || !isset($filesField['name'])) return [];
@@ -523,7 +526,7 @@ $csrfTokenValue = $session->CSRF->getTokenValue();
 						<span class="hero-tab-text">Регионы</span>
 					</a>
 					<a class="hero-tab" href="/places/" role="tab" aria-selected="false">
-						<img src="<?php echo $config->urls->templates; ?>assets/icons/location_on.svg" alt="" aria-hidden="true" />
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/location_on_nav.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Места</span>
 					</a>
 					<a class="hero-tab" href="/articles/" role="tab" aria-selected="false">

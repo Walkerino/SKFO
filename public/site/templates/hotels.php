@@ -225,6 +225,43 @@ $pickDefaultHotelImage = static function(int $index) use ($defaultHotelGallery, 
 	$safeIndex = $index >= 0 ? $index : 0;
 	return $defaultHotelGallery[$safeIndex % count($defaultHotelGallery)];
 };
+$getHotelGalleryImages = static function(Page $hotelPage, int $fallbackIndex = 0) use ($defaultHotelGallery, $pickDefaultHotelImage, $defaultHotelImage): array {
+	$gallery = [];
+	$galleryMap = [];
+	$pushGalleryImage = static function(string $url) use (&$gallery, &$galleryMap): void {
+		$url = trim($url);
+		if ($url === '') return;
+		if (isset($galleryMap[$url])) return;
+		$galleryMap[$url] = true;
+		$gallery[] = $url;
+	};
+
+	foreach (['hotel_gallery', 'hotel_images', 'images', 'hotel_image'] as $imageFieldName) {
+		if (!$hotelPage->hasField($imageFieldName)) continue;
+		$fieldValue = $hotelPage->getUnformatted($imageFieldName);
+		if ($fieldValue instanceof Pageimage) {
+			$pushGalleryImage($fieldValue->url);
+			continue;
+		}
+		if ($fieldValue instanceof Pageimages && $fieldValue->count()) {
+			foreach ($fieldValue as $imageItem) {
+				if (!$imageItem instanceof Pageimage) continue;
+				$pushGalleryImage((string) $imageItem->url);
+			}
+		}
+	}
+
+	if (!count($gallery)) {
+		$fallbackImage = $pickDefaultHotelImage($fallbackIndex);
+		if ($fallbackImage === '') $fallbackImage = $defaultHotelImage;
+		$pushGalleryImage($fallbackImage);
+	}
+	if (!count($gallery) && count($defaultHotelGallery)) {
+		foreach ($defaultHotelGallery as $defaultGalleryImage) $pushGalleryImage((string) $defaultGalleryImage);
+	}
+	if (count($gallery) > 12) $gallery = array_slice($gallery, 0, 12);
+	return $gallery;
+};
 $defaultHotelDetailsUrl = '';
 if (isset($pages) && $pages instanceof Pages) {
 	$defaultHotelDetailsPage = $pages->get('template=hotel, include=all');
@@ -280,7 +317,8 @@ if (isset($pages) && $pages instanceof Pages) {
 			}
 		}
 
-		$image = $getHotelPrimaryImage($hotelPage);
+		$gallery = $getHotelGalleryImages($hotelPage, count($hotelsCatalog));
+		$image = trim((string) ($gallery[0] ?? ''));
 		if ($image === '') $image = $pickDefaultHotelImage(count($hotelsCatalog));
 
 		$hotelsCatalog[] = [
@@ -293,6 +331,7 @@ if (isset($pages) && $pages instanceof Pages) {
 			'amenities' => $amenities,
 			'type' => $resolveHotelType($title),
 			'image' => $image,
+			'gallery' => $gallery,
 			'url' => (string) $hotelPage->url,
 		];
 	}
@@ -424,6 +463,18 @@ if (!count($hotelsCatalog)) {
 
 	foreach ($hotelsCatalog as $index => $hotel) {
 		$hotelsCatalog[$index]['image'] = $pickDefaultHotelImage($index);
+		$fallbackGallery = [];
+		$fallbackGalleryMap = [];
+		$pushFallbackGallery = static function(string $url) use (&$fallbackGallery, &$fallbackGalleryMap): void {
+			$url = trim($url);
+			if ($url === '') return;
+			if (isset($fallbackGalleryMap[$url])) return;
+			$fallbackGalleryMap[$url] = true;
+			$fallbackGallery[] = $url;
+		};
+		$pushFallbackGallery((string) $hotelsCatalog[$index]['image']);
+		foreach ($defaultHotelGallery as $defaultGalleryImage) $pushFallbackGallery((string) $defaultGalleryImage);
+		$hotelsCatalog[$index]['gallery'] = array_slice($fallbackGallery, 0, 12);
 		if (trim((string) ($hotelsCatalog[$index]['url'] ?? '')) === '') {
 			$hotelsCatalog[$index]['url'] = $defaultHotelDetailsUrl !== '' ? $defaultHotelDetailsUrl : $page->url;
 		}
@@ -444,6 +495,23 @@ foreach ($hotelsCatalog as $index => $hotel) {
 	if (trim((string) ($hotelsCatalog[$index]['url'] ?? '')) === '') {
 		$hotelsCatalog[$index]['url'] = $defaultHotelDetailsUrl !== '' ? $defaultHotelDetailsUrl : $page->url;
 	}
+
+	$galleryImages = [];
+	$galleryImagesMap = [];
+	$pushGalleryImage = static function(string $url) use (&$galleryImages, &$galleryImagesMap): void {
+		$url = trim($url);
+		if ($url === '') return;
+		if (isset($galleryImagesMap[$url])) return;
+		$galleryImagesMap[$url] = true;
+		$galleryImages[] = $url;
+	};
+	foreach ((array) ($hotel['gallery'] ?? []) as $galleryImageUrl) {
+		$pushGalleryImage((string) $galleryImageUrl);
+	}
+	$pushGalleryImage((string) ($hotelsCatalog[$index]['image'] ?? ''));
+	if (!count($galleryImages)) $pushGalleryImage($pickDefaultHotelImage($index));
+	$hotelsCatalog[$index]['gallery'] = array_slice($galleryImages, 0, 12);
+	$hotelsCatalog[$index]['image'] = (string) ($hotelsCatalog[$index]['gallery'][0] ?? $pickDefaultHotelImage($index));
 }
 
 if (count($regionOptions)) {
@@ -564,7 +632,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 						<span class="hero-tab-text">Регионы</span>
 					</a>
 					<a class="hero-tab" href="/places/" role="tab" aria-selected="false">
-						<img src="<?php echo $config->urls->templates; ?>assets/icons/location_on.svg" alt="" aria-hidden="true" />
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/location_on_nav.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Места</span>
 					</a>
 					<a class="hero-tab" href="/articles/" role="tab" aria-selected="false">
@@ -642,14 +710,44 @@ $forumExternalUrl = 'https://club.skfo.ru';
 							? ' hotel-card-rating--danger'
 							: ($ratingValue === 3 ? ' hotel-card-rating--warning' : ' hotel-card-rating--success');
 						if ($hotelUrl === '') $hotelUrl = $page->url;
+						$galleryImages = array_values(array_filter((array) ($hotel['gallery'] ?? []), static function($url): bool {
+							return trim((string) $url) !== '';
+						}));
+						if (!count($galleryImages) && $imageUrl !== '') $galleryImages[] = $imageUrl;
+						$cardGalleryId = 'hotel-card-gallery-' . md5($hotelUrl . '|' . $titleLabel . '|' . ($galleryImages[0] ?? $imageUrl));
+						$openGalleryAriaLabel = 'Открыть фото отеля ' . ($titleLabel !== '' ? '«' . $titleLabel . '»' : '');
 						?>
 						<article class="hotel-card">
 							<div class="hotel-card-media"<?php echo $imageUrl !== '' ? " style=\"background-image: url('" . htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8') . "');\"" : ''; ?>>
+								<button
+									class="hotel-card-media-trigger"
+									type="button"
+									data-hotel-card-open-gallery
+									data-hotel-card-gallery-group="<?php echo $sanitizer->entities($cardGalleryId); ?>"
+									aria-label="<?php echo $sanitizer->entities(trim($openGalleryAriaLabel)); ?>"
+								></button>
+								<?php if (count($galleryImages) > 1): ?>
+									<span class="hotel-card-media-count"><?php echo count($galleryImages); ?> фото</span>
+								<?php endif; ?>
 								<span class="hotel-card-rating<?php echo $ratingToneClass; ?>">
 									<span class="hotel-card-rating-star" aria-hidden="true">★</span>
 									<span class="hotel-card-rating-value"><?php echo (int) $ratingValue; ?></span>
 								</span>
 							</div>
+							<?php foreach ($galleryImages as $galleryIndex => $galleryImageUrl): ?>
+								<?php
+								$galleryAlt = trim('Фото отеля ' . $titleLabel . ' #' . ((int) $galleryIndex + 1));
+								?>
+								<button
+									type="button"
+									class="hotel-hero-gallery-hidden"
+									data-hotel-card-gallery-item
+									data-hotel-card-gallery-group="<?php echo $sanitizer->entities($cardGalleryId); ?>"
+									data-gallery-type="image"
+									data-gallery-src="<?php echo htmlspecialchars((string) $galleryImageUrl, ENT_QUOTES, 'UTF-8'); ?>"
+									data-gallery-alt="<?php echo $sanitizer->entities($galleryAlt); ?>"
+								></button>
+							<?php endforeach; ?>
 							<h2 class="hotel-card-title"><?php echo $sanitizer->entities($titleLabel); ?></h2>
 							<p class="hotel-card-location"><?php echo $sanitizer->entities($locationLabel); ?></p>
 							<ul class="hotel-card-amenities" aria-label="Опции отеля">
@@ -680,6 +778,18 @@ $forumExternalUrl = 'https://club.skfo.ru';
 							</div>
 						</article>
 					<?php endforeach; ?>
+				</div>
+				<div class="hotel-gallery-lightbox" data-hotel-cards-gallery-modal hidden>
+					<div class="hotel-gallery-lightbox-backdrop" data-gallery-close="backdrop"></div>
+					<div class="hotel-gallery-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Медиатека отеля">
+						<button class="hotel-gallery-close" type="button" data-gallery-close="button" aria-label="Закрыть галерею">×</button>
+						<button class="hotel-gallery-nav hotel-gallery-nav--prev" type="button" data-gallery-nav="prev" aria-label="Предыдущее фото"></button>
+						<button class="hotel-gallery-nav hotel-gallery-nav--next" type="button" data-gallery-nav="next" aria-label="Следующее фото"></button>
+						<figure class="hotel-gallery-stage">
+							<img data-gallery-image alt="" />
+						</figure>
+						<div class="hotel-gallery-counter" data-gallery-counter></div>
+					</div>
 				</div>
 
 				<?php if ($totalPages > 1): ?>

@@ -390,7 +390,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 					<a class="footer-section-item" href="/articles/">
 						<span class="footer-section-icon"><img src="<?php echo $config->urls->templates; ?>assets/icons/journal-footer.svg" alt="" aria-hidden="true" /></span>
 						<span class="footer-section-text">
-							<span class="footer-section-title">Журнал от СКФО.РУ</span>
+							<span class="footer-section-title">Статьи от СКФО.РУ</span>
 							<span class="footer-section-subtitle">Статьи о путешествиях</span>
 						</span>
 					</a>

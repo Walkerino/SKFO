@@ -1489,11 +1489,15 @@ $firstLetter = static function(string $value): string {
 	if ($value === '') return '?';
 	return function_exists('mb_substr') ? mb_strtoupper(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8') : strtoupper(substr($value, 0, 1));
 };
-$avatarColorKeys = ['blue', 'yellow', 'gray'];
+$avatarColorKeys = ['blue', 'yellow', 'gray', 'red', 'green', 'cyan', 'purple'];
 $avatarClassMap = [
 	'blue' => 'is-blue',
 	'yellow' => 'is-yellow',
 	'gray' => 'is-gray',
+	'red' => 'is-red',
+	'green' => 'is-green',
+	'cyan' => 'is-cyan',
+	'purple' => 'is-purple',
 ];
 $hotelReviews = [];
 try {

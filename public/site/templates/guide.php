@@ -24,12 +24,15 @@ $firstLetter = static function(string $value): string {
 	return function_exists('mb_substr') ? mb_strtoupper(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8') : strtoupper(substr($value, 0, 1));
 };
 
-$avatarColorKeys = ['blue', 'yellow', 'gray', 'red'];
+$avatarColorKeys = ['blue', 'yellow', 'gray', 'red', 'green', 'cyan', 'purple'];
 $avatarClassMap = [
 	'blue' => 'is-blue',
 	'yellow' => 'is-yellow',
 	'gray' => 'is-gray',
 	'red' => 'is-red',
+	'green' => 'is-green',
+	'cyan' => 'is-cyan',
+	'purple' => 'is-purple',
 ];
 
 $monthNames = [
@@ -132,13 +135,13 @@ $getGuideDescription = static function(Page $guidePage) use ($sanitizer): string
 	return $description;
 };
 
-$getGuideImage = static function(Page $guidePage) use ($getImageUrlFromValue, $config): string {
+$getGuideImage = static function(Page $guidePage) use ($getImageUrlFromValue): string {
 	foreach (['logo', 'images'] as $fieldName) {
 		if (!$guidePage->hasField($fieldName)) continue;
 		$imageUrl = $getImageUrlFromValue($guidePage->getUnformatted($fieldName));
 		if ($imageUrl !== '') return $imageUrl;
 	}
-	return $config->urls->templates . 'assets/image1.png';
+	return '';
 };
 
 $getFirstTextFromPage = static function(Page $item, array $fields) use ($normalizeText): string {
@@ -303,6 +306,8 @@ $guideName = $normalizeText((string) $page->title);
 if ($guideName === '') $guideName = 'Гид';
 $guideCity = $getGuideCity($page);
 $guideImageUrl = $getGuideImage($page);
+$guideAvatarColorKey = $avatarColorKeys[abs(crc32($guideName)) % count($avatarColorKeys)];
+$guideAvatarClass = $avatarClassMap[$guideAvatarColorKey];
 $guideDescription = $getGuideDescription($page);
 
 $tourPages = $collectGuideTours($page);
@@ -454,7 +459,11 @@ $guideReviewsHasSlider = count($reviews) > 3;
 			</nav>
 
 			<div class="guide-profile-card">
-				<img class="guide-profile-avatar" src="<?php echo htmlspecialchars($guideImageUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo $sanitizer->entities('Фото гида ' . $guideName); ?>" />
+				<?php if ($guideImageUrl !== ''): ?>
+					<img class="guide-profile-avatar" src="<?php echo htmlspecialchars($guideImageUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo $sanitizer->entities('Фото гида ' . $guideName); ?>" />
+				<?php else: ?>
+					<span class="guide-profile-avatar-placeholder review-avatar <?php echo $guideAvatarClass; ?>" aria-hidden="true"><?php echo $sanitizer->entities($firstLetter($guideName)); ?></span>
+				<?php endif; ?>
 				<div class="guide-profile-body">
 					<h1 class="section-title guide-profile-name"><?php echo $sanitizer->entities($guideName); ?></h1>
 					<p class="guide-profile-city"><?php echo $sanitizer->entities('Гид в ' . $guideCity); ?></p>

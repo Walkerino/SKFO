@@ -16,6 +16,23 @@ $toLower = static function(string $value): string {
 	return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
 };
 
+$firstLetter = static function(string $value): string {
+	$value = trim($value);
+	if ($value === '') return '?';
+	return function_exists('mb_substr') ? mb_strtoupper(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8') : strtoupper(substr($value, 0, 1));
+};
+
+$avatarColorKeys = ['blue', 'yellow', 'gray', 'red', 'green', 'cyan', 'purple'];
+$avatarClassMap = [
+	'blue' => 'is-blue',
+	'yellow' => 'is-yellow',
+	'gray' => 'is-gray',
+	'red' => 'is-red',
+	'green' => 'is-green',
+	'cyan' => 'is-cyan',
+	'purple' => 'is-purple',
+];
+
 $truncateText = static function(string $value, int $maxLength = 240): string {
 	$value = trim(strip_tags($value));
 	if ($value === '') return '';
@@ -101,13 +118,13 @@ $getGuideDescription = static function(Page $guidePage) use ($normalizeText, $tr
 	return $truncateText($rawText, 260);
 };
 
-$getGuideImage = static function(Page $guidePage) use ($getImageUrlFromValue, $config): string {
+$getGuideImage = static function(Page $guidePage) use ($getImageUrlFromValue): string {
 	foreach (['logo', 'images'] as $fieldName) {
 		if (!$guidePage->hasField($fieldName)) continue;
 		$imageUrl = $getImageUrlFromValue($guidePage->getUnformatted($fieldName));
 		if ($imageUrl !== '') return $imageUrl;
 	}
-	return $config->urls->templates . 'assets/image1.png';
+	return '';
 };
 
 $collectGuideTours = static function(Page $guidePage) use ($pages): array {
@@ -270,7 +287,7 @@ if ($pageTitle === '') $pageTitle = 'Гиды Кавказа';
 						<span class="hero-tab-text">Регионы</span>
 					</a>
 					<a class="hero-tab" href="/places/" role="tab" aria-selected="false">
-						<img src="<?php echo $config->urls->templates; ?>assets/icons/location_on.svg" alt="" aria-hidden="true" />
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/location_on_nav.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Места</span>
 					</a>
 					<a class="hero-tab" href="/articles/" role="tab" aria-selected="false">
@@ -312,14 +329,21 @@ if ($pageTitle === '') $pageTitle = 'Гиды Кавказа';
 						$ratingValue = max(0.0, (float) ($guideCard['rating'] ?? 0.0));
 						$offersLabel = $tourCount . ' ' . $plural($tourCount, 'предложение', 'предложения', 'предложений');
 						$reviewsLabel = $reviewCount . ' ' . $plural($reviewCount, 'отзыв', 'отзыва', 'отзывов');
+						$guideNameLabel = (string) ($guideCard['name'] ?? '');
+						$avatarColorKey = $avatarColorKeys[abs(crc32($guideNameLabel)) % count($avatarColorKeys)];
+						$avatarClass = $avatarClassMap[$avatarColorKey];
 						?>
 						<article class="guide-card">
 							<div class="guide-card-main">
 								<a class="guide-card-avatar-link" href="<?php echo $sanitizer->entities($guideUrl); ?>">
-									<img class="guide-card-avatar" src="<?php echo htmlspecialchars((string) ($guideCard['image'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo $sanitizer->entities('Фото гида ' . (string) ($guideCard['name'] ?? '')); ?>" />
+									<?php if ((string) ($guideCard['image'] ?? '') !== ''): ?>
+										<img class="guide-card-avatar" src="<?php echo htmlspecialchars((string) ($guideCard['image'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo $sanitizer->entities('Фото гида ' . $guideNameLabel); ?>" />
+									<?php else: ?>
+										<span class="guide-card-avatar-placeholder review-avatar <?php echo $avatarClass; ?>" aria-hidden="true"><?php echo $sanitizer->entities($firstLetter($guideNameLabel)); ?></span>
+									<?php endif; ?>
 								</a>
 								<div class="guide-card-body">
-									<h2 class="guide-card-name"><a href="<?php echo $sanitizer->entities($guideUrl); ?>"><?php echo $sanitizer->entities((string) ($guideCard['name'] ?? '')); ?></a></h2>
+									<h2 class="guide-card-name"><a href="<?php echo $sanitizer->entities($guideUrl); ?>"><?php echo $sanitizer->entities($guideNameLabel); ?></a></h2>
 									<p class="guide-card-city"><?php echo $sanitizer->entities('Гид в ' . (string) ($guideCard['city'] ?? 'СКФО')); ?></p>
 									<div class="guide-card-meta">
 										<span class="guide-card-rating">★ <?php echo $sanitizer->entities($formatRating($ratingValue)); ?></span>

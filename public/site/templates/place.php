@@ -397,6 +397,13 @@ if ($backUrl === '/' || $sourceFromRequest === 'home') {
 }
 
 $middleLabel = $placeRegion;
+$middleUrl = '';
+if ($middleLabel !== '') {
+	$middleUrl = $backUrl;
+	if ($middleUrl === '' || $middleUrl === $detailRootUrl) {
+		$middleUrl = '/regions/';
+	}
+}
 $addressLabel = $placeAddress;
 if ($addressLabel === '' && $placeRegion !== '') {
 	$addressLabel = $placeRegion;
@@ -414,7 +421,11 @@ $placeMapWidgetUrl = 'https://yandex.ru/map-widget/v1/?z=14&text=' . rawurlencod
 				<a href="<?php echo $sanitizer->entities($detailRootUrl); ?>"><?php echo $sanitizer->entities($detailRootLabel); ?></a>
 				<?php if ($middleLabel !== ''): ?>
 					<span aria-hidden="true">›</span>
-					<span><?php echo $sanitizer->entities($middleLabel); ?></span>
+					<?php if ($middleUrl !== ''): ?>
+						<a href="<?php echo $sanitizer->entities($middleUrl); ?>"><?php echo $sanitizer->entities($middleLabel); ?></a>
+					<?php else: ?>
+						<span><?php echo $sanitizer->entities($middleLabel); ?></span>
+					<?php endif; ?>
 				<?php endif; ?>
 				<span aria-hidden="true">›</span>
 				<span><?php echo $sanitizer->entities($placeTitle); ?></span>

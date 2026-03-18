@@ -701,7 +701,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 						<span class="hero-tab-text">Регионы</span>
 					</a>
 					<a class="hero-tab" href="/places/" role="tab" aria-selected="false">
-						<img src="<?php echo $config->urls->templates; ?>assets/icons/location_on.svg" alt="" aria-hidden="true" />
+						<img src="<?php echo $config->urls->templates; ?>assets/icons/location_on_nav.svg" alt="" aria-hidden="true" />
 						<span class="hero-tab-text">Места</span>
 					</a>
 					<a class="hero-tab" href="/articles/" role="tab" aria-selected="false">
