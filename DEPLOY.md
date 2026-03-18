@@ -45,6 +45,7 @@ sudo cp ops/nginx/skfo.conf.example /etc/nginx/sites-available/skfo.conf
 - `server_name`
 - `fastcgi_pass` socket path (if your PHP version differs)
 - `root` if using a different deployment path
+- keep `disable_symlinks off;` for release symlink layout (`current -> releases/<timestamp>`)
 
 3. Enable and reload:
 
@@ -97,7 +98,7 @@ sudo systemctl reload php8.2-fpm
 
 ```bash
 cp ops/.env.deploy.example ops/.env.deploy
-```
+``` 
 
 Fill real values in `ops/.env.deploy`.
 
@@ -192,3 +193,49 @@ rm -rf /var/www/skfo/current/public/site/assets/cache/*
 
 The repository has historical files in `_import/` that may include legacy credentials.
 Treat them as compromised secrets: rotate DB/app passwords used there and avoid using those values in production.
+
+## 13. GitHub Auto Deploy (push to `main`)
+
+Workflow file: `.github/workflows/deploy.yml`.
+
+It runs automatically on each push to `main` (and can also be started manually via `workflow_dispatch`) and executes `ops/deploy.sh` from GitHub Actions runner.
+
+### Required GitHub Repository Secrets
+
+- `DEPLOY_SSH_PRIVATE_KEY` - private key used by GitHub Actions to connect to server.
+- `DEPLOY_HOST` - server host/IP.
+- `DEPLOY_USER` - SSH user.
+- `DEPLOY_PATH` - deploy root on server (example: `/var/www/skfo`).
+
+### Optional GitHub Repository Secrets
+
+- `DEPLOY_PORT` (default `22`)
+- `DEPLOY_KEEP_RELEASES` (default `5`)
+- `DEPLOY_COMPOSER_BIN` (default `composer`)
+- `SKIP_COMPOSER` (`1` to skip composer, default `0`)
+- `RSYNC_PROGRESS` (default `1`)
+- `DEPLOY_WEB_USER` (default `www-data`)
+- `DEPLOY_WEB_GROUP` (default `www-data`)
+- `DEPLOY_KNOWN_HOSTS` (recommended, output of `ssh-keyscan -H -p <port> <host>`)
+
+### SSH Key Setup For GitHub Actions
+
+1. Generate a dedicated key pair:
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/skfo_github_deploy
+```
+
+2. Add public key to server user:
+
+```bash
+ssh-copy-id -i ~/.ssh/skfo_github_deploy.pub <deploy_user>@<deploy_host>
+```
+
+3. Save private key content from `~/.ssh/skfo_github_deploy` into GitHub secret `DEPLOY_SSH_PRIVATE_KEY`.
+
+4. (Recommended) Save host fingerprint into `DEPLOY_KNOWN_HOSTS`:
+
+```bash
+ssh-keyscan -H -p 22 <deploy_host>
+```

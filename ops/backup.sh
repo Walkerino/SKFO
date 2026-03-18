@@ -38,9 +38,9 @@ mkdir -p "$backup_dir"
 
 db_dump_file="$backup_dir/db-$timestamp.sql.gz"
 if [[ -n "$DB_PASS" ]]; then
-  MYSQL_PWD="$DB_PASS" mysqldump --single-transaction --quick --lock-tables=false -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" "$DB_NAME" | gzip -9 > "$db_dump_file"
+  MYSQL_PWD="$DB_PASS" mysqldump --single-transaction --quick --lock-tables=false --no-tablespaces -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" "$DB_NAME" | gzip -9 > "$db_dump_file"
 else
-  mysqldump --single-transaction --quick --lock-tables=false -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" "$DB_NAME" | gzip -9 > "$db_dump_file"
+  mysqldump --single-transaction --quick --lock-tables=false --no-tablespaces -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" "$DB_NAME" | gzip -9 > "$db_dump_file"
 fi
 
 files_dir="$deploy_path/shared/site-assets-files"

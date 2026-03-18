@@ -17,6 +17,9 @@ DEPLOY_PORT="${DEPLOY_PORT:-22}"
 DEPLOY_KEEP_RELEASES="${DEPLOY_KEEP_RELEASES:-5}"
 DEPLOY_COMPOSER_BIN="${DEPLOY_COMPOSER_BIN:-composer}"
 SKIP_COMPOSER="${SKIP_COMPOSER:-0}"
+RSYNC_PROGRESS="${RSYNC_PROGRESS:-1}"
+DEPLOY_WEB_USER="${DEPLOY_WEB_USER:-www-data}"
+DEPLOY_WEB_GROUP="${DEPLOY_WEB_GROUP:-www-data}"
 
 RELEASE_ID="$(date -u +"%Y%m%d%H%M%S")"
 REMOTE_RELEASES_PATH="${DEPLOY_PATH}/releases"
@@ -31,11 +34,19 @@ echo "==> Preparing remote directories"
 ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" "mkdir -p '${REMOTE_RELEASE_PATH}' '${REMOTE_SHARED_PATH}/site-assets-files' '${REMOTE_SHARED_PATH}/site-assets-sessions' '${REMOTE_SHARED_PATH}/site-assets-logs'"
 
 echo "==> Uploading release ${RELEASE_ID}"
-rsync -az --delete \
+RSYNC_OPTS=(-az --delete)
+if [[ "${RSYNC_PROGRESS}" == "1" ]]; then
+  RSYNC_OPTS+=(--info=progress2,stats)
+fi
+
+rsync "${RSYNC_OPTS[@]}" \
+  --chown=root:${DEPLOY_WEB_GROUP} \
   --exclude '.git/' \
   --exclude '.ddev/' \
   --exclude '.vscode/' \
   --exclude '_import/' \
+  --exclude '*.tar.gz' \
+  --exclude '*.sql.gz' \
   --exclude 'ops/.env.deploy' \
   --exclude 'public/site/assets/files/' \
   --exclude 'public/site/assets/sessions/' \
@@ -46,7 +57,7 @@ rsync -az --delete \
 
 echo "==> Finalizing release on server"
 ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" \
-  "RELEASE_PATH=$(printf '%q' "${REMOTE_RELEASE_PATH}") RELEASES_PATH=$(printf '%q' "${REMOTE_RELEASES_PATH}") SHARED_PATH=$(printf '%q' "${REMOTE_SHARED_PATH}") CURRENT_PATH=$(printf '%q' "${REMOTE_CURRENT_PATH}") KEEP_RELEASES=$(printf '%q' "${DEPLOY_KEEP_RELEASES}") COMPOSER_BIN=$(printf '%q' "${DEPLOY_COMPOSER_BIN}") SKIP_COMPOSER=$(printf '%q' "${SKIP_COMPOSER}") bash -s" << 'EOF_REMOTE'
+  "RELEASE_PATH=$(printf '%q' "${REMOTE_RELEASE_PATH}") RELEASES_PATH=$(printf '%q' "${REMOTE_RELEASES_PATH}") SHARED_PATH=$(printf '%q' "${REMOTE_SHARED_PATH}") CURRENT_PATH=$(printf '%q' "${REMOTE_CURRENT_PATH}") KEEP_RELEASES=$(printf '%q' "${DEPLOY_KEEP_RELEASES}") COMPOSER_BIN=$(printf '%q' "${DEPLOY_COMPOSER_BIN}") SKIP_COMPOSER=$(printf '%q' "${SKIP_COMPOSER}") WEB_USER=$(printf '%q' "${DEPLOY_WEB_USER}") WEB_GROUP=$(printf '%q' "${DEPLOY_WEB_GROUP}") bash -s" << 'EOF_REMOTE'
 set -Eeuo pipefail
 
 mkdir -p "$RELEASE_PATH/public/site/assets/cache" \
@@ -60,6 +71,8 @@ ln -sfn "$SHARED_PATH/site-assets-sessions" "$RELEASE_PATH/public/site/assets/se
 ln -sfn "$SHARED_PATH/site-assets-logs" "$RELEASE_PATH/public/site/assets/logs"
 
 chmod -R ug+rwX "$RELEASE_PATH/public/site/assets/cache" "$SHARED_PATH/site-assets-files" "$SHARED_PATH/site-assets-sessions" "$SHARED_PATH/site-assets-logs" || true
+chown -R "$WEB_USER:$WEB_GROUP" "$RELEASE_PATH/public/site/assets/cache" "$SHARED_PATH/site-assets-files" "$SHARED_PATH/site-assets-sessions" "$SHARED_PATH/site-assets-logs" || true
+find "$RELEASE_PATH/public/site/assets/cache" "$SHARED_PATH/site-assets-files" "$SHARED_PATH/site-assets-sessions" "$SHARED_PATH/site-assets-logs" -type d -exec chmod g+s {} + 2>/dev/null || true
 
 if [[ "$SKIP_COMPOSER" != "1" && -f "$RELEASE_PATH/public/composer.json" ]]; then
   if command -v "$COMPOSER_BIN" >/dev/null 2>&1; then

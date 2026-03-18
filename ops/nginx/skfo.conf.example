@@ -1,6 +1,7 @@
 server {
     listen 80;
     server_name skfo.ru www.skfo.ru;
+    disable_symlinks off;
 
     root /var/www/skfo/current/public;
     index index.php index.html;

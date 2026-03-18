@@ -1,0 +1,67 @@
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy To Server
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      DEPLOY_KEEP_RELEASES: ${{ secrets.DEPLOY_KEEP_RELEASES }}
+      DEPLOY_COMPOSER_BIN: ${{ secrets.DEPLOY_COMPOSER_BIN }}
+      SKIP_COMPOSER: ${{ secrets.SKIP_COMPOSER }}
+      RSYNC_PROGRESS: ${{ secrets.RSYNC_PROGRESS }}
+      DEPLOY_WEB_USER: ${{ secrets.DEPLOY_WEB_USER }}
+      DEPLOY_WEB_GROUP: ${{ secrets.DEPLOY_WEB_GROUP }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Required Secrets
+        run: |
+          set -Eeuo pipefail
+          for var in DEPLOY_SSH_PRIVATE_KEY DEPLOY_HOST DEPLOY_USER DEPLOY_PATH; do
+            if [[ -z "${!var:-}" ]]; then
+              echo "::error::Missing required repository secret: ${var}"
+              exit 1
+            fi
+          done
+
+      - name: Setup SSH
+        run: |
+          set -Eeuo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${DEPLOY_SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          if [[ -n "${DEPLOY_KNOWN_HOSTS:-}" ]]; then
+            printf '%s\n' "${DEPLOY_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          else
+            port="${DEPLOY_PORT:-22}"
+            ssh-keyscan -p "${port}" -H "${DEPLOY_HOST}" > ~/.ssh/known_hosts
+          fi
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Run Deploy Script
+        run: |
+          set -Eeuo pipefail
+          chmod +x ops/deploy.sh
+          ./ops/deploy.sh
