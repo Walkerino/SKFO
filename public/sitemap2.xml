@@ -31,8 +31,14 @@
         <priority>0.5</priority>
     </url>
     <url>
+        <loc>https://skfo.ru/guides/</loc>
+        <lastmod>2025-04-24T19:54:09+03:00</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.5</priority>
+    </url>
+    <url>
         <loc>https://skfo.ru/hotel/sanatorii-viktoriia/</loc>
-        <lastmod>2026-03-03T19:16:12+03:00</lastmod>
+        <lastmod>2026-03-11T14:55:21+03:00</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.5</priority>
     </url>
@@ -261,6 +267,12 @@
     <url>
         <loc>https://skfo.ru/hotel/otel-artis-plaza/</loc>
         <lastmod>2026-03-02T17:07:46+03:00</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.5</priority>
+    </url>
+    <url>
+        <loc>https://skfo.ru/guides/maksim-aleksandrov/</loc>
+        <lastmod>2026-03-12T14:27:18+03:00</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.5</priority>
     </url>
@@ -681,6 +693,18 @@
     <url>
         <loc>https://skfo.ru/reviews/</loc>
         <lastmod>2026-03-02T16:47:31+03:00</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.5</priority>
+    </url>
+    <url>
+        <loc>https://skfo.ru/guides/mikhail-petrovich/</loc>
+        <lastmod>2026-03-12T15:00:39+03:00</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.5</priority>
+    </url>
+    <url>
+        <loc>https://skfo.ru/guides/mariia/</loc>
+        <lastmod>2026-03-16T11:14:56+03:00</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.5</priority>
     </url>
