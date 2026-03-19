@@ -118,7 +118,6 @@ $tourWhatToTake = $page->hasField('tour_what_to_take') ? trim((string) $page->to
 $tourSeatsLeft = $page->hasField('tour_seats_left') ? max(0, (int) $page->tour_seats_left) : 0;
 $tourIsHot = $page->hasField('tour_is_hot') ? ((int) $page->tour_is_hot === 1) : false;
 $tourDiscountPercent = $page->hasField('tour_discount_percent') ? max(0, (int) $page->tour_discount_percent) : 0;
-$tourDisclaimer = $page->hasField('tour_disclaimer') ? trim((string) $page->tour_disclaimer) : '';
 
 $tourDiscountDeadlineTimestamp = 0;
 if ($page->hasField('tour_discount_deadline')) {
@@ -163,7 +162,6 @@ if ($tourGuidePhotoUrl === '' && $linkedGuide instanceof Page) {
 $tourGuideExperienceYears = $page->hasField('tour_guide_experience_years') ? max(0, (int) $page->tour_guide_experience_years) : 0;
 $tourGuideTouristsCount = $page->hasField('tour_guide_tourists_count') ? max(0, (int) $page->tour_guide_tourists_count) : 0;
 $tourGuideAttestationNumber = $page->hasField('tour_guide_attestation_number') ? trim((string) $page->tour_guide_attestation_number) : '';
-$tourGuideRegistryUrl = $page->hasField('tour_guide_registry_url') ? trim((string) $page->tour_guide_registry_url) : '';
 
 if ($linkedGuide instanceof Page) {
 	if ($tourGuideExperienceYears <= 0 && $linkedGuide->hasField('guide_experience_years')) {
@@ -174,9 +172,6 @@ if ($linkedGuide instanceof Page) {
 	}
 	if ($tourGuideAttestationNumber === '' && $linkedGuide->hasField('guide_attestation_number')) {
 		$tourGuideAttestationNumber = trim((string) $linkedGuide->getUnformatted('guide_attestation_number'));
-	}
-	if ($tourGuideRegistryUrl === '' && $linkedGuide->hasField('guide_registry_url')) {
-		$tourGuideRegistryUrl = trim((string) $linkedGuide->getUnformatted('guide_registry_url'));
 	}
 }
 $tourDifficulty = '';
@@ -257,16 +252,6 @@ if ($tourDates === '') $tourDates = 'Ближайшие даты по запро
 if ($tourMeetingPoint === '') $tourMeetingPoint = 'Махачкала, 08:00';
 if ($tourMeals === '') $tourMeals = 'Уточняйте у организатора';
 if ($tourWhatToTake === '') $tourWhatToTake = 'Удобную обувь и воду';
-if ($tourDisclaimer === '') {
-	$tourDisclaimer = 'Проверьте аттестацию гида в федеральном реестре Минэкономразвития. SKFO.RU — витрина: ответственность за оказание услуги несёт исполнитель.';
-}
-if ($tourGuideRegistryUrl === '') {
-	$tourGuideRegistryUrl = 'https://economy.gov.ru/';
-}
-$tourGuideRegistryHref = $tourGuideRegistryUrl;
-if ($tourGuideRegistryHref !== '' && preg_match('#^https?://#i', $tourGuideRegistryHref) !== 1) {
-	$tourGuideRegistryHref = 'https://' . ltrim($tourGuideRegistryHref, '/');
-}
 $tourGuideProfileUrl = ($linkedGuide instanceof Page && $linkedGuide->id) ? (string) $linkedGuide->url : '';
 
 $tourTitleLength = $measureTextLength($tourTitle);
@@ -379,7 +364,6 @@ $tourReviewAverageLabel = $tourReviewAverage > 0 ? str_replace('.', ',', number_
 $tourReviewSummaryLabel = $tourReviewCount > 0
 	? ($tourReviewAverageLabel . ' (' . $tourReviewCount . ')')
 	: 'Пока без оценок';
-$tourReviewsPreview = array_slice($tourReviews, 0, 3);
 
 $tourDiscountDeadlineLabel = $tourDiscountDeadlineTimestamp > 0 ? $formatDateRu($tourDiscountDeadlineTimestamp) : '';
 $tourDiscountLabel = '';
@@ -393,17 +377,6 @@ $tourCtaLabel = 'Забронировать';
 if ($tourSeatsLeft > 0 && $tourSeatsLeft <= 6) {
 	$tourCtaLabel = 'Осталось ' . $tourSeatsLeft . ' мест';
 }
-
-$tourHeaderTags = [];
-$tourHeaderTags[] = ['label' => $tourRegion, 'tone' => 'region'];
-$tourHeaderTags[] = ['label' => $tourType, 'tone' => 'base'];
-$tourHeaderTags[] = ['label' => $tourFormat, 'tone' => 'base'];
-$tourHeaderTags[] = ['label' => $tourDuration, 'tone' => 'base'];
-$tourHeaderTags[] = ['label' => $tourLanguage, 'tone' => 'base'];
-$tourHeaderTags[] = ['label' => $tourDifficulty, 'tone' => 'base'];
-if ($tourIsHot) $tourHeaderTags[] = ['label' => 'Горячее', 'tone' => 'hot'];
-if ($tourSeatsLeft > 0 && $tourSeatsLeft <= 6) $tourHeaderTags[] = ['label' => 'Осталось ' . $tourSeatsLeft . ' мест', 'tone' => 'warn'];
-if ($tourDiscountPercent > 0) $tourHeaderTags[] = ['label' => 'Скидка ' . $tourDiscountPercent . '%', 'tone' => 'sale'];
 
 $tourDetailRows = [
 	['icon' => '', 'label' => 'Даты выезда', 'value' => $tourDates],
@@ -423,23 +396,6 @@ $tourDetailRows = [
 						<div class="tour-hero-main">
 							<h1 class="tour-title"><?php echo $sanitizer->entities($tourTitle); ?></h1>
 							<p class="tour-description"><?php echo nl2br($sanitizer->entities($tourDescription)); ?></p>
-							<div class="tour-header-tags" aria-label="Ключевые характеристики тура">
-								<?php foreach ($tourHeaderTags as $tag): ?>
-									<?php
-									$tagLabel = trim((string) ($tag['label'] ?? ''));
-									if ($tagLabel === '') continue;
-									$tagTone = trim((string) ($tag['tone'] ?? 'base'));
-									$tagToneClass = preg_replace('/[^a-z0-9_-]+/i', '', $tagTone) ?: 'base';
-									?>
-									<span class="tour-header-tag tour-header-tag--<?php echo $tagToneClass; ?>">
-										<?php echo $sanitizer->entities($tagLabel); ?>
-									</span>
-								<?php endforeach; ?>
-							</div>
-							<div class="tour-hero-rating" aria-label="Рейтинг тура">
-								<span class="tour-hero-rating-star" aria-hidden="true">★</span>
-								<span><?php echo $sanitizer->entities($tourReviewSummaryLabel); ?></span>
-							</div>
 						</div>
 						<div class="tour-hero-media">
 							<div class="tour-badge">
@@ -448,14 +404,16 @@ $tourDetailRows = [
 							</div>
 							<?php if ($tourHeroMainMedia !== ''): ?>
 								<div
-									class="tour-hero-gallery"
+									class="hotel-hero-gallery"
+									data-hotel-gallery
 									data-tour-hero-gallery
 									data-thumb-count="<?php echo (int) max(0, min(4, count($tourHeroThumbMedia))); ?>"
 								>
-									<figure class="tour-hero-gallery-main">
+									<figure class="hotel-media-item hotel-media-item--hero hotel-media-item--primary">
 										<button
-											class="tour-hero-gallery-trigger"
+											class="hotel-media-trigger"
 											type="button"
+											data-hotel-gallery-item
 											data-tour-hero-gallery-item
 											data-gallery-index="0"
 											data-gallery-src="<?php echo htmlspecialchars($tourHeroMainMedia, ENT_QUOTES, 'UTF-8'); ?>"
@@ -471,7 +429,7 @@ $tourDetailRows = [
 										</button>
 									</figure>
 									<?php if (count($tourHeroThumbMedia)): ?>
-										<div class="tour-hero-gallery-strip">
+										<div class="hotel-hero-gallery-strip">
 											<?php $visibleThumbCount = count($tourHeroThumbMedia); ?>
 											<?php $visibleThumbOrder = 0; ?>
 											<?php foreach ($tourHeroThumbMedia as $thumbIndex => $tourMediaImage): ?>
@@ -483,10 +441,11 @@ $tourDetailRows = [
 													? ('Открыть галерею, ещё ' . (int) $tourHeroHiddenCount . ' фото')
 													: ('Открыть фото ' . $thumbPhotoNumber);
 												?>
-												<figure class="tour-hero-gallery-thumb<?php echo $isMoreTile ? ' is-more' : ''; ?>">
+												<figure class="hotel-media-item hotel-media-item--hero hotel-media-item--thumb<?php echo $isMoreTile ? ' is-more' : ''; ?>">
 													<button
-														class="tour-hero-gallery-trigger"
+														class="hotel-media-trigger"
 														type="button"
+														data-hotel-gallery-item
 														data-tour-hero-gallery-item
 														data-gallery-index="<?php echo (int) $thumbIndex; ?>"
 														data-gallery-src="<?php echo htmlspecialchars($tourMediaImage, ENT_QUOTES, 'UTF-8'); ?>"
@@ -499,7 +458,7 @@ $tourDetailRows = [
 															loading="lazy"
 														/>
 														<?php if ($isMoreTile): ?>
-															<span class="tour-hero-gallery-more">+<?php echo (int) $tourHeroHiddenCount; ?><small> фото</small></span>
+															<span class="hotel-hero-gallery-more">+<?php echo (int) $tourHeroHiddenCount; ?><small> фото</small></span>
 														<?php endif; ?>
 													</button>
 												</figure>
@@ -507,10 +466,11 @@ $tourDetailRows = [
 										</div>
 									<?php endif; ?>
 									<?php if (count($tourHeroHiddenMedia)): ?>
-										<div class="tour-hero-gallery-hidden" hidden aria-hidden="true">
+										<div class="hotel-hero-gallery-hidden" hidden aria-hidden="true">
 											<?php foreach ($tourHeroHiddenMedia as $hiddenIndex => $tourMediaImage): ?>
 												<button
 													type="button"
+													data-hotel-gallery-item
 													data-tour-hero-gallery-item
 													data-gallery-index="<?php echo (int) $hiddenIndex; ?>"
 													data-gallery-src="<?php echo htmlspecialchars($tourMediaImage, ENT_QUOTES, 'UTF-8'); ?>"
@@ -586,7 +546,7 @@ $tourDetailRows = [
 							<?php echo $sanitizer->entities($tourCtaLabel); ?>
 						</button>
 					</div>
-					<p class="tour-booking-note">Бронирование напрямую у гида</p>
+					
 				</div>
 			</div>
 		</section>
@@ -622,53 +582,19 @@ $tourDetailRows = [
 							</div>
 						</div>
 					</div>
-					<div class="tour-guide-meta">
-						<div class="tour-guide-meta-row">
-							<span class="tour-guide-meta-label">Аттестация:</span>
-							<span class="tour-guide-meta-value"><?php echo $sanitizer->entities($tourGuideAttestationNumber !== '' ? ('№ ' . $tourGuideAttestationNumber) : 'номер уточняется'); ?></span>
+						<div class="tour-guide-meta">
+							<div class="tour-guide-meta-row">
+								<span class="tour-guide-meta-label">Аттестация:</span>
+								<span class="tour-guide-meta-value"><?php echo $sanitizer->entities($tourGuideAttestationNumber !== '' ? ('№ ' . $tourGuideAttestationNumber) : 'номер уточняется'); ?></span>
+							</div>
+							<div class="tour-guide-meta-row">
+								<span class="tour-guide-meta-label">Рейтинг:</span>
+								<span class="tour-guide-meta-value">★ <?php echo $sanitizer->entities($tourReviewSummaryLabel); ?></span>
+							</div>
 						</div>
-						<div class="tour-guide-meta-row">
-							<span class="tour-guide-meta-label">Рейтинг:</span>
-							<span class="tour-guide-meta-value">★ <?php echo $sanitizer->entities($tourReviewSummaryLabel); ?></span>
-						</div>
-						<?php if ($tourGuideRegistryHref !== ''): ?>
-							<a class="tour-guide-registry-link" href="<?php echo $sanitizer->entities($tourGuideRegistryHref); ?>" target="_blank" rel="noopener noreferrer">
-								Проверить в реестре
-							</a>
-						<?php endif; ?>
-					</div>
-				</article>
-
-				<article class="tour-trust-card">
-					<h2 class="tour-section-title">Проверка и прозрачность</h2>
-					<p class="tour-trust-disclaimer"><?php echo $sanitizer->entities($tourDisclaimer); ?></p>
-					<?php if (count($tourReviewsPreview)): ?>
-						<div class="tour-trust-reviews">
-							<h3 class="tour-trust-reviews-title">Свежие отзывы</h3>
-							<ul class="tour-trust-reviews-list">
-								<?php foreach ($tourReviewsPreview as $previewReview): ?>
-									<?php
-									$previewAuthor = trim((string) ($previewReview['author'] ?? 'Гость'));
-									if ($previewAuthor === '') $previewAuthor = 'Гость';
-									$previewRating = max(1, min(5, (int) ($previewReview['rating'] ?? 5)));
-									$previewText = trim((string) ($previewReview['review_text'] ?? ''));
-									if ($previewText === '') continue;
-									$previewTextShort = function_exists('mb_substr')
-										? mb_substr($previewText, 0, 120, 'UTF-8')
-										: substr($previewText, 0, 120);
-									if ((function_exists('mb_strlen') ? mb_strlen($previewText, 'UTF-8') : strlen($previewText)) > 120) $previewTextShort .= '...';
-									?>
-									<li>
-										<span class="tour-trust-review-head"><?php echo $sanitizer->entities($previewAuthor); ?> · ★ <?php echo $previewRating; ?></span>
-										<span class="tour-trust-review-text"><?php echo $sanitizer->entities($previewTextShort); ?></span>
-									</li>
-								<?php endforeach; ?>
-							</ul>
-						</div>
-					<?php endif; ?>
-				</article>
-			</div>
-		</section>
+					</article>
+				</div>
+			</section>
 
 		<section class="tour-days">
 		<div class="container">

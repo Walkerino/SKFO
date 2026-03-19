@@ -3702,11 +3702,37 @@ const initHotelHeroThumbLayout = () => {
   if (!galleries.length) return;
 
   const MIN_THUMB_WIDTH = 96;
+  const updateTourSingleOrientation = (gallery, primary) => {
+    if (!(gallery instanceof HTMLElement) || !(primary instanceof HTMLElement)) return;
+    if (!gallery.hasAttribute("data-tour-hero-gallery")) return;
+    if (String(gallery.dataset.thumbCount || "") !== "0") {
+      delete gallery.dataset.singleOrientation;
+      return;
+    }
+
+    const image = primary.querySelector("img");
+    if (!(image instanceof HTMLImageElement)) return;
+
+    const applyOrientation = () => {
+      const naturalWidth = image.naturalWidth || 0;
+      const naturalHeight = image.naturalHeight || 0;
+      if (!naturalWidth || !naturalHeight) return;
+      gallery.dataset.singleOrientation = naturalHeight > naturalWidth ? "portrait" : "landscape";
+    };
+
+    if (image.complete) {
+      applyOrientation();
+    } else {
+      image.addEventListener("load", applyOrientation, { once: true });
+    }
+  };
 
   const updateGallery = (gallery) => {
     const strip = gallery.querySelector(".hotel-hero-gallery-strip");
     const primary = gallery.querySelector(".hotel-media-item--primary");
-    if (!(strip instanceof HTMLElement) || !(primary instanceof HTMLElement)) return;
+    if (!(primary instanceof HTMLElement)) return;
+    updateTourSingleOrientation(gallery, primary);
+    if (!(strip instanceof HTMLElement)) return;
 
     const thumbTiles = Array.from(strip.querySelectorAll(".hotel-media-item--thumb"));
     if (!thumbTiles.length) return;

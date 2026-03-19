@@ -233,9 +233,39 @@ $templates = wire('templates');
 $fieldgroups = wire('fieldgroups');
 /** @var Log $log */
 $log = wire('log');
+/** @var WireDatabasePDO $database */
+$database = wire('database');
 $toLower = static function(string $value): string {
 	$value = trim($value);
 	return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+};
+
+$getFieldIdByName = static function(string $name) use ($database): int {
+	$name = trim($name);
+	if($name === '') return 0;
+	try {
+		$query = $database->prepare("SELECT `id` FROM `fields` WHERE `name`=:name LIMIT 1");
+		$query->bindValue(':name', $name, \PDO::PARAM_STR);
+		$query->execute();
+		$fieldId = (int) $query->fetchColumn();
+		return $fieldId > 0 ? $fieldId : 0;
+	} catch(\Throwable $e) {
+		return 0;
+	}
+};
+
+$fieldDataTableExists = static function(string $fieldName) use ($database): bool {
+	$fieldName = trim((string) preg_replace('/[^a-z0-9_]+/i', '', $fieldName));
+	if($fieldName === '') return false;
+	$tableName = 'field_' . $fieldName;
+	try {
+		$query = $database->prepare("SHOW TABLES LIKE :table_name");
+		$query->bindValue(':table_name', $tableName, \PDO::PARAM_STR);
+		$query->execute();
+		return (string) $query->fetchColumn() === $tableName;
+	} catch(\Throwable $e) {
+		return false;
+	}
 };
 
 /**
@@ -247,10 +277,18 @@ $toLower = static function(string $value): string {
  * @param array $settings
  * @return Field|null
  */
-$ensureField = function(string $name, string $type, string $label, array $settings = []) use ($fields, $modules, $log) {
+$ensureField = function(string $name, string $type, string $label, array $settings = []) use ($fields, $modules, $log, $getFieldIdByName, $fieldDataTableExists) {
 	$existing = $fields->get($name);
 	if($existing && $existing->id) {
 		return $existing;
+	}
+
+	$existingId = $getFieldIdByName($name);
+	if($existingId > 0) {
+		$existingById = $fields->get($existingId);
+		if($existingById && $existingById->id) {
+			return $existingById;
+		}
 	}
 
 	$fieldtype = $modules->get($type);
@@ -268,9 +306,32 @@ $ensureField = function(string $name, string $type, string $label, array $settin
 		$field->set($key, $value);
 	}
 
-	$fields->save($field);
-	$log->save('actual-cards-setup', "Created field '$name'.");
-	return $field;
+	try {
+		$fields->save($field);
+		$created = $fields->get($name);
+		if($created && $created->id) {
+			$log->save('actual-cards-setup', "Created field '$name'.");
+			return $created;
+		}
+		return $field && $field->id ? $field : null;
+	} catch(\Throwable $e) {
+		$message = trim((string) $e->getMessage());
+		$looksLikeDuplicateTable = stripos($message, 'already exists') !== false || stripos($message, '42S01') !== false;
+		if($looksLikeDuplicateTable && $fieldDataTableExists($name)) {
+			$recoveredId = $getFieldIdByName($name);
+			if($recoveredId > 0) {
+				$recovered = $fields->get($recoveredId);
+				if($recovered && $recovered->id) {
+					$log->save('actual-cards-setup', "Recovered existing field '$name' after duplicate table warning.");
+					return $recovered;
+				}
+			}
+			$log->save('actual-cards-setup', "Skipped creating field '$name': data table already exists, but field record was not found.");
+			return null;
+		}
+		$log->save('actual-cards-setup', "Failed creating field '$name': " . $message);
+		return null;
+	}
 };
 
 $titleField = $ensureField('card_title', 'FieldtypeText', 'Заголовок карточки');
