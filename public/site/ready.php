@@ -78,6 +78,25 @@ $wire->addHookAfter('ProcessPageEdit::buildForm', function(HookEvent $event) {
 		}
 	}
 
+	$tourCoverInput = $form->getChildByName('tour_cover_image');
+	if($tourCoverInput instanceof Inputfield) {
+		$tourCoverInput->label = 'Фото тура (галерея)';
+		$tourCoverInput->description = 'Можно загрузить несколько фотографий. Первое фото используется как главное в hero-блоке.';
+		$tourCoverInput->set('maxFiles', 12);
+	}
+
+	$tourGuidePhotoInput = $form->getChildByName('tour_guide_photo');
+	if($tourGuidePhotoInput instanceof Inputfield) {
+		$tourGuidePhotoInput->label = 'Гид: фото';
+		$tourGuidePhotoInput->description = 'Фото для блока доверия. Если не заполнено, берётся фото из привязанного гида.';
+	}
+
+	$tourGuideRegistryInput = $form->getChildByName('tour_guide_registry_url');
+	if($tourGuideRegistryInput instanceof Inputfield) {
+		$tourGuideRegistryInput->label = 'Гид: ссылка на запись в реестре';
+		$tourGuideRegistryInput->description = 'Укажите прямую ссылку для проверки в федеральном реестре.';
+	}
+
 	$event->return = $form;
 });
 
@@ -344,17 +363,38 @@ $tourAgeField = $ensureField('tour_age', 'FieldtypeText', 'Возраст тур
 $tourIncludedField = $ensureField('tour_included', 'FieldtypeTextarea', 'Что включено (по строкам)');
 $tourIncludedItemTextField = $ensureField('tour_included_item_text', 'FieldtypeText', 'Что включено: пункт');
 $tourIncludedItemsField = $ensureField('tour_included_items', 'FieldtypeRepeater', 'Что включено: тезисы');
-$tourCoverImageField = $ensureField('tour_cover_image', 'FieldtypeImage', 'Обложка тура', [
-	'maxFiles' => 1,
+$tourCoverImageField = $ensureField('tour_cover_image', 'FieldtypeImage', 'Фото тура (галерея)', [
+	'maxFiles' => 12,
 	'extensions' => 'jpg jpeg png gif webp',
 ]);
 $tourDayTitleField = $ensureField('tour_day_title', 'FieldtypeText', 'День тура: заголовок');
 $tourDayDescriptionField = $ensureField('tour_day_description', 'FieldtypeTextarea', 'День тура: описание');
-$tourDayImagesField = $ensureField('tour_day_images', 'FieldtypeImage', 'День тура: изображения', [
-	'extensions' => 'jpg jpeg png gif webp',
-]);
-$tourDaysField = $ensureField('tour_days', 'FieldtypeRepeater', 'Информация по дням');
-$tourGuideField = $ensureField('guide', 'FieldtypePage', 'Гид тура');
+	$tourDayImagesField = $ensureField('tour_day_images', 'FieldtypeImage', 'День тура: изображения', [
+		'extensions' => 'jpg jpeg png gif webp',
+	]);
+	$tourDaysField = $ensureField('tour_days', 'FieldtypeRepeater', 'Информация по дням');
+	$tourGuideField = $ensureField('guide', 'FieldtypePage', 'Гид тура');
+	$tourTypeField = $ensureField('tour_type', 'FieldtypeText', 'Тип тура');
+	$tourFormatField = $ensureField('tour_format', 'FieldtypeText', 'Формат тура');
+	$tourLanguageField = $ensureField('tour_language', 'FieldtypeText', 'Язык');
+	$tourDatesField = $ensureField('tour_dates', 'FieldtypeText', 'Даты выезда');
+	$tourMeetingPointField = $ensureField('tour_meeting_point', 'FieldtypeText', 'Точка встречи');
+	$tourMealsField = $ensureField('tour_meals', 'FieldtypeText', 'Питание');
+	$tourWhatToTakeField = $ensureField('tour_what_to_take', 'FieldtypeText', 'Что взять с собой');
+	$tourSeatsLeftField = $ensureField('tour_seats_left', 'FieldtypeInteger', 'Свободных мест');
+	$tourIsHotField = $ensureField('tour_is_hot', 'FieldtypeCheckbox', 'Горячее предложение');
+	$tourDiscountPercentField = $ensureField('tour_discount_percent', 'FieldtypeInteger', 'Скидка, %');
+	$tourDiscountDeadlineField = $ensureField('tour_discount_deadline', 'FieldtypeDatetime', 'Скидка действует до');
+	$tourGuideNameField = $ensureField('tour_guide_name', 'FieldtypeText', 'Гид: имя');
+	$tourGuidePhotoField = $ensureField('tour_guide_photo', 'FieldtypeImage', 'Гид: фото', [
+		'maxFiles' => 1,
+		'extensions' => 'jpg jpeg png gif webp',
+	]);
+	$tourGuideExperienceYearsField = $ensureField('tour_guide_experience_years', 'FieldtypeInteger', 'Гид: опыт, лет');
+	$tourGuideTouristsCountField = $ensureField('tour_guide_tourists_count', 'FieldtypeInteger', 'Гид: туристов провёл');
+	$tourGuideAttestationNumberField = $ensureField('tour_guide_attestation_number', 'FieldtypeText', 'Гид: номер аттестации');
+	$tourGuideRegistryUrlField = $ensureField('tour_guide_registry_url', 'FieldtypeText', 'Гид: ссылка на реестр');
+	$tourDisclaimerField = $ensureField('tour_disclaimer', 'FieldtypeTextarea', 'Юридический дисклеймер');
 
 $articleTopicField = $ensureField('article_topic', 'FieldtypeText', 'Статья: тематика');
 $articlePublishDateField = $ensureField('article_publish_date', 'FieldtypeDatetime', 'Статья: дата публикации');
@@ -584,8 +624,8 @@ if($regionMediaVideoField && $regionMediaVideoField->id) {
 if($tourCoverImageField && $tourCoverImageField->id) {
 	$tourCoverChanged = false;
 
-	if((int) $tourCoverImageField->get('maxFiles') !== 1) {
-		$tourCoverImageField->set('maxFiles', 1);
+	if((int) $tourCoverImageField->get('maxFiles') !== 12) {
+		$tourCoverImageField->set('maxFiles', 12);
 		$tourCoverChanged = true;
 	}
 
@@ -598,6 +638,26 @@ if($tourCoverImageField && $tourCoverImageField->id) {
 	if($tourCoverChanged) {
 		$fields->save($tourCoverImageField);
 		$log->save('actual-cards-setup', "Updated field 'tour_cover_image' settings.");
+	}
+}
+
+if($tourGuidePhotoField && $tourGuidePhotoField->id) {
+	$tourGuidePhotoChanged = false;
+
+	if((int) $tourGuidePhotoField->get('maxFiles') !== 1) {
+		$tourGuidePhotoField->set('maxFiles', 1);
+		$tourGuidePhotoChanged = true;
+	}
+
+	$tourGuidePhotoExtensions = trim((string) $tourGuidePhotoField->get('extensions'));
+	if($tourGuidePhotoExtensions === '') {
+		$tourGuidePhotoField->set('extensions', 'jpg jpeg png gif webp');
+		$tourGuidePhotoChanged = true;
+	}
+
+	if($tourGuidePhotoChanged) {
+		$fields->save($tourGuidePhotoField);
+		$log->save('actual-cards-setup', "Updated field 'tour_guide_photo' settings.");
 	}
 }
 
@@ -1197,17 +1257,35 @@ if($homeTemplate && $homeTemplate->id) {
 	}
 }
 
-$tourTemplate = $templates->get('tour');
-if($tourTemplate && $tourTemplate->id) {
-	$tourFieldgroup = $tourTemplate->fieldgroup;
-	$tourChanged = false;
-	$tourContextChanged = false;
-	$tourFields = [
-		$tourRegionField,
-		$tourGuideField,
-		$tourDescriptionField,
-		$tourPriceField,
-		$tourDurationField,
+	$tourTemplate = $templates->get('tour');
+	if($tourTemplate && $tourTemplate->id) {
+		$tourFieldgroup = $tourTemplate->fieldgroup;
+		$tourChanged = false;
+		$tourContextChanged = false;
+		$tourFields = [
+			$tourRegionField,
+			$tourGuideField,
+			$tourTypeField,
+			$tourFormatField,
+			$tourLanguageField,
+			$tourDatesField,
+			$tourMeetingPointField,
+			$tourMealsField,
+			$tourWhatToTakeField,
+			$tourSeatsLeftField,
+			$tourIsHotField,
+			$tourDiscountPercentField,
+			$tourDiscountDeadlineField,
+			$tourGuideNameField,
+			$tourGuidePhotoField,
+			$tourGuideExperienceYearsField,
+			$tourGuideTouristsCountField,
+			$tourGuideAttestationNumberField,
+			$tourGuideRegistryUrlField,
+			$tourDisclaimerField,
+			$tourDescriptionField,
+			$tourPriceField,
+			$tourDurationField,
 		$tourGroupField,
 		$tourSeasonField,
 		$tourDifficultyLevelField,
@@ -1263,6 +1341,20 @@ if($tourTemplate && $tourTemplate->id) {
 		if((string) ($guideContext['label'] ?? '') !== 'Гид') {
 			$guideContext['label'] = 'Гид';
 			$tourFieldgroup->setFieldContextArray((int) $tourGuideField->id, $guideContext);
+			$tourContextChanged = true;
+		}
+	}
+
+	if($tourCoverImageField && $tourCoverImageField->id && $tourFieldgroup->has($tourCoverImageField)) {
+		$tourCoverContext = $tourFieldgroup->getFieldContextArray((int) $tourCoverImageField->id);
+		if((string) ($tourCoverContext['label'] ?? '') !== 'Фото тура (галерея)') {
+			$tourCoverContext['label'] = 'Фото тура (галерея)';
+			$tourFieldgroup->setFieldContextArray((int) $tourCoverImageField->id, $tourCoverContext);
+			$tourContextChanged = true;
+		}
+		if((int) ($tourCoverContext['maxFiles'] ?? 0) !== 12) {
+			$tourCoverContext['maxFiles'] = 12;
+			$tourFieldgroup->setFieldContextArray((int) $tourCoverImageField->id, $tourCoverContext);
 			$tourContextChanged = true;
 		}
 	}

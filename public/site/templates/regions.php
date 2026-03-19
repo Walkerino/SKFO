@@ -405,11 +405,11 @@ if (!count($regions)) {
 					<span class="tab-hover" aria-hidden="true"></span>
 					<a class="hero-tab" href="/" role="tab" aria-selected="false">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
-						<span class="hero-tab-text">Туры</span>
+						<span class="hero-tab-text">Поездки</span>
 					</a>
 					<a class="hero-tab" href="/hotels/" role="tab" aria-selected="false">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/hotel.svg" alt="" aria-hidden="true" />
-						<span class="hero-tab-text">Отели</span>
+						<span class="hero-tab-text">Жильё</span>
 					</a>
 					<a class="hero-tab" href="/reviews/" role="tab" aria-selected="false">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />

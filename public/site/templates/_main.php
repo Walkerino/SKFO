@@ -15,8 +15,8 @@
 $home = $pages->get('/'); /** @var HomePage $home */
 
 	$mainNav = [
-		['label' => 'Туры', 'url' => '/tours/'],
-		['label' => 'Отели', 'url' => '/hotels/'],
+		['label' => 'Поездки', 'url' => '/tours/'],
+		['label' => 'Жильё', 'url' => '/hotels/'],
 		['label' => 'Отзывы', 'url' => '/reviews/'],
 		['label' => 'Гиды', 'url' => '/guides/'],
 		['label' => 'Регионы', 'url' => '/regions/'],
@@ -210,11 +210,11 @@ $home = $pages->get('/'); /** @var HomePage $home */
 									<span class="tour-nav-hover" aria-hidden="true"></span>
 									<a class="tour-header-link tour-nav-link<?php echo $isToursMenuActive ? ' is-active' : ''; ?>" href="<?php echo $home->url; ?>">
 										<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
-										<span class="tour-nav-text">Туры</span>
+										<span class="tour-nav-text">Поездки</span>
 									</a>
 									<a class="tour-header-link tour-nav-link<?php echo $isHotelsNavActive ? ' is-active' : ''; ?>" href="/hotels/">
 										<img src="<?php echo $config->urls->templates; ?>assets/icons/hotel.svg" alt="" aria-hidden="true" />
-										<span class="tour-nav-text">Отели</span>
+										<span class="tour-nav-text">Жильё</span>
 									</a>
 									<a class="tour-header-link tour-nav-link<?php echo $isReviewsNavActive ? ' is-active' : ''; ?>" href="/reviews/">
 										<img src="<?php echo $config->urls->templates; ?>assets/icons/reviews.svg" alt="" aria-hidden="true" />
@@ -262,8 +262,8 @@ $home = $pages->get('/'); /** @var HomePage $home */
 						<div class="container home-mobile-menu-wrap tour-mobile-menu-wrap">
 							<div class="home-mobile-menu" id="tour-mobile-menu" hidden data-home-menu>
 								<nav class="home-mobile-menu-nav" aria-label="Навигация по сайту">
-									<a class="home-mobile-menu-link<?php echo $isToursMenuActive ? ' is-active' : ''; ?>" href="<?php echo $home->url; ?>"<?php echo $isToursMenuActive ? ' aria-current="page"' : ''; ?>>Туры</a>
-									<a class="home-mobile-menu-link<?php echo $isHotelsNavActive ? ' is-active' : ''; ?>" href="/hotels/"<?php echo $isHotelsNavActive ? ' aria-current="page"' : ''; ?>>Отели</a>
+									<a class="home-mobile-menu-link<?php echo $isToursMenuActive ? ' is-active' : ''; ?>" href="<?php echo $home->url; ?>"<?php echo $isToursMenuActive ? ' aria-current="page"' : ''; ?>>Поездки</a>
+									<a class="home-mobile-menu-link<?php echo $isHotelsNavActive ? ' is-active' : ''; ?>" href="/hotels/"<?php echo $isHotelsNavActive ? ' aria-current="page"' : ''; ?>>Жильё</a>
 									<a class="home-mobile-menu-link<?php echo $isReviewsNavActive ? ' is-active' : ''; ?>" href="/reviews/"<?php echo $isReviewsNavActive ? ' aria-current="page"' : ''; ?>>Отзывы</a>
 									<a class="home-mobile-menu-link<?php echo $isGuidesNavActive ? ' is-active' : ''; ?>" href="/guides/"<?php echo $isGuidesNavActive ? ' aria-current="page"' : ''; ?>>Гиды</a>
 									<a class="home-mobile-menu-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/"<?php echo $isRegionsNavActive ? ' aria-current="page"' : ''; ?>>Регионы</a>
@@ -306,8 +306,8 @@ $home = $pages->get('/'); /** @var HomePage $home */
 						<div class="container home-mobile-menu-wrap">
 							<div class="home-mobile-menu" id="home-mobile-menu" hidden data-home-menu>
 								<nav class="home-mobile-menu-nav" aria-label="Навигация по сайту">
-									<a class="home-mobile-menu-link<?php echo $isToursMenuActive ? ' is-active' : ''; ?>" href="<?php echo $home->url; ?>"<?php echo $isToursMenuActive ? ' aria-current="page"' : ''; ?>>Туры</a>
-									<a class="home-mobile-menu-link<?php echo $isHotelsNavActive ? ' is-active' : ''; ?>" href="/hotels/"<?php echo $isHotelsNavActive ? ' aria-current="page"' : ''; ?>>Отели</a>
+									<a class="home-mobile-menu-link<?php echo $isToursMenuActive ? ' is-active' : ''; ?>" href="<?php echo $home->url; ?>"<?php echo $isToursMenuActive ? ' aria-current="page"' : ''; ?>>Поездки</a>
+									<a class="home-mobile-menu-link<?php echo $isHotelsNavActive ? ' is-active' : ''; ?>" href="/hotels/"<?php echo $isHotelsNavActive ? ' aria-current="page"' : ''; ?>>Жильё</a>
 									<a class="home-mobile-menu-link<?php echo $isReviewsNavActive ? ' is-active' : ''; ?>" href="/reviews/"<?php echo $isReviewsNavActive ? ' aria-current="page"' : ''; ?>>Отзывы</a>
 									<a class="home-mobile-menu-link<?php echo $isGuidesNavActive ? ' is-active' : ''; ?>" href="/guides/"<?php echo $isGuidesNavActive ? ' aria-current="page"' : ''; ?>>Гиды</a>
 									<a class="home-mobile-menu-link<?php echo $isRegionsNavActive ? ' is-active' : ''; ?>" href="/regions/"<?php echo $isRegionsNavActive ? ' aria-current="page"' : ''; ?>>Регионы</a>
@@ -369,14 +369,14 @@ $home = $pages->get('/'); /** @var HomePage $home */
 					<a class="footer-section-item" href="<?php echo $home->url; ?>">
 						<span class="footer-section-icon"><img src="<?php echo $config->urls->templates; ?>assets/icons/tour-footer.svg" alt="" aria-hidden="true" /></span>
 						<span class="footer-section-text">
-							<span class="footer-section-title">Туры</span>
+							<span class="footer-section-title">Поездки</span>
 							<span class="footer-section-subtitle">Отдых мечты</span>
 						</span>
 					</a>
 					<a class="footer-section-item" href="/hotels/">
 						<span class="footer-section-icon"><img src="<?php echo $config->urls->templates; ?>assets/icons/hotel-footer.svg" alt="" aria-hidden="true" /></span>
 						<span class="footer-section-text">
-							<span class="footer-section-title">Отели</span>
+							<span class="footer-section-title">Жильё</span>
 							<span class="footer-section-subtitle">Места для ночлега</span>
 						</span>
 					</a>

@@ -47,6 +47,34 @@ $firstLetter = static function(string $value): string {
 	return function_exists('mb_substr') ? mb_strtoupper(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8') : strtoupper(substr($value, 0, 1));
 };
 
+$getImageUrlFromValue = static function($imageValue): string {
+	if ($imageValue instanceof Pageimage) return (string) $imageValue->url;
+	if ($imageValue instanceof Pageimages && $imageValue->count()) return (string) $imageValue->first()->url;
+	return '';
+};
+
+$formatDateRu = static function(int $timestamp): string {
+	if ($timestamp <= 0) return '';
+	$months = [
+		1 => 'января',
+		2 => 'февраля',
+		3 => 'марта',
+		4 => 'апреля',
+		5 => 'мая',
+		6 => 'июня',
+		7 => 'июля',
+		8 => 'августа',
+		9 => 'сентября',
+		10 => 'октября',
+		11 => 'ноября',
+		12 => 'декабря',
+	];
+	$day = (int) date('j', $timestamp);
+	$month = (int) date('n', $timestamp);
+	$year = (int) date('Y', $timestamp);
+	return $day . ' ' . ($months[$month] ?? '') . ' ' . $year;
+};
+
 $extractTourPriceAmount = static function(string $raw): int {
 	$raw = trim($raw);
 	if($raw === '') return 0;
@@ -80,6 +108,77 @@ $tourPrice = $formatTourPrice($tourPriceRaw);
 $tourDuration = $page->hasField('tour_duration') ? trim((string) $page->tour_duration) : '';
 $tourGroup = $page->hasField('tour_group') ? trim((string) $page->tour_group) : '';
 $tourSeason = $page->hasField('tour_season') ? trim((string) $page->tour_season) : '';
+$tourType = $page->hasField('tour_type') ? trim((string) $page->tour_type) : '';
+$tourFormat = $page->hasField('tour_format') ? trim((string) $page->tour_format) : '';
+$tourLanguage = $page->hasField('tour_language') ? trim((string) $page->tour_language) : '';
+$tourDates = $page->hasField('tour_dates') ? trim((string) $page->tour_dates) : '';
+$tourMeetingPoint = $page->hasField('tour_meeting_point') ? trim((string) $page->tour_meeting_point) : '';
+$tourMeals = $page->hasField('tour_meals') ? trim((string) $page->tour_meals) : '';
+$tourWhatToTake = $page->hasField('tour_what_to_take') ? trim((string) $page->tour_what_to_take) : '';
+$tourSeatsLeft = $page->hasField('tour_seats_left') ? max(0, (int) $page->tour_seats_left) : 0;
+$tourIsHot = $page->hasField('tour_is_hot') ? ((int) $page->tour_is_hot === 1) : false;
+$tourDiscountPercent = $page->hasField('tour_discount_percent') ? max(0, (int) $page->tour_discount_percent) : 0;
+$tourDisclaimer = $page->hasField('tour_disclaimer') ? trim((string) $page->tour_disclaimer) : '';
+
+$tourDiscountDeadlineTimestamp = 0;
+if ($page->hasField('tour_discount_deadline')) {
+	$discountRaw = $page->getUnformatted('tour_discount_deadline');
+	if (is_numeric($discountRaw)) {
+		$tourDiscountDeadlineTimestamp = (int) $discountRaw;
+	} elseif (is_string($discountRaw) && trim($discountRaw) !== '') {
+		$parsedDiscountTime = strtotime($discountRaw);
+		if ($parsedDiscountTime !== false) $tourDiscountDeadlineTimestamp = (int) $parsedDiscountTime;
+	}
+}
+
+$linkedGuide = null;
+if ($page->hasField('guide')) {
+	$guideValue = $page->getUnformatted('guide');
+	if ($guideValue instanceof Page) {
+		$linkedGuide = $guideValue;
+	} elseif ($guideValue instanceof PageArray && $guideValue->count()) {
+		$firstGuide = $guideValue->first();
+		if ($firstGuide instanceof Page) $linkedGuide = $firstGuide;
+	}
+}
+
+$tourGuideName = $page->hasField('tour_guide_name') ? trim((string) $page->tour_guide_name) : '';
+if ($tourGuideName === '' && $linkedGuide instanceof Page) {
+	$tourGuideName = trim((string) $linkedGuide->title);
+}
+if ($tourGuideName === '') $tourGuideName = 'Команда SKFO';
+
+$tourGuidePhotoUrl = '';
+if ($page->hasField('tour_guide_photo')) {
+	$tourGuidePhotoUrl = $getImageUrlFromValue($page->getUnformatted('tour_guide_photo'));
+}
+if ($tourGuidePhotoUrl === '' && $linkedGuide instanceof Page) {
+	foreach (['logo', 'images'] as $guideImageField) {
+		if (!$linkedGuide->hasField($guideImageField)) continue;
+		$tourGuidePhotoUrl = $getImageUrlFromValue($linkedGuide->getUnformatted($guideImageField));
+		if ($tourGuidePhotoUrl !== '') break;
+	}
+}
+
+$tourGuideExperienceYears = $page->hasField('tour_guide_experience_years') ? max(0, (int) $page->tour_guide_experience_years) : 0;
+$tourGuideTouristsCount = $page->hasField('tour_guide_tourists_count') ? max(0, (int) $page->tour_guide_tourists_count) : 0;
+$tourGuideAttestationNumber = $page->hasField('tour_guide_attestation_number') ? trim((string) $page->tour_guide_attestation_number) : '';
+$tourGuideRegistryUrl = $page->hasField('tour_guide_registry_url') ? trim((string) $page->tour_guide_registry_url) : '';
+
+if ($linkedGuide instanceof Page) {
+	if ($tourGuideExperienceYears <= 0 && $linkedGuide->hasField('guide_experience_years')) {
+		$tourGuideExperienceYears = max(0, (int) $linkedGuide->getUnformatted('guide_experience_years'));
+	}
+	if ($tourGuideTouristsCount <= 0 && $linkedGuide->hasField('guide_tourists_count')) {
+		$tourGuideTouristsCount = max(0, (int) $linkedGuide->getUnformatted('guide_tourists_count'));
+	}
+	if ($tourGuideAttestationNumber === '' && $linkedGuide->hasField('guide_attestation_number')) {
+		$tourGuideAttestationNumber = trim((string) $linkedGuide->getUnformatted('guide_attestation_number'));
+	}
+	if ($tourGuideRegistryUrl === '' && $linkedGuide->hasField('guide_registry_url')) {
+		$tourGuideRegistryUrl = trim((string) $linkedGuide->getUnformatted('guide_registry_url'));
+	}
+}
 $tourDifficulty = '';
 $tourDifficultyLevel = $page->hasField('tour_difficulty_level') ? $page->getUnformatted('tour_difficulty_level') : null;
 if ($tourDifficultyLevel instanceof SelectableOptionArray && $tourDifficultyLevel->count()) {
@@ -95,15 +194,50 @@ if ($tourDifficulty === '' && $page->hasField('tour_difficulty')) {
 }
 $tourAge = $page->hasField('tour_age') ? trim((string) $page->tour_age) : '';
 
-$tourImageUrl = '';
+$tourMedia = [];
+$tourMediaKeys = [];
+$addTourMediaImage = static function(string $url) use (&$tourMedia, &$tourMediaKeys): void {
+	$url = trim($url);
+	if ($url === '') return;
+	if (isset($tourMediaKeys[$url])) return;
+	$tourMediaKeys[$url] = true;
+	$tourMedia[] = $url;
+};
+
 if ($page->hasField('tour_cover_image')) {
 	$cover = $page->getUnformatted('tour_cover_image');
 	if ($cover instanceof Pageimage) {
-		$tourImageUrl = $cover->url;
+		$addTourMediaImage($cover->url);
 	} elseif ($cover instanceof Pageimages && $cover->count()) {
-		$tourImageUrl = $cover->first()->url;
+		foreach ($cover as $image) {
+			if (!$image instanceof Pageimage) continue;
+			$addTourMediaImage($image->url);
+		}
 	}
 }
+
+if (!count($tourMedia) && $page->hasField('images')) {
+	$images = $page->getUnformatted('images');
+	if ($images instanceof Pageimage) {
+		$addTourMediaImage($images->url);
+	} elseif ($images instanceof Pageimages && $images->count()) {
+		foreach ($images as $image) {
+			if (!$image instanceof Pageimage) continue;
+			$addTourMediaImage($image->url);
+		}
+	}
+}
+
+if (count($tourMedia) > 12) $tourMedia = array_slice($tourMedia, 0, 12);
+
+$tourImageUrl = $tourMedia[0] ?? '';
+$tourHeroMainMedia = $tourImageUrl;
+$tourHeroThumbMedia = count($tourMedia) > 1 ? array_slice($tourMedia, 1, 4, true) : [];
+$tourHeroVisibleCount = $tourHeroMainMedia !== '' ? 1 + count($tourHeroThumbMedia) : 0;
+$tourHeroHiddenCount = max(0, count($tourMedia) - $tourHeroVisibleCount);
+$tourHeroHiddenMedia = $tourHeroHiddenCount > 0
+	? array_slice($tourMedia, $tourHeroVisibleCount, null, true)
+	: [];
 
 if ($tourTitle === '') $tourTitle = 'Четырехдневный тур по Дагестану';
 if ($tourRegion === '') $tourRegion = 'Республика Дагестан';
@@ -116,6 +250,24 @@ if ($tourGroup === '') $tourGroup = '4-12 человек';
 if ($tourSeason === '') $tourSeason = 'Май-Октябрь';
 if ($tourDifficulty === '') $tourDifficulty = 'Базовая';
 if ($tourAge === '') $tourAge = '12+';
+if ($tourType === '') $tourType = 'Джип-тур';
+if ($tourFormat === '') $tourFormat = 'Групповой';
+if ($tourLanguage === '') $tourLanguage = 'Русский';
+if ($tourDates === '') $tourDates = 'Ближайшие даты по запросу';
+if ($tourMeetingPoint === '') $tourMeetingPoint = 'Махачкала, 08:00';
+if ($tourMeals === '') $tourMeals = 'Уточняйте у организатора';
+if ($tourWhatToTake === '') $tourWhatToTake = 'Удобную обувь и воду';
+if ($tourDisclaimer === '') {
+	$tourDisclaimer = 'Проверьте аттестацию гида в федеральном реестре Минэкономразвития. SKFO.RU — витрина: ответственность за оказание услуги несёт исполнитель.';
+}
+if ($tourGuideRegistryUrl === '') {
+	$tourGuideRegistryUrl = 'https://economy.gov.ru/';
+}
+$tourGuideRegistryHref = $tourGuideRegistryUrl;
+if ($tourGuideRegistryHref !== '' && preg_match('#^https?://#i', $tourGuideRegistryHref) !== 1) {
+	$tourGuideRegistryHref = 'https://' . ltrim($tourGuideRegistryHref, '/');
+}
+$tourGuideProfileUrl = ($linkedGuide instanceof Page && $linkedGuide->id) ? (string) $linkedGuide->url : '';
 
 $tourTitleLength = $measureTextLength($tourTitle);
 $tourDescriptionLength = $measureTextLength($tourDescription);
@@ -214,6 +366,53 @@ try {
 	$log->save('errors', "tour page reviews read error: " . $e->getMessage());
 }
 
+$tourReviewCount = count($tourReviews);
+$tourReviewAverage = 0.0;
+if ($tourReviewCount > 0) {
+	$ratingSum = 0;
+	foreach ($tourReviews as $reviewRow) {
+		$ratingSum += max(1, min(5, (int) ($reviewRow['rating'] ?? 5)));
+	}
+	$tourReviewAverage = $ratingSum / $tourReviewCount;
+}
+$tourReviewAverageLabel = $tourReviewAverage > 0 ? str_replace('.', ',', number_format($tourReviewAverage, 1, '.', '')) : '0,0';
+$tourReviewSummaryLabel = $tourReviewCount > 0
+	? ($tourReviewAverageLabel . ' (' . $tourReviewCount . ')')
+	: 'Пока без оценок';
+$tourReviewsPreview = array_slice($tourReviews, 0, 3);
+
+$tourDiscountDeadlineLabel = $tourDiscountDeadlineTimestamp > 0 ? $formatDateRu($tourDiscountDeadlineTimestamp) : '';
+$tourDiscountLabel = '';
+if ($tourDiscountPercent > 0 && $tourDiscountDeadlineLabel !== '') {
+	$tourDiscountLabel = 'Скидка ' . $tourDiscountPercent . '% до ' . $tourDiscountDeadlineLabel;
+} elseif ($tourDiscountPercent > 0) {
+	$tourDiscountLabel = 'Скидка ' . $tourDiscountPercent . '% при раннем бронировании';
+}
+
+$tourCtaLabel = 'Забронировать';
+if ($tourSeatsLeft > 0 && $tourSeatsLeft <= 6) {
+	$tourCtaLabel = 'Осталось ' . $tourSeatsLeft . ' мест';
+}
+
+$tourHeaderTags = [];
+$tourHeaderTags[] = ['label' => $tourRegion, 'tone' => 'region'];
+$tourHeaderTags[] = ['label' => $tourType, 'tone' => 'base'];
+$tourHeaderTags[] = ['label' => $tourFormat, 'tone' => 'base'];
+$tourHeaderTags[] = ['label' => $tourDuration, 'tone' => 'base'];
+$tourHeaderTags[] = ['label' => $tourLanguage, 'tone' => 'base'];
+$tourHeaderTags[] = ['label' => $tourDifficulty, 'tone' => 'base'];
+if ($tourIsHot) $tourHeaderTags[] = ['label' => 'Горячее', 'tone' => 'hot'];
+if ($tourSeatsLeft > 0 && $tourSeatsLeft <= 6) $tourHeaderTags[] = ['label' => 'Осталось ' . $tourSeatsLeft . ' мест', 'tone' => 'warn'];
+if ($tourDiscountPercent > 0) $tourHeaderTags[] = ['label' => 'Скидка ' . $tourDiscountPercent . '%', 'tone' => 'sale'];
+
+$tourDetailRows = [
+	['icon' => '', 'label' => 'Даты выезда', 'value' => $tourDates],
+	['icon' => '', 'label' => 'Группа', 'value' => $tourGroup],
+	['icon' => '', 'label' => 'Встреча', 'value' => $tourMeetingPoint],
+	['icon' => '', 'label' => 'Питание', 'value' => $tourMeals],
+	['icon' => '', 'label' => 'Что взять', 'value' => $tourWhatToTake],
+];
+
 ?>
 
 <div id="content" class="tour-page">
@@ -221,21 +420,115 @@ try {
 		<div class="container">
 			<div class="tour-hero-shape">
 				<div class="tour-hero-layout<?php echo $heroCompactClass; ?>">
-					<div class="tour-hero-main">
-						<h1 class="tour-title"><?php echo $sanitizer->entities($tourTitle); ?></h1>
-						<p class="tour-description"><?php echo nl2br($sanitizer->entities($tourDescription)); ?></p>
-					</div>
-					<div class="tour-hero-media">
-						<div class="tour-badge">
-							<img src="<?php echo $config->urls->templates; ?>assets/icons/location_on.svg" alt="" aria-hidden="true" />
-							<span><?php echo $sanitizer->entities($tourRegion); ?></span>
+						<div class="tour-hero-main">
+							<h1 class="tour-title"><?php echo $sanitizer->entities($tourTitle); ?></h1>
+							<p class="tour-description"><?php echo nl2br($sanitizer->entities($tourDescription)); ?></p>
+							<div class="tour-header-tags" aria-label="Ключевые характеристики тура">
+								<?php foreach ($tourHeaderTags as $tag): ?>
+									<?php
+									$tagLabel = trim((string) ($tag['label'] ?? ''));
+									if ($tagLabel === '') continue;
+									$tagTone = trim((string) ($tag['tone'] ?? 'base'));
+									$tagToneClass = preg_replace('/[^a-z0-9_-]+/i', '', $tagTone) ?: 'base';
+									?>
+									<span class="tour-header-tag tour-header-tag--<?php echo $tagToneClass; ?>">
+										<?php echo $sanitizer->entities($tagLabel); ?>
+									</span>
+								<?php endforeach; ?>
+							</div>
+							<div class="tour-hero-rating" aria-label="Рейтинг тура">
+								<span class="tour-hero-rating-star" aria-hidden="true">★</span>
+								<span><?php echo $sanitizer->entities($tourReviewSummaryLabel); ?></span>
+							</div>
 						</div>
-						<div class="tour-cover"<?php echo $tourImageUrl ? " style=\"background-image: url('".htmlspecialchars($tourImageUrl, ENT_QUOTES, 'UTF-8')."');\"" : ''; ?>></div>
+						<div class="tour-hero-media">
+							<div class="tour-badge">
+								<img src="<?php echo $config->urls->templates; ?>assets/icons/location_on.svg" alt="" aria-hidden="true" />
+								<span><?php echo $sanitizer->entities($tourRegion); ?></span>
+							</div>
+							<?php if ($tourHeroMainMedia !== ''): ?>
+								<div
+									class="tour-hero-gallery"
+									data-tour-hero-gallery
+									data-thumb-count="<?php echo (int) max(0, min(4, count($tourHeroThumbMedia))); ?>"
+								>
+									<figure class="tour-hero-gallery-main">
+										<button
+											class="tour-hero-gallery-trigger"
+											type="button"
+											data-tour-hero-gallery-item
+											data-gallery-index="0"
+											data-gallery-src="<?php echo htmlspecialchars($tourHeroMainMedia, ENT_QUOTES, 'UTF-8'); ?>"
+											data-gallery-alt="<?php echo $sanitizer->entities('Фото тура 1'); ?>"
+											aria-label="<?php echo $sanitizer->entities('Открыть фото 1'); ?>"
+										>
+											<img
+												src="<?php echo htmlspecialchars($tourHeroMainMedia, ENT_QUOTES, 'UTF-8'); ?>"
+												alt="<?php echo $sanitizer->entities('Фото тура 1'); ?>"
+												loading="eager"
+												fetchpriority="high"
+											/>
+										</button>
+									</figure>
+									<?php if (count($tourHeroThumbMedia)): ?>
+										<div class="tour-hero-gallery-strip">
+											<?php $visibleThumbCount = count($tourHeroThumbMedia); ?>
+											<?php $visibleThumbOrder = 0; ?>
+											<?php foreach ($tourHeroThumbMedia as $thumbIndex => $tourMediaImage): ?>
+												<?php
+												$visibleThumbOrder++;
+												$isMoreTile = $tourHeroHiddenCount > 0 && $visibleThumbOrder === $visibleThumbCount;
+												$thumbPhotoNumber = (int) $thumbIndex + 1;
+												$thumbLabel = $isMoreTile
+													? ('Открыть галерею, ещё ' . (int) $tourHeroHiddenCount . ' фото')
+													: ('Открыть фото ' . $thumbPhotoNumber);
+												?>
+												<figure class="tour-hero-gallery-thumb<?php echo $isMoreTile ? ' is-more' : ''; ?>">
+													<button
+														class="tour-hero-gallery-trigger"
+														type="button"
+														data-tour-hero-gallery-item
+														data-gallery-index="<?php echo (int) $thumbIndex; ?>"
+														data-gallery-src="<?php echo htmlspecialchars($tourMediaImage, ENT_QUOTES, 'UTF-8'); ?>"
+														data-gallery-alt="<?php echo $sanitizer->entities('Фото тура ' . $thumbPhotoNumber); ?>"
+														aria-label="<?php echo $sanitizer->entities($thumbLabel); ?>"
+													>
+														<img
+															src="<?php echo htmlspecialchars($tourMediaImage, ENT_QUOTES, 'UTF-8'); ?>"
+															alt="<?php echo $sanitizer->entities('Фото тура ' . $thumbPhotoNumber); ?>"
+															loading="lazy"
+														/>
+														<?php if ($isMoreTile): ?>
+															<span class="tour-hero-gallery-more">+<?php echo (int) $tourHeroHiddenCount; ?><small> фото</small></span>
+														<?php endif; ?>
+													</button>
+												</figure>
+											<?php endforeach; ?>
+										</div>
+									<?php endif; ?>
+									<?php if (count($tourHeroHiddenMedia)): ?>
+										<div class="tour-hero-gallery-hidden" hidden aria-hidden="true">
+											<?php foreach ($tourHeroHiddenMedia as $hiddenIndex => $tourMediaImage): ?>
+												<button
+													type="button"
+													data-tour-hero-gallery-item
+													data-gallery-index="<?php echo (int) $hiddenIndex; ?>"
+													data-gallery-src="<?php echo htmlspecialchars($tourMediaImage, ENT_QUOTES, 'UTF-8'); ?>"
+													data-gallery-alt="<?php echo $sanitizer->entities('Фото тура ' . ((int) $hiddenIndex + 1)); ?>"
+													tabindex="-1"
+												></button>
+											<?php endforeach; ?>
+										</div>
+									<?php endif; ?>
+								</div>
+							<?php else: ?>
+								<div class="tour-cover"></div>
+							<?php endif; ?>
+						</div>
 					</div>
 				</div>
 			</div>
-		</div>
-	</section>
+		</section>
 
 	<section class="tour-overview">
 		<div class="container tour-overview-layout">
@@ -249,37 +542,135 @@ try {
 					</ul>
 				<?php endif; ?>
 			</div>
-			<div class="tour-details-card">
-				<h2 class="tour-section-title">Детали тура</h2>
-				<dl class="tour-meta">
-					<div><dt>Длительность</dt><dd><?php echo $sanitizer->entities($tourDuration); ?></dd></div>
-					<div><dt>Группа</dt><dd><?php echo $sanitizer->entities($tourGroup); ?></dd></div>
-					<div>
-						<dt>Сложность</dt>
-						<dd>
-							<?php echo $sanitizer->entities($tourDifficulty); ?>
-							<span class="tour-difficulty-dots">
+				<div class="tour-details-card">
+					<h2 class="tour-section-title">Детали тура</h2>
+					<dl class="tour-meta">
+						<?php foreach ($tourDetailRows as $detailRow): ?>
+							<?php
+							$detailValue = trim((string) ($detailRow['value'] ?? ''));
+							if ($detailValue === '') continue;
+							?>
+							<div>
+								<dt>
+									<?php if (trim((string) ($detailRow['icon'] ?? '')) !== ''): ?>
+										<span class="tour-meta-icon" aria-hidden="true"><?php echo $sanitizer->entities((string) ($detailRow['icon'] ?? '')); ?></span>
+									<?php endif; ?>
+									<?php echo $sanitizer->entities((string) ($detailRow['label'] ?? '')); ?>
+								</dt>
+								<dd><?php echo $sanitizer->entities($detailValue); ?></dd>
+							</div>
+						<?php endforeach; ?>
+						<div>
+							<dt>Сложность</dt>
+							<dd>
+								<?php echo $sanitizer->entities($tourDifficulty); ?>
+								<span class="tour-difficulty-dots">
 								<i<?php echo $tourDifficultyDotsFilled >= 1 ? ' class="is-active"' : ''; ?>></i>
 								<i<?php echo $tourDifficultyDotsFilled >= 2 ? ' class="is-active"' : ''; ?>></i>
 								<i<?php echo $tourDifficultyDotsFilled >= 3 ? ' class="is-active"' : ''; ?>></i>
 							</span>
 						</dd>
 					</div>
-					<div><dt>Сезонность</dt><dd><?php echo $sanitizer->entities($tourSeason); ?></dd></div>
-					<div><dt>Возраст</dt><dd><?php echo $sanitizer->entities($tourAge); ?></dd></div>
-				</dl>
-				<div class="tour-details-footer">
-					<div class="tour-price-wrap">
-						<div class="tour-price"><?php echo $sanitizer->entities($tourPrice); ?></div>
-						<div class="tour-price-caption">за человека</div>
+						<div><dt>Сезонность</dt><dd><?php echo $sanitizer->entities($tourSeason); ?></dd></div>
+						<div><dt>Возраст</dt><dd><?php echo $sanitizer->entities($tourAge); ?></dd></div>
+					</dl>
+					<div class="tour-details-footer">
+						<div class="tour-price-wrap">
+							<div class="tour-price">от <?php echo $sanitizer->entities($tourPrice); ?></div>
+							<div class="tour-price-caption">за человека</div>
+							<?php if ($tourDiscountLabel !== ''): ?>
+								<div class="tour-price-discount"><?php echo $sanitizer->entities($tourDiscountLabel); ?></div>
+							<?php endif; ?>
+						</div>
+						<button class="tour-book-btn<?php echo $tourSeatsLeft > 0 && $tourSeatsLeft <= 6 ? ' is-warning' : ''; ?>" type="button" data-contacts-open>
+							<?php echo $sanitizer->entities($tourCtaLabel); ?>
+						</button>
 					</div>
-					<button class="tour-book-btn" type="button">Забронировать</button>
+					<p class="tour-booking-note">Бронирование напрямую у гида</p>
 				</div>
 			</div>
-		</div>
-	</section>
+		</section>
 
-	<section class="tour-days">
+		<section class="tour-guide-trust">
+			<div class="container tour-guide-trust-layout">
+				<article class="tour-guide-card">
+					<h2 class="tour-section-title">Гид / организатор</h2>
+					<div class="tour-guide-head">
+						<?php if ($tourGuidePhotoUrl !== ''): ?>
+							<img class="tour-guide-avatar" src="<?php echo htmlspecialchars($tourGuidePhotoUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo $sanitizer->entities('Фото гида ' . $tourGuideName); ?>" />
+						<?php else: ?>
+							<span class="tour-guide-avatar tour-guide-avatar--placeholder review-avatar is-blue" aria-hidden="true"><?php echo $sanitizer->entities($firstLetter($tourGuideName)); ?></span>
+						<?php endif; ?>
+						<div class="tour-guide-summary">
+							<h3 class="tour-guide-name">
+								<?php if ($tourGuideProfileUrl !== ''): ?>
+									<a href="<?php echo $sanitizer->entities($tourGuideProfileUrl); ?>"><?php echo $sanitizer->entities($tourGuideName); ?></a>
+								<?php else: ?>
+									<?php echo $sanitizer->entities($tourGuideName); ?>
+								<?php endif; ?>
+							</h3>
+							<div class="tour-guide-stats">
+								<?php if ($tourGuideExperienceYears > 0): ?>
+									<span><?php echo $sanitizer->entities($tourGuideExperienceYears . ' лет опыта'); ?></span>
+								<?php endif; ?>
+								<?php if ($tourGuideTouristsCount > 0): ?>
+									<span><?php echo $sanitizer->entities(number_format($tourGuideTouristsCount, 0, '', ' ') . '+ туристов'); ?></span>
+								<?php endif; ?>
+								<?php if ($tourGuideExperienceYears <= 0 && $tourGuideTouristsCount <= 0): ?>
+									<span>Опыт подтверждается отзывами путешественников</span>
+								<?php endif; ?>
+							</div>
+						</div>
+					</div>
+					<div class="tour-guide-meta">
+						<div class="tour-guide-meta-row">
+							<span class="tour-guide-meta-label">Аттестация:</span>
+							<span class="tour-guide-meta-value"><?php echo $sanitizer->entities($tourGuideAttestationNumber !== '' ? ('№ ' . $tourGuideAttestationNumber) : 'номер уточняется'); ?></span>
+						</div>
+						<div class="tour-guide-meta-row">
+							<span class="tour-guide-meta-label">Рейтинг:</span>
+							<span class="tour-guide-meta-value">★ <?php echo $sanitizer->entities($tourReviewSummaryLabel); ?></span>
+						</div>
+						<?php if ($tourGuideRegistryHref !== ''): ?>
+							<a class="tour-guide-registry-link" href="<?php echo $sanitizer->entities($tourGuideRegistryHref); ?>" target="_blank" rel="noopener noreferrer">
+								Проверить в реестре
+							</a>
+						<?php endif; ?>
+					</div>
+				</article>
+
+				<article class="tour-trust-card">
+					<h2 class="tour-section-title">Проверка и прозрачность</h2>
+					<p class="tour-trust-disclaimer"><?php echo $sanitizer->entities($tourDisclaimer); ?></p>
+					<?php if (count($tourReviewsPreview)): ?>
+						<div class="tour-trust-reviews">
+							<h3 class="tour-trust-reviews-title">Свежие отзывы</h3>
+							<ul class="tour-trust-reviews-list">
+								<?php foreach ($tourReviewsPreview as $previewReview): ?>
+									<?php
+									$previewAuthor = trim((string) ($previewReview['author'] ?? 'Гость'));
+									if ($previewAuthor === '') $previewAuthor = 'Гость';
+									$previewRating = max(1, min(5, (int) ($previewReview['rating'] ?? 5)));
+									$previewText = trim((string) ($previewReview['review_text'] ?? ''));
+									if ($previewText === '') continue;
+									$previewTextShort = function_exists('mb_substr')
+										? mb_substr($previewText, 0, 120, 'UTF-8')
+										: substr($previewText, 0, 120);
+									if ((function_exists('mb_strlen') ? mb_strlen($previewText, 'UTF-8') : strlen($previewText)) > 120) $previewTextShort .= '...';
+									?>
+									<li>
+										<span class="tour-trust-review-head"><?php echo $sanitizer->entities($previewAuthor); ?> · ★ <?php echo $previewRating; ?></span>
+										<span class="tour-trust-review-text"><?php echo $sanitizer->entities($previewTextShort); ?></span>
+									</li>
+								<?php endforeach; ?>
+							</ul>
+						</div>
+					<?php endif; ?>
+				</article>
+			</div>
+		</section>
+
+		<section class="tour-days">
 		<div class="container">
 			<!-- <h2 class="tour-section-title">Информация по дням</h2> -->
 			<div class="tour-days-list">
@@ -314,7 +705,7 @@ try {
 		</div>
 	</section>
 
-	<section class="tour-reviews" data-tour-reviews-gallery>
+		<section class="tour-reviews" data-tour-reviews-gallery>
 		<div class="container">
 			<div class="tour-reviews-card">
 				<h2 class="tour-section-title">Отзывы о туре</h2>
@@ -381,6 +772,20 @@ try {
 				</figure>
 				<div class="hotel-gallery-counter" data-gallery-counter></div>
 			</div>
-		</div>
-	</section>
-</div>
+			</div>
+		</section>
+		<?php if ($tourHeroMainMedia !== ''): ?>
+			<div class="hotel-gallery-lightbox" data-tour-hero-gallery-modal hidden>
+				<div class="hotel-gallery-lightbox-backdrop" data-gallery-close="backdrop"></div>
+				<div class="hotel-gallery-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Фотографии тура">
+					<button class="hotel-gallery-close" type="button" data-gallery-close="button" aria-label="Закрыть">×</button>
+					<button class="hotel-gallery-nav hotel-gallery-nav--prev" type="button" data-gallery-nav="prev" aria-label="Предыдущее фото"></button>
+					<figure class="hotel-gallery-stage">
+						<img src="" alt="" data-gallery-image />
+					</figure>
+					<button class="hotel-gallery-nav hotel-gallery-nav--next" type="button" data-gallery-nav="next" aria-label="Следующее фото"></button>
+					<div class="hotel-gallery-counter" data-gallery-counter></div>
+				</div>
+			</div>
+		<?php endif; ?>
+	</div>

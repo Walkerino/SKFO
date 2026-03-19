@@ -3802,6 +3802,14 @@ const initHotelMediaGallery = () => {
   initMediaLightbox("[data-hotel-gallery]", "[data-hotel-gallery-item]", "[data-hotel-gallery-modal]");
 };
 
+const initTourHeroGallery = () => {
+  initMediaLightbox(
+    "[data-tour-hero-gallery]",
+    "[data-tour-hero-gallery-item]",
+    "[data-tour-hero-gallery-modal]",
+  );
+};
+
 const initHotelRoomGallery = () => {
   const modal = document.querySelector("[data-hotel-room-gallery-modal]");
   if (!(modal instanceof HTMLElement)) return;
@@ -4304,6 +4312,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initHotToursSlider();
   initRegionActualSlider();
   initHotelMediaGallery();
+  initTourHeroGallery();
   initHotelsListCardGallery();
   initHotelRoomGallery();
   initHotelRoomOffersSlider();
