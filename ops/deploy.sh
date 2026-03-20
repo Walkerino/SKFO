@@ -57,8 +57,22 @@ rsync "${RSYNC_OPTS[@]}" \
 
 echo "==> Finalizing release on server"
 ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" \
-  "RELEASE_PATH=$(printf '%q' "${REMOTE_RELEASE_PATH}") RELEASES_PATH=$(printf '%q' "${REMOTE_RELEASES_PATH}") SHARED_PATH=$(printf '%q' "${REMOTE_SHARED_PATH}") CURRENT_PATH=$(printf '%q' "${REMOTE_CURRENT_PATH}") KEEP_RELEASES=$(printf '%q' "${DEPLOY_KEEP_RELEASES}") COMPOSER_BIN=$(printf '%q' "${DEPLOY_COMPOSER_BIN}") SKIP_COMPOSER=$(printf '%q' "${SKIP_COMPOSER}") WEB_USER=$(printf '%q' "${DEPLOY_WEB_USER}") WEB_GROUP=$(printf '%q' "${DEPLOY_WEB_GROUP}") bash -s" << 'EOF_REMOTE'
+  "DEPLOY_PATH=$(printf '%q' "${DEPLOY_PATH}") RELEASE_PATH=$(printf '%q' "${REMOTE_RELEASE_PATH}") RELEASES_PATH=$(printf '%q' "${REMOTE_RELEASES_PATH}") SHARED_PATH=$(printf '%q' "${REMOTE_SHARED_PATH}") CURRENT_PATH=$(printf '%q' "${REMOTE_CURRENT_PATH}") KEEP_RELEASES=$(printf '%q' "${DEPLOY_KEEP_RELEASES}") COMPOSER_BIN=$(printf '%q' "${DEPLOY_COMPOSER_BIN}") SKIP_COMPOSER=$(printf '%q' "${SKIP_COMPOSER}") WEB_USER=$(printf '%q' "${DEPLOY_WEB_USER}") WEB_GROUP=$(printf '%q' "${DEPLOY_WEB_GROUP}") bash -s" << 'EOF_REMOTE'
 set -Eeuo pipefail
+
+LOCK_FILE="$DEPLOY_PATH/.deploy.lock"
+CURRENT_TMP_PATH="${CURRENT_PATH}.next"
+
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  echo "ERROR: another deploy or rollback is already running"
+  exit 1
+fi
+
+cleanup() {
+  rm -f "$CURRENT_TMP_PATH"
+}
+trap cleanup EXIT
 
 mkdir -p "$RELEASE_PATH/public/site/assets/cache" \
   "$SHARED_PATH/site-assets-files" \
@@ -82,13 +96,42 @@ if [[ "$SKIP_COMPOSER" != "1" && -f "$RELEASE_PATH/public/composer.json" ]]; the
   fi
 fi
 
-ln -sfn "$RELEASE_PATH" "$CURRENT_PATH"
+if [[ ! -f "$RELEASE_PATH/public/index.php" ]]; then
+  echo "ERROR: release is missing public/index.php: $RELEASE_PATH"
+  exit 1
+fi
+
+if [[ ! -f "$RELEASE_PATH/public/site/config.php" ]]; then
+  echo "ERROR: release is missing public/site/config.php: $RELEASE_PATH"
+  exit 1
+fi
+
+rm -f "$CURRENT_TMP_PATH"
+ln -s "$RELEASE_PATH" "$CURRENT_TMP_PATH"
+mv -Tf "$CURRENT_TMP_PATH" "$CURRENT_PATH"
+
+active_release_path="$(readlink -f "$CURRENT_PATH")"
+if [[ -z "$active_release_path" || ! -d "$active_release_path" ]]; then
+  echo "ERROR: failed to resolve active release after switch"
+  exit 1
+fi
 
 if [[ -d "$RELEASES_PATH" ]]; then
-  mapfile -t old_releases < <(ls -1dt "$RELEASES_PATH"/* 2>/dev/null | tail -n "+$((KEEP_RELEASES + 1))" || true)
-  if ((${#old_releases[@]})); then
-    rm -rf "${old_releases[@]}"
-  fi
+  keep_count=0
+  while IFS= read -r release_path; do
+    [[ -n "$release_path" ]] || continue
+
+    if [[ "$release_path" == "$active_release_path" ]]; then
+      continue
+    fi
+
+    if ((keep_count < KEEP_RELEASES)); then
+      keep_count=$((keep_count + 1))
+      continue
+    fi
+
+    rm -rf "$release_path"
+  done < <(find "$RELEASES_PATH" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -nr | awk '{print $2}')
 fi
 EOF_REMOTE
 

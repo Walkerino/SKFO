@@ -30,6 +30,19 @@ deploy_path="${DEPLOY_PATH}"
 target_release="${TARGET_RELEASE:-}"
 releases_path="$deploy_path/releases"
 current_path="$deploy_path/current"
+current_tmp_path="${current_path}.next"
+lock_file="$deploy_path/.deploy.lock"
+
+exec 9>"$lock_file"
+if ! flock -n 9; then
+  echo "ERROR: another deploy or rollback is already running"
+  exit 1
+fi
+
+cleanup() {
+  rm -f "$current_tmp_path"
+}
+trap cleanup EXIT
 
 if [[ ! -d "$releases_path" ]]; then
   echo "ERROR: releases path does not exist: $releases_path"
@@ -56,6 +69,13 @@ else
   fi
 fi
 
-ln -sfn "$target_path" "$current_path"
+if [[ ! -f "$target_path/public/index.php" ]]; then
+  echo "ERROR: target release is missing public/index.php: $target_path"
+  exit 1
+fi
+
+rm -f "$current_tmp_path"
+ln -s "$target_path" "$current_tmp_path"
+mv -Tf "$current_tmp_path" "$current_path"
 echo "Rolled back to: $(basename "$target_path")"
 EOF_REMOTE

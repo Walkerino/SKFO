@@ -10,6 +10,7 @@ This project is a ProcessWire site with docroot in `public/`.
 - `ops/backup.sh` creates remote DB + uploaded files backups.
 - `ops/nginx/skfo.conf.example` contains a production Nginx vhost template.
 - `ops/.env.deploy.example` includes required variables.
+- Release switch is atomic and protected by a remote lock file.
 
 ## 1. Server Requirements
 
@@ -122,6 +123,7 @@ Then verify:
 ## 7. Regular Deploy
 
 Each deploy creates a new release and switches `current`.
+Deploys are serialized by GitHub Actions and also protected by a server-side lock file, so do not re-enable `cancel-in-progress` for the production workflow.
 
 ```bash
 ./ops/deploy.sh
@@ -181,6 +183,7 @@ rm -rf /var/www/skfo/current/public/site/assets/cache/*
 - Keep `SKFO_USER_AUTH_SALT` and `SKFO_TABLE_SALT` unchanged forever.
 - Keep `SKFO_DEBUG=0` in production.
 - `SKFO_HTTP_HOSTS` must contain all real domains, otherwise ProcessWire will reject requests.
+- Active release is excluded from cleanup, including after rollback.
 - Ensure webserver user can write into:
   - `shared/site-assets-files`
   - `shared/site-assets-sessions`
