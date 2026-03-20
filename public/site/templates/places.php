@@ -23,6 +23,27 @@ $normalizeLookup = static function(string $value) use ($toLower): string {
 	return trim($value);
 };
 
+$extractLocalityFromText = static function(string $value) use ($normalizeWhitespace): string {
+	$value = $normalizeWhitespace($value);
+	if ($value === '') return '';
+
+	$patterns = [
+		'/(?:^|,\s*)(?:г(?:\.|ород)?|город)\s+([^,]+)/iu',
+		'/(?:^|,\s*)(?:пгт|пос[её]лок\s+городского\s+типа|курорт(?:ный)?\s+пос[её]лок|рабоч(?:ий)?\s+пос[её]лок|пос(?:\.|[её]лок)?|п\.)\s+([^,]+)/iu',
+		'/(?:^|,\s*)(?:с(?:\.|ело)?|село)\s+([^,]+)/iu',
+		'/(?:^|,\s*)(?:аул|хутор|дер(?:\.|евня)?|станица|ст\.)\s+([^,]+)/iu',
+		'/(?:^|,\s*)(?:слобода|кишлак|улус)\s+([^,]+)/iu',
+	];
+
+	foreach ($patterns as $pattern) {
+		if (preg_match($pattern, $value, $matches) !== 1) continue;
+		$locality = trim((string) ($matches[1] ?? ''), " \t\n\r\0\x0B,.;");
+		if ($locality !== '') return $locality;
+	}
+
+	return '';
+};
+
 $truncateText = static function(string $value, int $length = 190): string {
 	$value = trim(strip_tags($value));
 	if ($value === '') return '';
@@ -38,6 +59,45 @@ $getFirstText = static function(Page $item, array $fieldNames) use ($normalizeWh
 		$value = $normalizeWhitespace((string) $item->getUnformatted($fieldName));
 		if ($value !== '') return $value;
 	}
+	return '';
+};
+
+$getComboValue = static function($value, array $keys) use ($normalizeWhitespace): string {
+	$extract = static function($input, string $key): string {
+		if (is_object($input) && method_exists($input, 'get')) {
+			try {
+				$result = $input->get($key);
+				if (is_scalar($result)) return trim((string) $result);
+			} catch (\Throwable $e) {
+				// Ignore unavailable combo keys.
+			}
+		}
+		if (is_array($input)) {
+			$result = $input[$key] ?? null;
+			if (is_scalar($result)) return trim((string) $result);
+		}
+		return '';
+	};
+
+	foreach ($keys as $key) {
+		$key = trim((string) $key);
+		if ($key === '') continue;
+		$result = $extract($value, $key);
+		if ($result !== '') return $normalizeWhitespace($result);
+	}
+
+	if (is_string($value) && $value !== '') {
+		$decoded = json_decode($value, true);
+		if (is_array($decoded)) {
+			foreach ($keys as $key) {
+				$key = trim((string) $key);
+				if ($key === '') continue;
+				$result = trim((string) ($decoded[$key] ?? ''));
+				if ($result !== '') return $normalizeWhitespace($result);
+			}
+		}
+	}
+
 	return '';
 };
 
@@ -100,6 +160,92 @@ $extractTextValues = static function($value) use (&$extractTextValues, $normaliz
 	return $values;
 };
 
+$getPlaceLocalityFromValue = static function($value) use ($extractTextValues, $extractLocalityFromText): string {
+	$parts = $extractTextValues($value);
+	foreach ($parts as $part) {
+		$locality = $extractLocalityFromText((string) $part);
+		if ($locality !== '') return $locality;
+	}
+
+	if (count($parts)) {
+		$locality = $extractLocalityFromText(implode(', ', $parts));
+		if ($locality !== '') return $locality;
+	}
+
+	return '';
+};
+
+$resolvePlaceLocalityViaYandex = static function(string $title, string $region = '', string $address = '') use ($config, $normalizeWhitespace, $extractLocalityFromText): string {
+	static $runtimeCache = [];
+	static $uncachedLookups = 0;
+
+	$title = $normalizeWhitespace($title);
+	$region = $normalizeWhitespace($region);
+	$address = $normalizeWhitespace($address);
+
+	$queryParts = array_values(array_filter([$address, $title, $region], static fn(string $item): bool => trim($item) !== ''));
+	$query = count($queryParts) ? implode(', ', $queryParts) : $title;
+	if ($query === '') return '';
+
+	$cacheKey = sha1($query);
+	if (array_key_exists($cacheKey, $runtimeCache)) return (string) $runtimeCache[$cacheKey];
+
+	$cacheDir = rtrim((string) $config->paths->cache, '/') . '/place-locality';
+	$cacheFile = $cacheDir . '/' . $cacheKey . '.json';
+	$cacheTtl = 60 * 60 * 24 * 60;
+
+	if (is_file($cacheFile) && filemtime($cacheFile) >= (time() - $cacheTtl)) {
+		$cached = json_decode((string) @file_get_contents($cacheFile), true);
+		$city = is_array($cached) ? $normalizeWhitespace((string) ($cached['city'] ?? '')) : '';
+		$runtimeCache[$cacheKey] = $city;
+		return $city;
+	}
+
+	if ($uncachedLookups >= 4) return '';
+	$uncachedLookups++;
+
+	$context = stream_context_create([
+		'http' => [
+			'method' => 'GET',
+			'timeout' => 1.5,
+			'header' => "User-Agent: Mozilla/5.0\r\nAccept-Language: ru,en;q=0.8\r\n",
+		],
+	]);
+	$html = @file_get_contents('https://yandex.ru/maps/?text=' . rawurlencode($query), false, $context);
+	if (!is_string($html) || trim($html) === '') {
+		$runtimeCache[$cacheKey] = '';
+		return '';
+	}
+
+	$candidates = [];
+	foreach ([
+		'/<meta\s+name=["\']description["\'][^>]*content=["\']([^"\']+)["\']/iu',
+		'/<meta\s+property=["\']og:description["\'][^>]*content=["\']([^"\']+)["\']/iu',
+		'/<meta\s+itemprop=["\']description["\'][^>]*content=["\']([^"\']+)["\']/iu',
+		'/<div[^>]*class=["\'][^"\']*toponym-card-title-view__description[^"\']*["\'][^>]*>(.*?)<\/div>/iu',
+	] as $pattern) {
+		if (preg_match($pattern, $html, $matches) !== 1) continue;
+		$candidate = $normalizeWhitespace(strip_tags(html_entity_decode((string) ($matches[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
+		if ($candidate !== '') $candidates[] = $candidate;
+	}
+
+	$city = '';
+	foreach ($candidates as $candidate) {
+		$city = $extractLocalityFromText($candidate);
+		if ($city !== '') break;
+	}
+
+	if (!is_dir($cacheDir)) @mkdir($cacheDir, 0777, true);
+	@file_put_contents($cacheFile, json_encode([
+		'city' => $city,
+		'query' => $query,
+		'fetched_at' => time(),
+	], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+	$runtimeCache[$cacheKey] = $city;
+	return $city;
+};
+
 $getCategoryValuesFromPage = static function(Page $item) use ($extractTextValues, $normalizeLookup): array {
 	$fieldNames = [
 		'place_category',
@@ -125,6 +271,38 @@ $getCategoryValuesFromPage = static function(Page $item) use ($extractTextValues
 	}
 
 	return $categories;
+};
+
+$getPlaceCityFromPage = static function(Page $item) use ($getFirstText, $getComboValue, $getPlaceLocalityFromValue, $extractTextValues, $normalizeLookup, $normalizeWhitespace, $resolvePlaceLocalityViaYandex): string {
+	$city = $getFirstText($item, ['place_city', 'city']);
+	if ($city !== '') return $city;
+
+	$addressParts = [];
+	$seenAddressParts = [];
+	foreach (['place_address', 'address', 'place_location', 'location', 'where'] as $addressFieldName) {
+		if (!$item->hasField($addressFieldName)) continue;
+		$rawValue = $item->getUnformatted($addressFieldName);
+
+		$city = $getComboValue($rawValue, ['city', 'i2']);
+		if ($city !== '') return $city;
+
+		$city = $getPlaceLocalityFromValue($rawValue);
+		if ($city !== '') return $city;
+
+		foreach ($extractTextValues($rawValue) as $part) {
+			$part = $normalizeWhitespace((string) $part);
+			$key = $normalizeLookup($part);
+			if ($part === '' || $key === '' || isset($seenAddressParts[$key])) continue;
+			$seenAddressParts[$key] = true;
+			$addressParts[] = $part;
+		}
+	}
+
+	return $resolvePlaceLocalityViaYandex(
+		$normalizeWhitespace((string) $item->title),
+		$getFirstText($item, ['place_region', 'region']),
+		implode(', ', $addressParts)
+	);
 };
 
 $getFallbackImageUrlsFromPageFiles = static function(Page $item) use ($config): array {
@@ -197,6 +375,7 @@ $mergePlaceCard = static function(array $incoming) use (&$placesMap, $normalizeW
 	if ($key === '') return;
 
 	$region = $normalizeWhitespace((string) ($incoming['region'] ?? ''));
+	$city = $normalizeWhitespace((string) ($incoming['city'] ?? ''));
 	$summary = $normalizeWhitespace((string) ($incoming['summary'] ?? ''));
 	$image = trim((string) ($incoming['image'] ?? ''));
 	$url = trim((string) ($incoming['url'] ?? ''));
@@ -222,6 +401,7 @@ $mergePlaceCard = static function(array $incoming) use (&$placesMap, $normalizeW
 		$placesMap[$key] = [
 			'title' => $title,
 			'region' => $region,
+			'city' => $city,
 			'summary' => $summary,
 			'image' => $image,
 			'image_is_default' => $imageIsDefault,
@@ -233,6 +413,7 @@ $mergePlaceCard = static function(array $incoming) use (&$placesMap, $normalizeW
 
 	$current = $placesMap[$key];
 	if ($current['region'] === '' && $region !== '') $current['region'] = $region;
+	if (($current['city'] ?? '') === '' && $city !== '') $current['city'] = $city;
 	if ($current['summary'] === '' && $summary !== '') $current['summary'] = $summary;
 	if ($current['url'] === '' && $url !== '') $current['url'] = $url;
 
@@ -270,6 +451,7 @@ if (isset($pages) && $pages instanceof Pages) {
 		$mergePlaceCard([
 			'title' => $title,
 			'region' => $getFirstText($placePage, ['place_region', 'region']),
+			'city' => $getPlaceCityFromPage($placePage),
 			'summary' => $truncateText($summaryRaw, 180),
 			'image' => $imageUrl !== '' ? $imageUrl : $defaultPlaceImage,
 			'url' => trim((string) $placePage->url),
@@ -296,6 +478,7 @@ if (isset($pages) && $pages instanceof Pages) {
 				$mergePlaceCard([
 					'title' => $cardTitle,
 					'region' => $regionTitle,
+					'city' => '',
 					'summary' => $truncateText($cardSummary, 180),
 					'image' => $cardImage !== '' ? $cardImage : $defaultPlaceImage,
 					'url' => $linkedPlaceUrl,
@@ -319,6 +502,7 @@ if (isset($pages) && $pages instanceof Pages) {
 			$mergePlaceCard([
 				'title' => $cardTitle,
 				'region' => 'Республика Дагестан',
+				'city' => '',
 				'summary' => $truncateText($cardSummary, 180),
 				'image' => $cardImage !== '' ? $cardImage : $defaultPlaceImage,
 				'url' => $linkedPlaceUrl,
@@ -337,6 +521,7 @@ foreach ($placesMap as $item) {
 
 	$region = trim((string) ($item['region'] ?? ''));
 	$summary = trim((string) ($item['summary'] ?? ''));
+	$city = trim((string) ($item['city'] ?? ''));
 	$image = trim((string) ($item['image'] ?? $defaultPlaceImage));
 	if ($image === '') $image = $defaultPlaceImage;
 	if ($image === $defaultPlaceImage) continue;
@@ -355,6 +540,7 @@ foreach ($placesMap as $item) {
 	$placesCatalog[] = [
 		'title' => $title,
 		'region' => $region,
+		'city' => $city,
 		'summary' => $summary,
 		'category' => $primaryCategory,
 		'category_keys' => array_values(array_unique($categoryKeys)),
@@ -585,6 +771,7 @@ $totalFilteredPlaces = count($filteredPlaces);
 						<?php
 						$title = trim((string) ($place['title'] ?? ''));
 						$region = trim((string) ($place['region'] ?? ''));
+						$city = trim((string) ($place['city'] ?? ''));
 						$summary = trim((string) ($place['summary'] ?? ''));
 						$category = trim((string) ($place['category'] ?? 'Природа'));
 						$imageUrl = trim((string) ($place['image'] ?? $defaultPlaceImage));
@@ -606,7 +793,12 @@ $totalFilteredPlaces = count($filteredPlaces);
 						<article class="places-catalog-card" data-place-card>
 							<a class="places-catalog-card-link" href="<?php echo $sanitizer->entities($placeUrl); ?>">
 								<div class="places-catalog-card-image" style="background-image: url('<?php echo htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8'); ?>');"></div>
-								<span class="places-catalog-chip"><?php echo $sanitizer->entities($chipLabel); ?></span>
+								<div class="places-catalog-meta">
+									<span class="places-catalog-chip"><?php echo $sanitizer->entities($chipLabel); ?></span>
+									<?php if ($city !== ''): ?>
+										<span class="places-catalog-city"><?php echo $sanitizer->entities($city); ?></span>
+									<?php endif; ?>
+								</div>
 								<h2 class="places-catalog-card-title"><?php echo $sanitizer->entities($title); ?></h2>
 								<p class="places-catalog-card-description"><?php echo $sanitizer->entities($description); ?></p>
 							</a>

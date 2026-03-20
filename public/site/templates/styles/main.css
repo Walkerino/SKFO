@@ -5459,8 +5459,9 @@ a.place-card:hover {
 }
 
 .places-filter-option {
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
   gap: 8px;
   min-height: 30px;
   color: #1f2937;
@@ -5470,10 +5471,18 @@ a.place-card:hover {
 }
 
 .places-filter-option input {
+  flex: 0 0 auto;
   margin: 0;
+  margin-top: 2px;
   width: 16px;
   height: 16px;
   accent-color: #1f52b2;
+}
+
+.places-filter-option-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
 }
 
 .places-filter-apply-btn {
@@ -5526,6 +5535,21 @@ a.place-card:hover {
   font-weight: 700;
   letter-spacing: 0.08em;
   color: #1f52b2;
+}
+
+.places-catalog-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.places-catalog-city {
+  font-size: 15px;
+  line-height: 1.2;
+  font-family: "Inter", "Arial", sans-serif;
+  font-weight: 600;
+  color: #4f5b73;
 }
 
 .places-catalog-card-title {
@@ -5587,6 +5611,15 @@ a.place-card:hover {
   font-size: 20px;
   line-height: 1.5;
   color: #43506b;
+}
+
+.place-detail-city {
+  margin: 12px 0 0;
+  font-size: 20px;
+  line-height: 1.3;
+  font-family: "Inter", "Arial", sans-serif;
+  font-weight: 600;
+  color: #1f52b2;
 }
 
 .place-detail-meta {
@@ -5719,6 +5752,10 @@ a.place-card:hover {
     font-size: 17px;
   }
 
+  .places-catalog-city {
+    font-size: 14px;
+  }
+
   .places-catalog-more-btn {
     font-size: 19px;
   }
@@ -5823,8 +5860,16 @@ a.place-card:hover {
     font-size: 16px;
   }
 
+  .places-catalog-city {
+    font-size: 14px;
+  }
+
   .places-catalog-more-btn {
     width: 100%;
+    font-size: 18px;
+  }
+
+  .place-detail-city {
     font-size: 18px;
   }
 
