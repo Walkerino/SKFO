@@ -338,6 +338,7 @@ class WireWall extends WireData implements Module, ConfigurableModule {
         $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
         $path = $page ? $page->url : parse_url($requestUri, PHP_URL_PATH);
         $referer = $_SERVER['HTTP_REFERER'] ?? '';
+        $looksLikeHumanBrowser = $this->isLikelyHumanBrowserRequest($userAgent);
         
         // === PRIORITY 0.7: NEVER BLOCK LOGGED-IN PROCESSWIRE USERS ===
         // This check requires $ip to be resolved first (for accurate logging if enabled)
@@ -387,13 +388,13 @@ class WireWall extends WireData implements Module, ConfigurableModule {
         }
         
         // === PRIORITY 5: VPN/PROXY/TOR DETECTION ===
-        if ($this->block_proxy_vpn_tor && $this->isProxyVPNTor($ip)) {
+        if ($this->block_proxy_vpn_tor && !$looksLikeHumanBrowser && $this->isProxyVPNTor($ip)) {
             $this->blockAccess('proxy-vpn-tor', $ip, $country, $asn, $userAgent);
             return;
         }
         
         // === PRIORITY 6: DATACENTER DETECTION ===
-        if ($this->block_datacenters && $this->isDatacenter($ip, $asn)) {
+        if ($this->block_datacenters && !$looksLikeHumanBrowser && $this->isDatacenter($ip, $asn)) {
             $this->blockAccess('datacenter', $ip, $country, $asn, $userAgent);
             return;
         }
@@ -1166,6 +1167,35 @@ class WireWall extends WireData implements Module, ConfigurableModule {
         }
         
         return false;
+    }
+
+    /**
+     * Recognize normal top-level browser navigation requests and spare them from noisy IP reputation checks.
+     * This prevents false positives for real users behind VPNs, carrier NATs, or corporate gateways.
+     */
+    protected function isLikelyHumanBrowserRequest($userAgent) {
+        $userAgent = trim((string) $userAgent);
+        if ($userAgent === '') return false;
+        if ($this->detectFakeBrowser($userAgent)) return false;
+
+        $accept = trim((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+        $acceptLanguage = trim((string) ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? ''));
+        $secFetchSite = trim((string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? ''));
+        $secFetchMode = trim((string) ($_SERVER['HTTP_SEC_FETCH_MODE'] ?? ''));
+        $upgradeInsecure = trim((string) ($_SERVER['HTTP_UPGRADE_INSECURE_REQUESTS'] ?? ''));
+
+        if ($accept === '' || stripos($accept, 'text/html') === false) return false;
+        if ($acceptLanguage === '') return false;
+
+        $hasModernNavHints = $secFetchSite !== '' || $secFetchMode !== '' || $upgradeInsecure !== '';
+        $isFirefox = stripos($userAgent, 'Firefox/') !== false && stripos($userAgent, 'Chrome/') === false;
+        $isSafari = stripos($userAgent, 'Safari/') !== false && stripos($userAgent, 'Chrome/') === false;
+        $isChromiumFamily = preg_match('/Chrome\/\d+|CriOS\/\d+|Edg\/\d+/i', $userAgent) === 1;
+
+        if ($isChromiumFamily && !$hasModernNavHints) return false;
+        if (!$hasModernNavHints && !$isFirefox && !$isSafari) return false;
+
+        return true;
     }
 
     /**
