@@ -188,7 +188,7 @@ $collectGuideTours = static function(Page $guidePage) use ($pages): array {
 
 	if (isset($pages) && $pages instanceof Pages) {
 		try {
-			$linkedTours = $pages->find('template=tour, include=all, check_access=0, sort=title, limit=300, guide=' . (int) $guidePage->id);
+				$linkedTours = $pages->find('template=tour, include=all, status<8192, check_access=0, sort=title, limit=300, guide=' . (int) $guidePage->id);
 			foreach ($linkedTours as $tourPage) $appendTour($tourPage);
 		} catch (\Throwable $e) {
 			// Ignore selector issues if legacy field is missing.
@@ -384,7 +384,7 @@ $articleCards = [];
 if (isset($pages) && $pages instanceof Pages) {
 	$needle = $toLower($guideName);
 	if ($needle !== '') {
-		$articlePages = $pages->find('template=article, include=all, check_access=0, sort=-article_publish_date, limit=300');
+			$articlePages = $pages->find('template=article, include=all, status<8192, check_access=0, sort=-article_publish_date, limit=300');
 		foreach ($articlePages as $articlePage) {
 			if (!$articlePage instanceof Page || !$articlePage->id) continue;
 			$articleTitle = $normalizeText((string) $articlePage->title);

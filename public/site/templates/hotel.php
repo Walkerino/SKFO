@@ -1284,7 +1284,7 @@ if ($roomPagesRaw instanceof PageArray && $roomPagesRaw->count()) {
 	$pushRoomPage($roomPagesRaw);
 }
 if (!$roomPages->count() && $page instanceof Page) {
-	foreach ($page->children('include=all') as $roomChildPage) {
+	foreach ($page->children('include=all, status<8192') as $roomChildPage) {
 		if (!$roomChildPage instanceof Page || !$roomChildPage->id) continue;
 		if (!$roomChildPage->hasField('room_info')) continue;
 		$pushRoomPage($roomChildPage);

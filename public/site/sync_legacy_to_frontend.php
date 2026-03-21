@@ -246,7 +246,7 @@ $savePageIfChanged = static function(Page $page, array $changes) use (&$saved): 
 	$page->save();
 };
 
-foreach($pages->find('template=article, include=all, limit=10000') as $page) {
+foreach($pages->find('template=article, include=all, status<8192, limit=10000') as $page) {
 	$id = (int) $page->id;
 	$changes = [];
 
@@ -284,7 +284,7 @@ foreach($pages->find('template=article, include=all, limit=10000') as $page) {
 	}
 }
 
-foreach($pages->find('template=place, include=all, limit=10000') as $page) {
+foreach($pages->find('template=place, include=all, status<8192, limit=10000') as $page) {
 	$id = (int) $page->id;
 	$changes = [];
 
@@ -313,7 +313,7 @@ foreach($pages->find('template=place, include=all, limit=10000') as $page) {
 	}
 }
 
-foreach($pages->find('template=tour, include=all, limit=10000') as $page) {
+foreach($pages->find('template=tour, include=all, status<8192, limit=10000') as $page) {
 	$id = (int) $page->id;
 	$changes = [];
 	$legacy = $tourByPage[$id] ?? [];
@@ -388,7 +388,7 @@ foreach($pages->find('template=tour, include=all, limit=10000') as $page) {
 	}
 }
 
-foreach($pages->find('template=hotel, include=all, limit=10000') as $page) {
+foreach($pages->find('template=hotel, include=all, status<8192, limit=10000') as $page) {
 	$id = (int) $page->id;
 	$changes = [];
 	$legacyInfo = $hotelInfoByPage[$id] ?? [];

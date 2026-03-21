@@ -633,7 +633,7 @@ $textMentionsCurrentRegion = static function(string $value) use ($normalizeRegio
 
 $homePage = $pages->get('/');
 $tourUrlByTitle = [];
-$tourPagesForLinks = $pages->find('template=tour, include=all, sort=title, limit=500');
+$tourPagesForLinks = $pages->find('template=tour, include=all, status<8192, sort=title, limit=500');
 foreach ($tourPagesForLinks as $tourPageForLink) {
 	if (!$tourPageForLink instanceof Page) continue;
 	$tourTitleForLink = $tourPageForLink->hasField('tour_title') ? trim((string) $tourPageForLink->getUnformatted('tour_title')) : '';
@@ -663,7 +663,7 @@ if ($page->hasField('region_featured_tours') && $page->region_featured_tours->co
 }
 
 if (!count($adventureCards)) {
-	$tourPagesByRegion = $pages->find('template=tour, include=all, sort=title, limit=500');
+	$tourPagesByRegion = $pages->find('template=tour, include=all, status<8192, sort=title, limit=500');
 	foreach ($tourPagesByRegion as $tourPage) {
 		if (!$tourPage instanceof Page) continue;
 		$tourRegion = $tourPage->hasField('tour_region') ? trim((string) $tourPage->getUnformatted('tour_region')) : '';
@@ -747,7 +747,7 @@ if (!count($adventureCards)) {
 
 $placeUrlByTitle = [];
 $placePagesByRegion = [];
-$regionPlacePages = $pages->find('template=place, include=all, sort=title, limit=300');
+$regionPlacePages = $pages->find('template=place, include=all, status<8192, sort=title, limit=300');
 foreach ($regionPlacePages as $placePage) {
 	if (!$placePage instanceof Page) continue;
 	$placeRegion = $placePage->hasField('place_region') ? trim((string) $placePage->getUnformatted('place_region')) : '';
@@ -925,7 +925,7 @@ if ($page->hasField('region_featured_articles') && $page->region_featured_articl
 }
 
 if (count($regionArticles) < 4) {
-	$catalogArticlePages = $pages->find('template=article, include=all, sort=-article_publish_date, limit=500');
+	$catalogArticlePages = $pages->find('template=article, include=all, status<8192, sort=-article_publish_date, limit=500');
 	foreach ($catalogArticlePages as $articlePage) {
 		if (!$articlePage instanceof Page) continue;
 		$addRegionArticleFromPage($articlePage);
@@ -1027,7 +1027,7 @@ if (!count($regionMediaItems)) {
 		}
 	}
 
-	$placePagesForMedia = $pages->find('template=place, include=all, sort=title, limit=300');
+	$placePagesForMedia = $pages->find('template=place, include=all, status<8192, sort=title, limit=300');
 	foreach ($placePagesForMedia as $placePage) {
 		if (!$placePage instanceof Page) continue;
 		$placeRegion = $placePage->hasField('place_region') ? trim((string) $placePage->getUnformatted('place_region')) : '';

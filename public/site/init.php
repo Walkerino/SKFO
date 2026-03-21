@@ -47,7 +47,7 @@ if (preg_match('#^/region/([^/]+)/?$#', $requestPath, $matches) === 1) {
 
 $isProfileRequest = $requestPath === '/profile' || $requestPath === '/profile/';
 if ($isProfileRequest) {
-	$profilePage = $wire->pages->get('include=all, path=/profile/');
+	$profilePage = $wire->pages->get('include=all, status<8192, path=/profile/');
 	if (!$profilePage instanceof Page || !$profilePage->id) {
 		$profileTemplate = $wire->templates->get('basic-page');
 		$homePage = $wire->pages->get('/');

@@ -447,7 +447,7 @@ $placeTitleLookup = $normalizeLookupText($placeTitle);
 
 $findImageByTitleInRegionCards = static function(string $titleLookup) use ($pages, $normalizeLookupText, $getImageUrlFromValue): string {
 	if ($titleLookup === '' || !($pages instanceof Pages)) return '';
-	$regionPages = $pages->find('template=region, include=all, limit=250');
+		$regionPages = $pages->find('template=region, include=all, status<8192, limit=250');
 	foreach ($regionPages as $regionPage) {
 		if (!$regionPage instanceof Page) continue;
 		if (!$regionPage->hasField('region_places_cards') || !$regionPage->region_places_cards->count()) continue;

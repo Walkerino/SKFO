@@ -8,10 +8,10 @@ $super = $users->get('name=maximus|admin');
 if($super && $super->id) $users->setCurrentUser($super);
 
 $examples = [
-  'hotel' => $pages->get('template=hotel, include=all'),
-  'tour' => $pages->get('template=tour, include=all'),
-  'article' => $pages->get('template=article, include=all'),
-  'place' => $pages->get('template=place, include=all'),
+  'hotel' => $pages->get('template=hotel, include=all, status<8192'),
+  'tour' => $pages->get('template=tour, include=all, status<8192'),
+  'article' => $pages->get('template=article, include=all, status<8192'),
+  'place' => $pages->get('template=place, include=all, status<8192'),
 ];
 
 foreach($examples as $k => $p) {

@@ -398,7 +398,7 @@ $mapCatalogArticlePage = static function(Page $articlePage) use ($getImageUrlFro
 
 $catalogArticlesRaw = [];
 if (isset($pages) && $pages instanceof Pages) {
-	$catalogArticlePages = $pages->find('template=article, include=all, sort=-article_publish_date, limit=500');
+	$catalogArticlePages = $pages->find('template=article, include=all, status<1024, sort=-article_publish_date, limit=500');
 	foreach ($catalogArticlePages as $articlePage) {
 		$item = $mapCatalogArticlePage($articlePage);
 		if (trim((string) ($item['title'] ?? '')) === '') continue;
@@ -629,7 +629,7 @@ $firstTimeArticles = $normalizeArticles($firstTimeArticlesRaw);
 
 $regionCatalogRaw = [];
 if (isset($pages) && $pages instanceof Pages) {
-	$regionPages = $pages->find('template=region, include=all, limit=200');
+	$regionPages = $pages->find('template=region, include=all, status<8192, limit=200');
 	foreach ($regionPages as $regionPage) {
 		if (!$regionPage->hasField('region_articles_cards') || !$regionPage->region_articles_cards->count()) continue;
 		foreach ($regionPage->region_articles_cards as $card) {
@@ -725,19 +725,7 @@ if ($selectedArticleSlug !== '' && isset($articlesBySlug[$selectedArticleSlug]))
 }
 
 if ($selectedArticleSlug !== '' && $selectedArticle === null) {
-	$fallbackTitle = trim(str_replace('-', ' ', $selectedArticleSlug));
-	$selectedArticle = [
-		'slug' => $selectedArticleSlug,
-		'title' => $fallbackTitle !== '' ? $fallbackTitle : 'Статья',
-		'date' => '',
-		'datetime' => '',
-		'topic' => '',
-		'image' => $defaultCoverUrl,
-		'url' => '/articles/?article=' . rawurlencode($selectedArticleSlug),
-		'paragraphs' => $defaultArticleParagraphs,
-		'content_html' => '',
-		'is_advertisement' => false,
-	];
+	$session->redirect('/articles/');
 }
 
 if (

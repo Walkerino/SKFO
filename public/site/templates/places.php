@@ -434,7 +434,7 @@ $mergePlaceCard = static function(array $incoming) use (&$placesMap, $normalizeW
 };
 
 if (isset($pages) && $pages instanceof Pages) {
-	$placePages = $pages->find('template=place, include=all, check_access=0, sort=title, limit=3000');
+	$placePages = $pages->find('template=place, include=all, status<8192, check_access=0, sort=title, limit=3000');
 	foreach ($placePages as $placePage) {
 		if (!$placePage instanceof Page) continue;
 		$title = $normalizeWhitespace((string) $placePage->title);
@@ -459,7 +459,7 @@ if (isset($pages) && $pages instanceof Pages) {
 		]);
 	}
 
-	$regionPages = $pages->find('template=region, include=all, check_access=0, sort=title, limit=250');
+	$regionPages = $pages->find('template=region, include=all, status<8192, check_access=0, sort=title, limit=250');
 	foreach ($regionPages as $regionPage) {
 		if (!$regionPage instanceof Page) continue;
 		$regionTitle = $getFirstText($regionPage, ['region_card_title']);

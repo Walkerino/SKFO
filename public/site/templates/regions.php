@@ -225,7 +225,7 @@ $getFirstRegionMediaCoverImage = static function(Page $regionPage) use ($extract
 		return $normalizedValue !== '' && isset($aliasLookup[$normalizedValue]);
 	};
 
-	$placePages = $pages->find('template=place, include=all, sort=title, limit=500');
+		$placePages = $pages->find('template=place, include=all, status<8192, sort=title, limit=500');
 	foreach ($placePages as $placePage) {
 		if (!$placePage instanceof Page) continue;
 		$placeRegion = $placePage->hasField('place_region') ? trim((string) $placePage->getUnformatted('place_region')) : '';
@@ -234,7 +234,7 @@ $getFirstRegionMediaCoverImage = static function(Page $regionPage) use ($extract
 		if ($url !== '') return $url;
 	}
 
-	$tourPages = $pages->find('template=tour, include=all, sort=title, limit=500');
+		$tourPages = $pages->find('template=tour, include=all, status<8192, sort=title, limit=500');
 	foreach ($tourPages as $tourPage) {
 		if (!$tourPage instanceof Page) continue;
 		$tourRegion = $tourPage->hasField('tour_region') ? trim((string) $tourPage->getUnformatted('tour_region')) : '';
@@ -318,7 +318,7 @@ if ($page->hasField('region_cards') && $page->region_cards->count()) {
 	}
 }
 
-$regionDetailPages = $page->children('template=region, include=all, sort=sort, limit=200');
+$regionDetailPages = $page->children('template=region, include=all, status<8192, sort=sort, limit=200');
 if ($regionDetailPages instanceof PageArray && $regionDetailPages->count()) {
 	$regions = [];
 	foreach ($regionDetailPages as $regionDetailPage) {

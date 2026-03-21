@@ -887,54 +887,65 @@ $forumExternalUrl = 'https://club.skfo.ru';
 				}
 			}
 		}
+			$hotToursCards = array_values(array_filter($hotToursCards, static function(array $card) use ($normalizeDisplayText, $defaultCardImage): bool {
+				$title = $normalizeDisplayText((string) ($card['title'] ?? ''));
+				$region = $normalizeDisplayText((string) ($card['region'] ?? ''));
+				$price = $normalizeDisplayText((string) ($card['price'] ?? ''));
+				$image = trim((string) ($card['image'] ?? ''));
+				$hasImage = $image !== '' && $image !== $defaultCardImage;
+				$hasUsefulPrice = $price !== '' && $price !== 'Цена уточняется';
+				return $title !== '' || $region !== '' || $hasUsefulPrice || $hasImage;
+			}));
 		?>
-		<div class="container-hot-tours">
-			<div class="hot-tours-header">
-				<h2 class="section-title">Планы на долгожданную весну</h2>
-				<div class="hot-tours-actions">
-					<button class="circle-btn circle-btn--prev hot-tours-prev" type="button" aria-label="Предыдущие туры"></button>
-					<button class="circle-btn circle-btn--next hot-tours-next" type="button" aria-label="Следующие туры"></button>
-				</div>
-			</div>
-				<div class="hot-tours-grid">
-					<div class="hot-tours-track">
-						<?php foreach ($hotToursCards as $card): ?>
-							<?php
-							$backgroundStyle = '';
-							$cardUrl = trim((string) ($card['url'] ?? ''));
-							$isCardLink = $cardUrl !== '';
-							if (!empty($card['image'])) {
-								$image = htmlspecialchars($card['image'], ENT_QUOTES, 'UTF-8');
-								$backgroundStyle = " style=\"background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.2), rgba(17, 24, 39, 0.1)), url('{$image}');\"";
-							}
-							?>
-							<?php if ($isCardLink): ?>
-								<a class="hot-tour-card" href="<?php echo $sanitizer->entities($cardUrl); ?>" aria-label="<?php echo $sanitizer->entities((string) $card['title']); ?>">
-							<?php else: ?>
-								<article class="hot-tour-card">
-							<?php endif; ?>
-								<div class="hot-tour-image"<?php echo $backgroundStyle; ?>></div>
-								<div class="hot-tour-body">
-									<h3 class="hot-tour-title"><?php echo $sanitizer->entities($card['title']); ?></h3>
-									<div class="hot-tour-region"><?php echo $sanitizer->entities($card['region']); ?></div>
-									<div class="hot-tour-footer">
-										<span class="hot-tour-price"><?php echo $sanitizer->entities($card['price']); ?></span>
-									</div>
-								</div>
-							<?php if ($isCardLink): ?>
-								</a>
-							<?php else: ?>
-								</article>
-							<?php endif; ?>
-						<?php endforeach; ?>
+		<?php if (count($hotToursCards)): ?>
+			<div class="container-hot-tours">
+				<div class="hot-tours-header">
+					<h2 class="section-title">Планы на долгожданную весну</h2>
+					<div class="hot-tours-actions">
+						<button class="circle-btn circle-btn--prev hot-tours-prev" type="button" aria-label="Предыдущие туры"></button>
+						<button class="circle-btn circle-btn--next hot-tours-next" type="button" aria-label="Следующие туры"></button>
 					</div>
 				</div>
-			<div class="hot-tours-footer">
-				<button class="hot-tours-more-btn" type="button">
-					<span>Показать всё</span>
-				</button>
+					<div class="hot-tours-grid">
+						<div class="hot-tours-track">
+							<?php foreach ($hotToursCards as $card): ?>
+								<?php
+								$backgroundStyle = '';
+								$cardUrl = trim((string) ($card['url'] ?? ''));
+								$isCardLink = $cardUrl !== '';
+								if (!empty($card['image'])) {
+									$image = htmlspecialchars($card['image'], ENT_QUOTES, 'UTF-8');
+									$backgroundStyle = " style=\"background-image: linear-gradient(135deg, rgba(17, 24, 39, 0.2), rgba(17, 24, 39, 0.1)), url('{$image}');\"";
+								}
+								?>
+								<?php if ($isCardLink): ?>
+									<a class="hot-tour-card" href="<?php echo $sanitizer->entities($cardUrl); ?>" aria-label="<?php echo $sanitizer->entities((string) $card['title']); ?>">
+								<?php else: ?>
+									<article class="hot-tour-card">
+								<?php endif; ?>
+									<div class="hot-tour-image"<?php echo $backgroundStyle; ?>></div>
+									<div class="hot-tour-body">
+										<h3 class="hot-tour-title"><?php echo $sanitizer->entities($card['title']); ?></h3>
+										<div class="hot-tour-region"><?php echo $sanitizer->entities($card['region']); ?></div>
+										<div class="hot-tour-footer">
+											<span class="hot-tour-price"><?php echo $sanitizer->entities($card['price']); ?></span>
+										</div>
+									</div>
+								<?php if ($isCardLink): ?>
+									</a>
+								<?php else: ?>
+									</article>
+								<?php endif; ?>
+							<?php endforeach; ?>
+						</div>
+					</div>
+				<div class="hot-tours-footer">
+					<button class="hot-tours-more-btn" type="button">
+						<span>Показать всё</span>
+					</button>
+				</div>
 			</div>
-		</div>
+		<?php endif; ?>
 	</section>
 
 		<?php

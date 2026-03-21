@@ -914,21 +914,21 @@ $syncPageReferenceField = static function(?Field $field, string $selector) use (
 	}
 };
 
-$syncPageReferenceField($homeFeaturedToursField, 'template=tour, include=all, sort=title');
-$syncPageReferenceField($homeFeaturedPlacesField, 'template=place, include=all, sort=title');
-$syncPageReferenceField($homeActualPlacesField, 'template=place, include=all, sort=title');
-$syncPageReferenceField($homeFeaturedArticlesField, 'template=article, include=all, sort=-article_publish_date');
+$syncPageReferenceField($homeFeaturedToursField, 'template=tour, include=all, status<8192, sort=title');
+$syncPageReferenceField($homeFeaturedPlacesField, 'template=place, include=all, status<8192, sort=title');
+$syncPageReferenceField($homeActualPlacesField, 'template=place, include=all, status<8192, sort=title');
+$syncPageReferenceField($homeFeaturedArticlesField, 'template=article, include=all, status<8192, sort=-article_publish_date');
 
-$syncPageReferenceField($regionFeaturedToursField, 'template=tour, include=all, sort=title');
-$syncPageReferenceField($regionFeaturedPlacesField, 'template=place, include=all, sort=title');
-$syncPageReferenceField($regionFeaturedArticlesField, 'template=article, include=all, sort=-article_publish_date');
+$syncPageReferenceField($regionFeaturedToursField, 'template=tour, include=all, status<8192, sort=title');
+$syncPageReferenceField($regionFeaturedPlacesField, 'template=place, include=all, status<8192, sort=title');
+$syncPageReferenceField($regionFeaturedArticlesField, 'template=article, include=all, status<8192, sort=-article_publish_date');
 
-$syncPageReferenceField($tourGuideField, 'template=guide, include=all, sort=title');
-$syncPageReferenceField($articleGuidesField, 'template=guide, include=all, sort=title');
+$syncPageReferenceField($tourGuideField, 'template=guide, include=all, status<8192, sort=title');
+$syncPageReferenceField($articleGuidesField, 'template=guide, include=all, status<8192, sort=title');
 
-$syncPageReferenceField($articlesTodayRefsField, 'template=article, include=all, sort=-article_publish_date');
-$syncPageReferenceField($articlesFirstTimeRefsField, 'template=article, include=all, sort=-article_publish_date');
-$syncPageReferenceField($hotelsFeaturedRefsField, 'template=hotel, include=all, sort=title');
+$syncPageReferenceField($articlesTodayRefsField, 'template=article, include=all, status<8192, sort=-article_publish_date');
+$syncPageReferenceField($articlesFirstTimeRefsField, 'template=article, include=all, status<8192, sort=-article_publish_date');
+$syncPageReferenceField($hotelsFeaturedRefsField, 'template=hotel, include=all, status<8192, sort=title');
 
 if(
 	$tourDifficultyLevelField &&
@@ -974,7 +974,7 @@ if(
 			}
 		}
 
-		$tourPages = wire('pages')->find('template=tour, include=all');
+		$tourPages = wire('pages')->find('template=tour, include=all, status<8192');
 		foreach($tourPages as $tourPage) {
 			$currentValue = $tourPage->getUnformatted('tour_difficulty_level');
 			$hasSelectedDifficulty = $currentValue instanceof SelectableOptionArray && $currentValue->count();
@@ -1906,7 +1906,7 @@ if($legacyContentAdminPage && $legacyContentAdminPage->id) {
 
 $legacyContentAdminTemplate = $templates->get('content-admin');
 if($legacyContentAdminTemplate && $legacyContentAdminTemplate->id) {
-	$legacyTemplateUsageCount = (int) $pages->count('template=content-admin, include=all');
+	$legacyTemplateUsageCount = (int) $pages->count('template=content-admin, include=all, status<8192');
 	if($legacyTemplateUsageCount < 1) {
 		try {
 			$templates->delete($legacyContentAdminTemplate);

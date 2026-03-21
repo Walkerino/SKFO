@@ -145,7 +145,7 @@ $collectGuideTours = static function(Page $guidePage) use ($pages): array {
 
 	if (isset($pages) && $pages instanceof Pages) {
 		try {
-			$linkedTours = $pages->find('template=tour, include=all, check_access=0, sort=title, limit=300, guide=' . (int) $guidePage->id);
+				$linkedTours = $pages->find('template=tour, include=all, status<8192, check_access=0, sort=title, limit=300, guide=' . (int) $guidePage->id);
 			foreach ($linkedTours as $tourPage) $appendTour($tourPage);
 		} catch (\Throwable $e) {
 			// Ignore selector issues if legacy field is missing.
@@ -210,7 +210,7 @@ if ($page->hasField('guide')) {
 
 if (!count($guideMap)) {
 	$childrenSelector = $isCmsEditor
-		? 'template=guide, include=all, sort=title'
+		? 'template=guide, include=all, status<8192, sort=title'
 		: 'template=guide, sort=title';
 	foreach ($page->children($childrenSelector) as $childGuidePage) {
 		$appendGuide($childGuidePage);
@@ -219,7 +219,7 @@ if (!count($guideMap)) {
 
 if (!count($guideMap) && isset($pages) && $pages instanceof Pages) {
 	$fallbackSelector = $isCmsEditor
-		? 'template=guide, include=all, check_access=0, sort=title, limit=500'
+		? 'template=guide, include=all, status<8192, check_access=0, sort=title, limit=500'
 		: 'template=guide, sort=title, limit=500';
 	foreach ($pages->find($fallbackSelector) as $fallbackGuidePage) {
 		$appendGuide($fallbackGuidePage);

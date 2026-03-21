@@ -305,7 +305,7 @@ wire()->addHookAfter('Dashboard::getPanels', function ($event) use ($reviewTable
     // Build region map dynamically from actual region pages
     $regions = [];
     $regionAliases = [];
-    $regionPages = wire('pages')->find('template=region, include=all, check_access=0, sort=sort, limit=200');
+    $regionPages = wire('pages')->find('template=region, include=all, status<8192, check_access=0, sort=sort, limit=200');
     foreach ($regionPages as $regionPage) {
         $regionId = (string) (int) $regionPage->id;
         $regionTitle = trim((string) $regionPage->title);
@@ -384,7 +384,7 @@ wire()->addHookAfter('Dashboard::getPanels', function ($event) use ($reviewTable
             $stats[$template][(string) $regionId] = 0;
         }
 
-        $items = wire('pages')->find("template={$template}, include=all, check_access=0, limit=2000");
+        $items = wire('pages')->find("template={$template}, include=all, status<8192, check_access=0, limit=2000");
         if (!$items->count()) continue;
 
         $regionFields = $regionFieldsByTemplate[$template] ?? ['region'];
