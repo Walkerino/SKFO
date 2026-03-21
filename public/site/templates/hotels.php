@@ -71,7 +71,7 @@ $formatPrice = static function(int $value): string {
 };
 
 $normalizeRating = static function(float $value): int {
-	if ($value <= 0) return 4;
+	if ($value <= 0) return 0;
 	return max(1, min(5, (int) round($value)));
 };
 
@@ -262,14 +262,7 @@ $getHotelGalleryImages = static function(Page $hotelPage, int $fallbackIndex = 0
 	if (count($gallery) > 12) $gallery = array_slice($gallery, 0, 12);
 	return $gallery;
 };
-$defaultHotelDetailsUrl = '';
 $publicHotelSelector = 'template=hotel, include=all, check_access=0, status<1024';
-if (isset($pages) && $pages instanceof Pages) {
-	$defaultHotelDetailsPage = $pages->findOne($publicHotelSelector . ', sort=title');
-	if ($defaultHotelDetailsPage instanceof Page && $defaultHotelDetailsPage->id) {
-		$defaultHotelDetailsUrl = (string) $defaultHotelDetailsPage->url;
-	}
-}
 $hotelAmenitiesRawByPageId = [];
 if (isset($database) && $database instanceof WireDatabasePDO) {
 	try {
@@ -322,165 +315,21 @@ if (isset($pages) && $pages instanceof Pages) {
 		$image = trim((string) ($gallery[0] ?? ''));
 		if ($image === '') $image = $pickDefaultHotelImage(count($hotelsCatalog));
 
-		$hotelsCatalog[] = [
-			'title' => $title,
-			'city' => $hotelPage->hasField('hotel_city') ? trim((string) $hotelPage->hotel_city) : '',
-			'region' => $region,
-			'rating' => $normalizeRating($rating),
-			'price' => $price > 0 ? $price : 10000,
-			'max_guests' => $maxGuests,
-			'amenities' => $amenities,
-			'type' => $resolveHotelType($title),
-			'image' => $image,
-			'gallery' => $gallery,
-			'url' => (string) $hotelPage->url,
-		];
-	}
-}
-
-if (!count($hotelsCatalog)) {
-	$hotelsCatalog = [
-	[
-		'title' => 'Санаторий "Виктория"',
-		'city' => 'Ессентуки',
-		'region' => 'Ставропольский край',
-		'rating' => 4.5,
-		'price' => 23251,
-		'max_guests' => 4,
-		'amenities' => ['wifi', 'kids', 'parking', 'spa', 'gym', 'pool', 'breakfast'],
-		'image' => $defaultHotelImage,
-	],
-	[
-		'title' => 'Отель "Курортный дом"',
-		'city' => 'Кисловодск',
-		'region' => 'Ставропольский край',
-		'rating' => 4.8,
-		'price' => 19800,
-		'max_guests' => 3,
-		'amenities' => ['wifi', 'parking', 'spa', 'pool', 'breakfast'],
-		'image' => $defaultHotelImage,
-	],
-	[
-		'title' => 'Горный парк-отель "Архыз"',
-		'city' => 'Архыз',
-		'region' => 'Карачаево-Черкесская Республика',
-		'rating' => 4.6,
-		'price' => 21700,
-		'max_guests' => 5,
-		'amenities' => ['wifi', 'kids', 'parking', 'pool', 'restaurant', 'transfer'],
-		'image' => $defaultHotelImage,
-	],
-	[
-		'title' => 'Отель "Домбай Вью"',
-		'city' => 'Домбай',
-		'region' => 'Карачаево-Черкесская Республика',
-		'rating' => 4.4,
-		'price' => 18400,
-		'max_guests' => 2,
-		'amenities' => ['wifi', 'parking', 'restaurant', 'transfer'],
-		'image' => $defaultHotelImage,
-	],
-	[
-		'title' => 'Отель "Каспий Плаза"',
-		'city' => 'Махачкала',
-		'region' => 'Республика Дагестан',
-		'rating' => 4.7,
-		'price' => 24500,
-		'max_guests' => 4,
-		'amenities' => ['wifi', 'kids', 'parking', 'gym', 'pool', 'breakfast'],
-		'image' => $defaultHotelImage,
-	],
-	[
-		'title' => 'Бутик-отель "Горная Тишина"',
-		'city' => 'Нальчик',
-		'region' => 'Кабардино-Балкарская Республика',
-		'rating' => 4.3,
-		'price' => 16300,
-		'max_guests' => 2,
-		'amenities' => ['wifi', 'spa', 'breakfast', 'pets'],
-		'image' => $defaultHotelImage,
-	],
-	[
-		'title' => 'Гранд-отель "Терек"',
-		'city' => 'Владикавказ',
-		'region' => 'Республика Северная Осетия',
-		'rating' => 4.6,
-		'price' => 21100,
-		'max_guests' => 4,
-		'amenities' => ['wifi', 'parking', 'gym', 'restaurant', 'breakfast'],
-		'image' => $defaultHotelImage,
-	],
-	[
-		'title' => 'Отель "Грозный Сити"',
-		'city' => 'Грозный',
-		'region' => 'Чеченская Республика',
-		'rating' => 4.9,
-		'price' => 27100,
-		'max_guests' => 5,
-		'amenities' => ['wifi', 'kids', 'parking', 'spa', 'gym', 'pool', 'restaurant'],
-		'image' => $defaultHotelImage,
-	],
-	[
-		'title' => 'Спа-отель "Минеральный"',
-		'city' => 'Пятигорск',
-		'region' => 'Ставропольский край',
-		'rating' => 4.2,
-		'price' => 15800,
-		'max_guests' => 3,
-		'amenities' => ['wifi', 'spa', 'pool', 'breakfast'],
-		'image' => $defaultHotelImage,
-	],
-	[
-		'title' => 'Парк-отель "Нарзан"',
-		'city' => 'Железноводск',
-		'region' => 'Ставропольский край',
-		'rating' => 4.1,
-		'price' => 14900,
-		'max_guests' => 2,
-		'amenities' => ['wifi', 'parking', 'pets', 'breakfast'],
-		'image' => $defaultHotelImage,
-	],
-	[
-		'title' => 'Резиденция "Эльбрус"',
-		'city' => 'Терскол',
-		'region' => 'Кабардино-Балкарская Республика',
-		'rating' => 4.5,
-		'price' => 22300,
-		'max_guests' => 4,
-		'amenities' => ['wifi', 'parking', 'restaurant', 'transfer', 'spa'],
-		'image' => $defaultHotelImage,
-	],
-	[
-		'title' => 'Отель "Сунжа Ривер"',
-		'city' => 'Магас',
-		'region' => 'Республика Ингушетия',
-		'rating' => 4.0,
-		'price' => 14100,
-		'max_guests' => 2,
-		'amenities' => ['wifi', 'parking', 'breakfast'],
-		'image' => $defaultHotelImage,
-	],
-];
-
-	foreach ($hotelsCatalog as $index => $hotel) {
-		$hotelsCatalog[$index]['image'] = $pickDefaultHotelImage($index);
-		$fallbackGallery = [];
-		$fallbackGalleryMap = [];
-		$pushFallbackGallery = static function(string $url) use (&$fallbackGallery, &$fallbackGalleryMap): void {
-			$url = trim($url);
-			if ($url === '') return;
-			if (isset($fallbackGalleryMap[$url])) return;
-			$fallbackGalleryMap[$url] = true;
-			$fallbackGallery[] = $url;
-		};
-		$pushFallbackGallery((string) $hotelsCatalog[$index]['image']);
-		foreach ($defaultHotelGallery as $defaultGalleryImage) $pushFallbackGallery((string) $defaultGalleryImage);
-		$hotelsCatalog[$index]['gallery'] = array_slice($fallbackGallery, 0, 12);
-		if (trim((string) ($hotelsCatalog[$index]['url'] ?? '')) === '') {
-			$hotelsCatalog[$index]['url'] = $defaultHotelDetailsUrl !== '' ? $defaultHotelDetailsUrl : $page->url;
+			$hotelsCatalog[] = [
+				'title' => $title,
+				'city' => $hotelPage->hasField('hotel_city') ? trim((string) $hotelPage->hotel_city) : '',
+				'region' => $region,
+				'rating' => $normalizeRating($rating),
+				'price' => $price > 0 ? $price : 0,
+				'max_guests' => $maxGuests,
+				'amenities' => $amenities,
+				'type' => $resolveHotelType($title),
+				'image' => $image,
+				'gallery' => $gallery,
+				'url' => (string) $hotelPage->url,
+			];
 		}
 	}
-}
 
 foreach ($hotelsCatalog as $index => $hotel) {
 	$hotelsCatalog[$index]['title'] = trim((string) ($hotel['title'] ?? ''));
@@ -493,10 +342,6 @@ foreach ($hotelsCatalog as $index => $hotel) {
 	$ratingRaw = (float) ($hotel['rating'] ?? 0);
 	$hotelsCatalog[$index]['rating'] = $normalizeRating($ratingRaw);
 	if ($hotelsCatalog[$index]['region'] !== '') $addRegionOption($hotelsCatalog[$index]['region']);
-	if (trim((string) ($hotelsCatalog[$index]['url'] ?? '')) === '') {
-		$hotelsCatalog[$index]['url'] = $defaultHotelDetailsUrl !== '' ? $defaultHotelDetailsUrl : $page->url;
-	}
-
 	$galleryImages = [];
 	$galleryImagesMap = [];
 	$pushGalleryImage = static function(string $url) use (&$galleryImages, &$galleryImagesMap): void {
@@ -572,7 +417,9 @@ if ($isFiltersApplied) {
 		if ($filterHotelType !== '' && $hotelType !== $filterHotelType) return false;
 
 		$hotelStars = (int) ($hotel['rating'] ?? 0);
-		$hotelStars = max(1, min(5, $hotelStars));
+		if ($hotelStars < 1 || $hotelStars > 5) {
+			return $filterStars <= 0;
+		}
 		if ($filterStars > 0 && $hotelStars !== $filterStars) return false;
 
 		return true;
@@ -692,7 +539,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		</div>
 	</section>
 
-	<section class="section section--hotels-results">
+	<section class="section section--hotels-results"<?php echo count($visibleHotels) ? '' : ' hidden'; ?>>
 		<div class="container">
 			<?php if (count($visibleHotels)): ?>
 				<div class="hotels-grid">
@@ -703,21 +550,37 @@ $forumExternalUrl = 'https://club.skfo.ru';
 						$city = trim((string) ($hotel['city'] ?? ''));
 						$region = trim((string) ($hotel['region'] ?? ''));
 						$locationLabel = trim($city . ', ' . $region, ', ');
-						$titleLabel = $sanitizeHeadingText((string) ($hotel['title'] ?? ''));
-						if ($titleLabel === '') $titleLabel = trim((string) ($hotel['title'] ?? ''));
-						$ratingValue = (int) ($hotel['rating'] ?? 0);
-						$ratingValue = max(1, min(5, $ratingValue));
-						$ratingToneClass = $ratingValue <= 2
-							? ' hotel-card-rating--danger'
-							: ($ratingValue === 3 ? ' hotel-card-rating--warning' : ' hotel-card-rating--success');
-						if ($hotelUrl === '') $hotelUrl = $page->url;
-						$galleryImages = array_values(array_filter((array) ($hotel['gallery'] ?? []), static function($url): bool {
-							return trim((string) $url) !== '';
-						}));
-						if (!count($galleryImages) && $imageUrl !== '') $galleryImages[] = $imageUrl;
-						$cardGalleryId = 'hotel-card-gallery-' . md5($hotelUrl . '|' . $titleLabel . '|' . ($galleryImages[0] ?? $imageUrl));
-						$openGalleryAriaLabel = 'Открыть фото отеля ' . ($titleLabel !== '' ? '«' . $titleLabel . '»' : '');
-						?>
+							$titleLabel = $sanitizeHeadingText((string) ($hotel['title'] ?? ''));
+							if ($titleLabel === '') $titleLabel = trim((string) ($hotel['title'] ?? ''));
+							$ratingValue = (int) ($hotel['rating'] ?? 0);
+							$hasRatingValue = $ratingValue >= 1 && $ratingValue <= 5;
+							$ratingToneClass = $ratingValue <= 2
+								? ' hotel-card-rating--danger'
+								: ($ratingValue === 3 ? ' hotel-card-rating--warning' : ' hotel-card-rating--success');
+							$galleryImages = array_values(array_filter((array) ($hotel['gallery'] ?? []), static function($url): bool {
+								return trim((string) $url) !== '';
+							}));
+							if (!count($galleryImages) && $imageUrl !== '') $galleryImages[] = $imageUrl;
+							$amenityCards = [];
+							foreach ((array) ($hotel['amenities'] ?? []) as $amenityCode) {
+								if (in_array($amenityCode, ['soundproof_rooms', 'restaurant'], true)) continue;
+								if (!isset($amenityMap[$amenityCode])) continue;
+								$amenity = $amenityMap[$amenityCode];
+								$amenityTitle = trim((string) ($amenity['title'] ?? ''));
+								$amenityShort = trim((string) ($amenity['short'] ?? ''));
+								$amenityIconFile = trim((string) ($amenity['icon'] ?? ''));
+								$amenityIconUrl = $amenityIconFile !== '' ? $config->urls->templates . 'assets/icons/' . ltrim($amenityIconFile, '/') : '';
+								if ($amenityTitle === '' && $amenityShort === '' && $amenityIconUrl === '') continue;
+								$amenityCards[] = [
+									'title' => $amenityTitle,
+									'short' => $amenityShort,
+									'icon_url' => $amenityIconUrl,
+								];
+							}
+							$priceValue = (int) ($hotel['price'] ?? 0);
+							$cardGalleryId = 'hotel-card-gallery-' . md5($hotelUrl . '|' . $titleLabel . '|' . ($galleryImages[0] ?? $imageUrl));
+							$openGalleryAriaLabel = 'Открыть фото отеля ' . ($titleLabel !== '' ? '«' . $titleLabel . '»' : '');
+							?>
 						<article class="hotel-card">
 							<div class="hotel-card-media"<?php echo $imageUrl !== '' ? " style=\"background-image: url('" . htmlspecialchars($imageUrl, ENT_QUOTES, 'UTF-8') . "');\"" : ''; ?>>
 								<button
@@ -730,10 +593,12 @@ $forumExternalUrl = 'https://club.skfo.ru';
 								<?php if (count($galleryImages) > 1): ?>
 									<span class="hotel-card-media-count"><?php echo count($galleryImages); ?> фото</span>
 								<?php endif; ?>
-								<span class="hotel-card-rating<?php echo $ratingToneClass; ?>">
-									<span class="hotel-card-rating-star" aria-hidden="true">★</span>
-									<span class="hotel-card-rating-value"><?php echo (int) $ratingValue; ?></span>
-								</span>
+									<?php if ($hasRatingValue): ?>
+										<span class="hotel-card-rating<?php echo $ratingToneClass; ?>">
+											<span class="hotel-card-rating-star" aria-hidden="true">★</span>
+											<span class="hotel-card-rating-value"><?php echo (int) $ratingValue; ?></span>
+										</span>
+									<?php endif; ?>
 							</div>
 							<?php foreach ($galleryImages as $galleryIndex => $galleryImageUrl): ?>
 								<?php
@@ -748,35 +613,36 @@ $forumExternalUrl = 'https://club.skfo.ru';
 									data-gallery-src="<?php echo htmlspecialchars((string) $galleryImageUrl, ENT_QUOTES, 'UTF-8'); ?>"
 									data-gallery-alt="<?php echo $sanitizer->entities($galleryAlt); ?>"
 								></button>
-							<?php endforeach; ?>
-							<h2 class="hotel-card-title"><?php echo $sanitizer->entities($titleLabel); ?></h2>
-							<p class="hotel-card-location"><?php echo $sanitizer->entities($locationLabel); ?></p>
-							<ul class="hotel-card-amenities" aria-label="Опции отеля">
-									<?php foreach ((array) ($hotel['amenities'] ?? []) as $amenityCode): ?>
-										<?php if (in_array($amenityCode, ['soundproof_rooms', 'restaurant'], true)) continue; ?>
-										<?php if (!isset($amenityMap[$amenityCode])) continue; ?>
-										<?php
-										$amenity = $amenityMap[$amenityCode];
-										$amenityTitle = (string) ($amenity['title'] ?? '');
-										$amenityShort = (string) ($amenity['short'] ?? '');
-										$amenityIconFile = trim((string) ($amenity['icon'] ?? ''));
-										$amenityIconUrl = $amenityIconFile !== '' ? $config->urls->templates . 'assets/icons/' . ltrim($amenityIconFile, '/') : '';
-										?>
-										<li class="hotel-card-amenity" title="<?php echo $sanitizer->entities($amenityTitle); ?>">
-											<span class="hotel-card-amenity-icon">
-												<?php if ($amenityIconUrl !== ''): ?>
-													<img src="<?php echo $sanitizer->entities($amenityIconUrl); ?>" alt="" aria-hidden="true" />
-												<?php else: ?>
-													<?php echo $sanitizer->entities($amenityShort); ?>
-												<?php endif; ?>
-											</span>
-										</li>
-									<?php endforeach; ?>
-							</ul>
-							<div class="hotel-card-footer">
-								<div class="hotel-card-price"><?php echo $sanitizer->entities($formatPrice((int) ($hotel['price'] ?? 0))); ?></div>
-								<a class="hotel-card-btn" href="<?php echo $sanitizer->entities($hotelUrl); ?>">Выбрать номер</a>
-							</div>
+								<?php endforeach; ?>
+								<h2 class="hotel-card-title"><?php echo $sanitizer->entities($titleLabel); ?></h2>
+								<?php if ($locationLabel !== ''): ?>
+									<p class="hotel-card-location"><?php echo $sanitizer->entities($locationLabel); ?></p>
+								<?php endif; ?>
+								<?php if (count($amenityCards)): ?>
+									<ul class="hotel-card-amenities" aria-label="Опции отеля">
+										<?php foreach ($amenityCards as $amenityCard): ?>
+											<li class="hotel-card-amenity" title="<?php echo $sanitizer->entities((string) ($amenityCard['title'] ?? '')); ?>">
+												<span class="hotel-card-amenity-icon">
+													<?php if (trim((string) ($amenityCard['icon_url'] ?? '')) !== ''): ?>
+														<img src="<?php echo $sanitizer->entities((string) $amenityCard['icon_url']); ?>" alt="" aria-hidden="true" />
+													<?php else: ?>
+														<?php echo $sanitizer->entities((string) ($amenityCard['short'] ?? '')); ?>
+													<?php endif; ?>
+												</span>
+											</li>
+										<?php endforeach; ?>
+									</ul>
+								<?php endif; ?>
+								<?php if ($priceValue > 0 || $hotelUrl !== ''): ?>
+									<div class="hotel-card-footer">
+										<?php if ($priceValue > 0): ?>
+											<div class="hotel-card-price"><?php echo $sanitizer->entities($formatPrice($priceValue)); ?></div>
+										<?php endif; ?>
+										<?php if ($hotelUrl !== ''): ?>
+											<a class="hotel-card-btn" href="<?php echo $sanitizer->entities($hotelUrl); ?>">Выбрать номер</a>
+										<?php endif; ?>
+									</div>
+								<?php endif; ?>
 						</article>
 					<?php endforeach; ?>
 				</div>
@@ -819,11 +685,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 						<?php endif; ?>
 					</nav>
 				<?php endif; ?>
-			<?php else: ?>
-				<div class="hotels-empty">
-					По выбранным фильтрам отели не найдены. Измените фильтры и попробуйте снова.
-				</div>
-			<?php endif; ?>
+				<?php endif; ?>
 		</div>
 	</section>
 </div>
