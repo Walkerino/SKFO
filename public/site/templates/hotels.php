@@ -263,8 +263,9 @@ $getHotelGalleryImages = static function(Page $hotelPage, int $fallbackIndex = 0
 	return $gallery;
 };
 $defaultHotelDetailsUrl = '';
+$publicHotelSelector = 'template=hotel, include=all, check_access=0, status<1024';
 if (isset($pages) && $pages instanceof Pages) {
-	$defaultHotelDetailsPage = $pages->get('template=hotel, include=all');
+	$defaultHotelDetailsPage = $pages->findOne($publicHotelSelector . ', sort=title');
 	if ($defaultHotelDetailsPage instanceof Page && $defaultHotelDetailsPage->id) {
 		$defaultHotelDetailsUrl = (string) $defaultHotelDetailsPage->url;
 	}
@@ -288,7 +289,7 @@ if (isset($database) && $database instanceof WireDatabasePDO) {
 $hotelsCatalog = [];
 
 if (isset($pages) && $pages instanceof Pages) {
-	$hotelPages = $pages->find('template=hotel, include=all, sort=title, limit=500');
+	$hotelPages = $pages->find($publicHotelSelector . ', sort=title, limit=500');
 	foreach ($hotelPages as $hotelPage) {
 		$title = trim((string) $hotelPage->title);
 		if ($title === '') continue;
