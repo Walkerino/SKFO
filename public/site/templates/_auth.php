@@ -194,7 +194,7 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		}
 
 		$matches = [];
-		$pattern = '/^data:image\/(png|jpe?g|webp|gif);base64,([A-Za-z0-9+\/=]+)$/i';
+		$pattern = '/^data:image\/(png|x-png|jpe?g|jpg|pjpeg|jfif|webp|gif);base64,([A-Za-z0-9+\/=]+)$/i';
 		if (preg_match($pattern, $avatar, $matches) !== 1) {
 			return ['ok' => false, 'value' => null, 'message' => 'Некорректный формат изображения.'];
 		}
@@ -204,9 +204,9 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 			return ['ok' => false, 'value' => null, 'message' => 'Не удалось обработать изображение.'];
 		}
 
-		$maxSizeBytes = 2 * 1024 * 1024;
+		$maxSizeBytes = 8 * 1024 * 1024;
 		if (strlen($decoded) > $maxSizeBytes) {
-			return ['ok' => false, 'value' => null, 'message' => 'Изображение должно быть меньше 2 МБ.'];
+			return ['ok' => false, 'value' => null, 'message' => 'Изображение должно быть меньше 8 МБ.'];
 		}
 
 		return ['ok' => true, 'value' => $avatar, 'message' => ''];
@@ -781,7 +781,7 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		skfoAuthJson(true, 'Вы вышли из профиля.', ['redirect' => '/']);
 	}
 
-	function skfoAuthUpdateProfile($input, $session, $database): void {
+	function skfoAuthUpdateProfile($input, $session, $database, $log = null): void {
 		$accountId = (int) $session->get('skfo_auth_account_id');
 		if ($accountId <= 0) {
 			skfoAuthJson(false, 'Требуется авторизация.', [], 401);
@@ -808,6 +808,9 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		$description = skfoAuthNormalizeDescription((string) $input->post('profile_description'));
 		$avatarValidation = skfoAuthNormalizeAvatarDataUrl((string) $input->post('profile_avatar'));
 		if (empty($avatarValidation['ok'])) {
+			if (is_object($log) && method_exists($log, 'save')) {
+				$log->save('profile-avatar', 'avatar validation failed for account ' . $accountId . ': ' . (string) ($avatarValidation['message'] ?? 'unknown'));
+			}
 			skfoAuthJson(false, (string) ($avatarValidation['message'] ?? 'Некорректное изображение.'), [], 422);
 			return;
 		}
@@ -826,6 +829,9 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 			$update->bindValue(':id', $accountId, \PDO::PARAM_INT);
 			$update->execute();
 		} catch (\Throwable $e) {
+			if (is_object($log) && method_exists($log, 'save')) {
+				$log->save('profile-avatar', 'db update failed for account ' . $accountId . ': ' . $e->getMessage());
+			}
 			skfoAuthJson(false, 'Не удалось сохранить профиль в базе данных.', [], 500);
 			return;
 		}
@@ -837,6 +843,10 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		}
 
 		skfoAuthSetSession($session, $updatedAccount);
+		if (is_object($log) && method_exists($log, 'save')) {
+			$avatarLength = strlen((string) ($updatedAccount['profile_avatar'] ?? ''));
+			$log->save('profile-avatar', 'avatar saved for account ' . $accountId . ', length=' . $avatarLength);
+		}
 		skfoAuthJson(true, 'Профиль обновлен.', [
 			'user' => [
 				'id' => (int) ($updatedAccount['id'] ?? 0),
@@ -874,7 +884,7 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 			return;
 		}
 		if ($action === 'update_profile') {
-			skfoAuthUpdateProfile($input, $session, $database);
+			skfoAuthUpdateProfile($input, $session, $database, $log);
 			return;
 		}
 

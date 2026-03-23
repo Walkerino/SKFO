@@ -1898,7 +1898,65 @@ const initProfileEditor = () => {
   const defaultBio = String(root.getAttribute("data-profile-default-bio") || "").trim();
   const defaultAvatar = String(root.getAttribute("data-profile-default-avatar") || "").trim();
   const defaultInitials = String(root.getAttribute("data-profile-default-initials") || "SK").trim();
-  const maxAvatarBytes = 2 * 1024 * 1024;
+  const maxAvatarBytes = 8 * 1024 * 1024;
+  const allowedAvatarTypes = new Set([
+    "image/png",
+    "image/x-png",
+    "image/jpeg",
+    "image/jpg",
+    "image/pjpeg",
+    "image/jfif",
+    "image/webp",
+    "image/gif",
+  ]);
+  const allowedAvatarExtensions = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
+  const avatarMimeByExtension = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+  };
+  const normalizeAvatarMime = (mime) => {
+    const normalized = String(mime || "").trim().toLowerCase();
+    if (normalized === "image/x-png") return "image/png";
+    if (normalized === "image/jpg" || normalized === "image/pjpeg" || normalized === "image/jfif") {
+      return "image/jpeg";
+    }
+    return normalized;
+  };
+  const inferAvatarMime = (file) => {
+    const normalizedMime = normalizeAvatarMime(file.type);
+    if (allowedAvatarTypes.has(normalizedMime)) return normalizedMime;
+    const lowerName = String(file.name || "").trim().toLowerCase();
+    const extension = Object.keys(avatarMimeByExtension).find((ext) => lowerName.endsWith(ext));
+    if (!extension) return "";
+    return avatarMimeByExtension[extension] || "";
+  };
+  const normalizeAvatarDataUrl = (rawValue, fallbackMime) => {
+    const value = String(rawValue || "").trim();
+    if (!value) return "";
+
+    if (/^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+$/i.test(value)) {
+      return value;
+    }
+
+    const genericMatch = /^data:([^;,]+)?(?:;[^,]*)?,base64,([A-Za-z0-9+/=]+)$/i.exec(value);
+    if (!genericMatch) return "";
+
+    const base64Payload = String(genericMatch[2] || "").trim();
+    if (!base64Payload) return "";
+
+    const mime = normalizeAvatarMime(fallbackMime);
+    if (!mime || !allowedAvatarTypes.has(mime)) return "";
+
+    return `data:${mime};base64,${base64Payload}`;
+  };
+  const isAllowedAvatarFile = (file) => {
+    if (inferAvatarMime(file) !== "") return true;
+    const lowerName = String(file.name || "").trim().toLowerCase();
+    return Array.from(allowedAvatarExtensions).some((ext) => lowerName.endsWith(ext));
+  };
 
   const buildInitials = (value) => {
     const source = String(value || "").replace(/\s+/g, " ").trim();
@@ -1979,6 +2037,34 @@ const initProfileEditor = () => {
     return data;
   };
 
+  const persistProfile = (nextState, successMessage = "Изменения сохранены.") => {
+    setBusy(true);
+    sendUpdateRequest(nextState)
+      .then((data) => {
+        const user = (data && data.data && data.data.user) || null;
+        if (user && typeof user === "object") {
+          state = {
+            ...state,
+            name: safeName(typeof user.name === "string" ? user.name : nextState.name),
+            description: safeDescription(
+              typeof user.profile_bio === "string" ? user.profile_bio : nextState.description,
+            ),
+            avatar: typeof user.profile_avatar === "string" ? user.profile_avatar : nextState.avatar,
+          };
+        } else {
+          state = { ...nextState };
+        }
+        render(state);
+        setMessage((data && data.message) || successMessage);
+      })
+      .catch((error) => {
+        setMessage(error instanceof Error ? error.message : "Не удалось сохранить изменения.", true);
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
+
   let state = {
     name: safeName(defaultName),
     description: safeDescription(defaultBio),
@@ -1996,14 +2082,14 @@ const initProfileEditor = () => {
     const file = avatarInputEl.files && avatarInputEl.files[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      setMessage("Выберите файл изображения.", true);
+    if (!isAllowedAvatarFile(file)) {
+      setMessage("Поддерживаются только PNG, JPG, WEBP или GIF.", true);
       avatarInputEl.value = "";
       return;
     }
 
     if (file.size > maxAvatarBytes) {
-      setMessage("Изображение должно быть меньше 2 МБ.", true);
+      setMessage("Изображение должно быть меньше 8 МБ.", true);
       avatarInputEl.value = "";
       return;
     }
@@ -2011,9 +2097,23 @@ const initProfileEditor = () => {
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result !== "string") return;
-      state.avatar = reader.result;
+      const inferredMime = inferAvatarMime(file);
+      const normalizedAvatar = normalizeAvatarDataUrl(reader.result, inferredMime);
+      if (!normalizedAvatar) {
+        setMessage("Не удалось обработать изображение. Выберите JPG, PNG, WEBP или GIF.", true);
+        avatarInputEl.value = "";
+        return;
+      }
+      state.avatar = normalizedAvatar;
       render(state);
-      setMessage("Фото обновлено. Нажмите «Сохранить изменения».");
+      setMessage("Фото выбрано. Сохраняем...");
+
+      const nextState = {
+        ...state,
+        name: safeName(nameInputEl.value).slice(0, 60),
+        description: safeDescription(descriptionInputEl.value),
+      };
+      persistProfile(nextState, "Фото профиля сохранено.");
     };
     reader.onerror = () => {
       setMessage("Не удалось прочитать файл.", true);
@@ -2030,29 +2130,7 @@ const initProfileEditor = () => {
     };
     render(state);
 
-    setBusy(true);
-    sendUpdateRequest(state)
-      .then((data) => {
-        const user = (data && data.data && data.data.user) || null;
-        if (user && typeof user === "object") {
-          state = {
-            ...state,
-            name: safeName(typeof user.name === "string" ? user.name : state.name),
-            description: safeDescription(
-              typeof user.profile_bio === "string" ? user.profile_bio : state.description,
-            ),
-            avatar: typeof user.profile_avatar === "string" ? user.profile_avatar : state.avatar,
-          };
-          render(state);
-        }
-        setMessage((data && data.message) || "Изменения сохранены.");
-      })
-      .catch((error) => {
-        setMessage(error instanceof Error ? error.message : "Не удалось сохранить изменения.", true);
-      })
-      .finally(() => {
-        setBusy(false);
-      });
+    persistProfile(state, "Изменения сохранены.");
   });
 };
 
@@ -2360,7 +2438,7 @@ const initHotToursSlider = () => {
 
     if (footer) footer.hidden = !hasOverflow;
     if (moreBtn) moreBtn.hidden = !hasOverflow || isExpanded;
-    if (actions) actions.hidden = !hasOverflow || isExpanded;
+    if (actions) actions.hidden = isExpanded;
     if (progress) progress.hidden = !isMobile || !hasOverflow || isExpanded || (!!actions && !actions.hidden);
 
     if (!hasOverflow) {
