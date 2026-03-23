@@ -41,5 +41,38 @@ if ($page->name === 'profile' || $page->path === '/profile/' || $isProfileReques
 ?>
 
 <div id="content">
-	Basic page content 
+	<?php
+	$pageName = trim((string) $page->name);
+	$pageTitle = trim((string) $page->title);
+	$pageBody = '';
+	if ($page->hasField('body')) {
+		$pageBody = trim((string) $page->getUnformatted('body'));
+	}
+	?>
+	<div class="container basic-page-content">
+		<?php if ($pageTitle !== ''): ?>
+			<h1><?php echo $sanitizer->entities($pageTitle); ?></h1>
+		<?php endif; ?>
+
+		<?php if ($pageBody !== ''): ?>
+			<div class="basic-page-body"><?php echo $pageBody; ?></div>
+		<?php endif; ?>
+
+		<?php if ($pageName === 'terms'): ?>
+			<section class="basic-page-legal">
+				<h2>Роль сервиса</h2>
+				<p>SKFO.ru является информационной платформой, на которой организаторы публикуют маршруты, а пользователи знакомятся с условиями и оставляют заявки.</p>
+				<p>SKFO.ru не выступает туроператором и не формирует туристский продукт. Договор оказания услуг заключается непосредственно между пользователем и организатором.</p>
+				<p>Ответственность за фактическое оказание услуг, программу, безопасность и изменения условий несет организатор, указанный в карточке маршрута.</p>
+			</section>
+		<?php endif; ?>
+
+		<?php if ($pageName === 'services'): ?>
+			<section class="basic-page-legal">
+				<h2>Условия размещения услуг</h2>
+				<p>Публикуя предложение на платформе, организатор подтверждает достоверность информации о маршруте, стоимости, составе услуг и условиях участия.</p>
+				<p>Организатор обязуется соблюдать действующее законодательство РФ и самостоятельно нести ответственность перед пользователем за оказанные услуги.</p>
+			</section>
+		<?php endif; ?>
+	</div>
 </div>	
