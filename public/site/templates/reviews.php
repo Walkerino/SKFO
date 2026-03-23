@@ -291,7 +291,7 @@ foreach ($hotelOptions as $hotelOption) {
 	];
 }
 $reviewTargetTypeLabels = [
-	'tour' => 'Тур',
+	'tour' => 'Маршрут',
 	'hotel' => 'Отель',
 ];
 $hasReviewTargets = count($reviewTargetMap) > 0;
@@ -342,9 +342,9 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 	} elseif (!$csrfValid) {
 		$reviewError = 'Ошибка безопасности формы. Обновите страницу и попробуйте снова.';
 	} elseif (!$hasReviewTargets) {
-		$reviewError = 'Сейчас нет доступных туров и отелей для отзывов.';
+		$reviewError = 'Сейчас нет доступных маршрутов и отелей для отзывов.';
 	} elseif (!$reviewTarget || $reviewTargetId < 1 || !isset($reviewTables[$reviewTargetType])) {
-		$reviewError = 'Выберите тур или отель из списка.';
+		$reviewError = 'Выберите маршрут или отель из списка.';
 	} elseif ($reviewTextValue === '' || $textLength($reviewTextValue) < 8) {
 		$reviewError = 'Добавьте текст отзыва (минимум 8 символов).';
 	} elseif ($reviewRatingValue < 1 || $reviewRatingValue > 5) {
@@ -604,18 +604,18 @@ $csrfTokenValue = $session->CSRF->getTokenValue();
 					<button class="reviews-submit reviews-auth-submit" type="button" data-auth-open data-auth-mode="login">Войти в профиль</button>
 				<?php else: ?>
 					<?php if (!$hasReviewTargets): ?>
-						<div class="review-message is-error">Сейчас нет доступных туров и отелей для отзывов.</div>
+						<div class="review-message is-error">Сейчас нет доступных маршрутов и отелей для отзывов.</div>
 					<?php else: ?>
 						<form class="reviews-form" method="post" action="#reviews-form" enctype="multipart/form-data">
 							<input type="hidden" name="review_form" value="reviews_page" />
 							<input type="hidden" name="<?php echo $sanitizer->entities($csrfTokenName); ?>" value="<?php echo $sanitizer->entities($csrfTokenValue); ?>" />
 
 							<label class="reviews-field">
-								<span>Тур или отель</span>
-								<select name="review_subject" required aria-label="Выберите тур или отель">
-									<option value="" disabled<?php echo $reviewSubjectValue === '' ? ' selected' : ''; ?>>Выберите тур или отель</option>
+								<span>Маршрут или отель</span>
+								<select name="review_subject" required aria-label="Выберите маршрут или отель">
+									<option value="" disabled<?php echo $reviewSubjectValue === '' ? ' selected' : ''; ?>>Выберите маршрут или отель</option>
 									<?php if (count($tourOptions)): ?>
-										<optgroup label="Туры">
+										<optgroup label="Маршруты">
 											<?php foreach ($tourOptions as $tourOption): ?>
 												<?php
 												$tourId = (int) ($tourOption['id'] ?? 0);

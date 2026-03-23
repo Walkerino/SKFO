@@ -731,9 +731,9 @@ $forumExternalUrl = 'https://club.skfo.ru';
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 					</label>
 					<label class="hero-field<?php echo $tourTypeFieldClass; ?>">
-						<span class="sr-only">Тип тура</span>
+						<span class="sr-only">Формат поездки</span>
 						<select name="tour_type" data-hero-custom-select>
-							<option value="">Тип тура</option>
+							<option value="">Формат поездки</option>
 							<?php foreach ($tourTypeOptions as $tourTypeKey => $tourTypeLabel): ?>
 								<option value="<?php echo $sanitizer->entities($tourTypeKey); ?>"<?php echo $searchTourType === $tourTypeKey ? ' selected' : ''; ?>>
 									<?php echo $sanitizer->entities($tourTypeLabel); ?>
@@ -779,7 +779,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 	<?php if ($isTourSearchSubmitted): ?>
 		<section class="section section--hotels-results section--home-tours-results">
 			<div class="container">
-				<h2 class="section-title home-tours-results-title">Подходящие туры</h2>
+				<h2 class="section-title home-tours-results-title">Подходящие маршруты</h2>
 				<?php if (count($filteredTours)): ?>
 					<div class="hotels-grid">
 						<?php foreach ($filteredTours as $tour): ?>
@@ -799,7 +799,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 								</div>
 								<h2 class="hotel-card-title"><?php echo $sanitizer->entities((string) ($tour['title'] ?? '')); ?></h2>
 								<p class="hotel-card-location"><?php echo $sanitizer->entities($tourRegion); ?></p>
-								<ul class="hotel-card-amenities" aria-label="Параметры тура">
+								<ul class="hotel-card-amenities" aria-label="Параметры маршрута">
 									<?php if ($tourDuration !== ''): ?>
 										<li class="hotel-card-amenity">
 											<span class="hotel-card-amenity-icon"><?php echo $sanitizer->entities($tourDuration); ?></span>
@@ -819,7 +819,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					</div>
 					<?php else: ?>
 						<div class="hotels-empty">
-							По выбранным фильтрам туры не найдены. Измените параметры и попробуйте снова.
+							По выбранным фильтрам маршруты не найдены. Измените параметры и попробуйте снова.
 						</div>
 					<?php endif; ?>
 			</div>
@@ -902,8 +902,8 @@ $forumExternalUrl = 'https://club.skfo.ru';
 				<div class="hot-tours-header">
 					<h2 class="section-title">Планы на долгожданную весну</h2>
 					<div class="hot-tours-actions">
-						<button class="circle-btn circle-btn--prev hot-tours-prev" type="button" aria-label="Предыдущие туры"></button>
-						<button class="circle-btn circle-btn--next hot-tours-next" type="button" aria-label="Следующие туры"></button>
+						<button class="circle-btn circle-btn--prev hot-tours-prev" type="button" aria-label="Предыдущие маршруты"></button>
+						<button class="circle-btn circle-btn--next hot-tours-next" type="button" aria-label="Следующие маршруты"></button>
 					</div>
 				</div>
 					<div class="hot-tours-grid">

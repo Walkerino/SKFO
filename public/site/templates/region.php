@@ -430,7 +430,7 @@ if (!$regionProfile) {
 			['title' => 'Провести день в природных локациях', 'price' => 'от 9 500₽', 'image' => ''],
 			['title' => 'Выбрать экскурсию по местным достопримечательностям', 'price' => 'от 11 000₽', 'image' => ''],
 			['title' => 'Собрать насыщенный уикенд-маршрут', 'price' => 'от 12 000₽', 'image' => ''],
-			['title' => 'Найти тур для семьи или компании', 'price' => 'от 10 500₽', 'image' => ''],
+			['title' => 'Найти маршрут для семьи или компании', 'price' => 'от 10 500₽', 'image' => ''],
 		],
 		'places' => [
 			[
@@ -1203,8 +1203,8 @@ $forumExternalUrl = 'https://club.skfo.ru';
 			<div class="hot-tours-header">
 				<h2 class="section-title">На встречу к приключениям</h2>
 				<div class="hot-tours-actions">
-					<button class="circle-btn circle-btn--prev hot-tours-prev" type="button" aria-label="Предыдущие туры"></button>
-					<button class="circle-btn circle-btn--next hot-tours-next" type="button" aria-label="Следующие туры"></button>
+					<button class="circle-btn circle-btn--prev hot-tours-prev" type="button" aria-label="Предыдущие маршруты"></button>
+					<button class="circle-btn circle-btn--next hot-tours-next" type="button" aria-label="Следующие маршруты"></button>
 				</div>
 			</div>
 			<div class="hot-tours-grid">

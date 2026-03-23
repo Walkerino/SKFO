@@ -162,6 +162,7 @@ if ($tourGuidePhotoUrl === '' && $linkedGuide instanceof Page) {
 $tourGuideExperienceYears = $page->hasField('tour_guide_experience_years') ? max(0, (int) $page->tour_guide_experience_years) : 0;
 $tourGuideTouristsCount = $page->hasField('tour_guide_tourists_count') ? max(0, (int) $page->tour_guide_tourists_count) : 0;
 $tourGuideAttestationNumber = $page->hasField('tour_guide_attestation_number') ? trim((string) $page->tour_guide_attestation_number) : '';
+$tourGuideRegistryUrl = $page->hasField('tour_guide_registry_url') ? trim((string) $page->tour_guide_registry_url) : '';
 
 if ($linkedGuide instanceof Page) {
 	if ($tourGuideExperienceYears <= 0 && $linkedGuide->hasField('guide_experience_years')) {
@@ -172,6 +173,13 @@ if ($linkedGuide instanceof Page) {
 	}
 	if ($tourGuideAttestationNumber === '' && $linkedGuide->hasField('guide_attestation_number')) {
 		$tourGuideAttestationNumber = trim((string) $linkedGuide->getUnformatted('guide_attestation_number'));
+	}
+	if ($tourGuideRegistryUrl === '') {
+		if ($linkedGuide->hasField('guide_registry_url')) {
+			$tourGuideRegistryUrl = trim((string) $linkedGuide->getUnformatted('guide_registry_url'));
+		} elseif ($linkedGuide->hasField('tour_guide_registry_url')) {
+			$tourGuideRegistryUrl = trim((string) $linkedGuide->getUnformatted('tour_guide_registry_url'));
+		}
 	}
 }
 $tourDifficulty = '';
@@ -234,10 +242,10 @@ $tourHeroHiddenMedia = $tourHeroHiddenCount > 0
 	? array_slice($tourMedia, $tourHeroVisibleCount, null, true)
 	: [];
 
-if ($tourTitle === '') $tourTitle = 'Четырехдневный тур по Дагестану';
+if ($tourTitle === '') $tourTitle = 'Четырехдневный маршрут по Дагестану';
 if ($tourRegion === '') $tourRegion = 'Республика Дагестан';
 if ($tourDescription === '') {
-	$tourDescription = "Четырехдневный тур по самым живописным местам Дагестана: от Сулакского каньона до Гунибского района.\n\nВас ждут горные пейзажи, водопады, древние села и уникальные природные объекты.";
+	$tourDescription = "Четырехдневный маршрут по самым живописным местам Дагестана: от Сулакского каньона до Гунибского района.\n\nВас ждут горные пейзажи, водопады, древние села и уникальные природные объекты.";
 }
 if ($tourPrice === '') $tourPrice = '23 251 ₽';
 if ($tourDuration === '') $tourDuration = '4 дня';
@@ -245,7 +253,7 @@ if ($tourGroup === '') $tourGroup = '4-12 человек';
 if ($tourSeason === '') $tourSeason = 'Май-Октябрь';
 if ($tourDifficulty === '') $tourDifficulty = 'Базовая';
 if ($tourAge === '') $tourAge = '12+';
-if ($tourType === '') $tourType = 'Джип-тур';
+if ($tourType === '') $tourType = 'Джиппинг';
 if ($tourFormat === '') $tourFormat = 'Групповой';
 if ($tourLanguage === '') $tourLanguage = 'Русский';
 if ($tourDates === '') $tourDates = 'Ближайшие даты по запросу';
@@ -417,12 +425,12 @@ $tourDetailRows = [
 											data-tour-hero-gallery-item
 											data-gallery-index="0"
 											data-gallery-src="<?php echo htmlspecialchars($tourHeroMainMedia, ENT_QUOTES, 'UTF-8'); ?>"
-											data-gallery-alt="<?php echo $sanitizer->entities('Фото тура 1'); ?>"
+											data-gallery-alt="<?php echo $sanitizer->entities('Фото маршрута 1'); ?>"
 											aria-label="<?php echo $sanitizer->entities('Открыть фото 1'); ?>"
 										>
 											<img
 												src="<?php echo htmlspecialchars($tourHeroMainMedia, ENT_QUOTES, 'UTF-8'); ?>"
-												alt="<?php echo $sanitizer->entities('Фото тура 1'); ?>"
+												alt="<?php echo $sanitizer->entities('Фото маршрута 1'); ?>"
 												loading="eager"
 												fetchpriority="high"
 											/>
@@ -449,12 +457,12 @@ $tourDetailRows = [
 														data-tour-hero-gallery-item
 														data-gallery-index="<?php echo (int) $thumbIndex; ?>"
 														data-gallery-src="<?php echo htmlspecialchars($tourMediaImage, ENT_QUOTES, 'UTF-8'); ?>"
-														data-gallery-alt="<?php echo $sanitizer->entities('Фото тура ' . $thumbPhotoNumber); ?>"
+														data-gallery-alt="<?php echo $sanitizer->entities('Фото маршрута ' . $thumbPhotoNumber); ?>"
 														aria-label="<?php echo $sanitizer->entities($thumbLabel); ?>"
 													>
 														<img
 															src="<?php echo htmlspecialchars($tourMediaImage, ENT_QUOTES, 'UTF-8'); ?>"
-															alt="<?php echo $sanitizer->entities('Фото тура ' . $thumbPhotoNumber); ?>"
+															alt="<?php echo $sanitizer->entities('Фото маршрута ' . $thumbPhotoNumber); ?>"
 															loading="lazy"
 														/>
 														<?php if ($isMoreTile): ?>
@@ -474,7 +482,7 @@ $tourDetailRows = [
 													data-tour-hero-gallery-item
 													data-gallery-index="<?php echo (int) $hiddenIndex; ?>"
 													data-gallery-src="<?php echo htmlspecialchars($tourMediaImage, ENT_QUOTES, 'UTF-8'); ?>"
-													data-gallery-alt="<?php echo $sanitizer->entities('Фото тура ' . ((int) $hiddenIndex + 1)); ?>"
+													data-gallery-alt="<?php echo $sanitizer->entities('Фото маршрута ' . ((int) $hiddenIndex + 1)); ?>"
 													tabindex="-1"
 												></button>
 											<?php endforeach; ?>
@@ -503,7 +511,7 @@ $tourDetailRows = [
 				<?php endif; ?>
 			</div>
 				<div class="tour-details-card">
-					<h2 class="tour-section-title">Детали тура</h2>
+					<h2 class="tour-section-title">Детали маршрута</h2>
 					<dl class="tour-meta">
 						<?php foreach ($tourDetailRows as $detailRow): ?>
 							<?php
@@ -574,7 +582,7 @@ $tourDetailRows = [
 									<span><?php echo $sanitizer->entities($tourGuideExperienceYears . ' лет опыта'); ?></span>
 								<?php endif; ?>
 								<?php if ($tourGuideTouristsCount > 0): ?>
-									<span><?php echo $sanitizer->entities(number_format($tourGuideTouristsCount, 0, '', ' ') . '+ туристов'); ?></span>
+									<span><?php echo $sanitizer->entities(number_format($tourGuideTouristsCount, 0, '', ' ') . '+ путешественников'); ?></span>
 								<?php endif; ?>
 								<?php if ($tourGuideExperienceYears <= 0 && $tourGuideTouristsCount <= 0): ?>
 									<span>Опыт подтверждается отзывами путешественников</span>
@@ -583,14 +591,22 @@ $tourDetailRows = [
 						</div>
 					</div>
 						<div class="tour-guide-meta">
-							<div class="tour-guide-meta-row">
-								<span class="tour-guide-meta-label">Аттестация:</span>
-								<span class="tour-guide-meta-value"><?php echo $sanitizer->entities($tourGuideAttestationNumber !== '' ? ('№ ' . $tourGuideAttestationNumber) : 'номер уточняется'); ?></span>
-							</div>
-							<div class="tour-guide-meta-row">
-								<span class="tour-guide-meta-label">Рейтинг:</span>
-								<span class="tour-guide-meta-value">★ <?php echo $sanitizer->entities($tourReviewSummaryLabel); ?></span>
-							</div>
+								<div class="tour-guide-meta-row">
+									<span class="tour-guide-meta-label">Аттестация:</span>
+									<span class="tour-guide-meta-value"><?php echo $sanitizer->entities($tourGuideAttestationNumber !== '' ? ('№ ' . $tourGuideAttestationNumber) : 'номер уточняется'); ?></span>
+								</div>
+								<?php if ($tourGuideRegistryUrl !== ''): ?>
+									<div class="tour-guide-meta-row">
+										<span class="tour-guide-meta-label">Реестр:</span>
+										<span class="tour-guide-meta-value">
+											<a href="<?php echo $sanitizer->entities($tourGuideRegistryUrl); ?>" target="_blank" rel="noopener noreferrer">Проверить аттестацию</a>
+										</span>
+									</div>
+								<?php endif; ?>
+								<div class="tour-guide-meta-row">
+									<span class="tour-guide-meta-label">Рейтинг:</span>
+									<span class="tour-guide-meta-value">★ <?php echo $sanitizer->entities($tourReviewSummaryLabel); ?></span>
+								</div>
 						</div>
 					</article>
 				</div>
@@ -634,7 +650,7 @@ $tourDetailRows = [
 		<section class="tour-reviews" data-tour-reviews-gallery>
 		<div class="container">
 			<div class="tour-reviews-card">
-				<h2 class="tour-section-title">Отзывы о туре</h2>
+				<h2 class="tour-section-title">Отзывы о маршруте</h2>
 				<?php if (count($tourReviews)): ?>
 					<div class="tour-reviews-list">
 						<?php foreach ($tourReviews as $review): ?>
@@ -681,7 +697,7 @@ $tourDetailRows = [
 					</div>
 				<?php else: ?>
 					<p class="tour-reviews-empty">
-						Пока нет отзывов об этом туре.
+						Пока нет отзывов об этом маршруте.
 						<a href="/reviews/?review_subject=<?php echo rawurlencode('tour:' . (int) $page->id); ?>#reviews-form">Оставить первый отзыв</a>
 					</p>
 				<?php endif; ?>
@@ -703,7 +719,7 @@ $tourDetailRows = [
 		<?php if ($tourHeroMainMedia !== ''): ?>
 			<div class="hotel-gallery-lightbox" data-tour-hero-gallery-modal hidden>
 				<div class="hotel-gallery-lightbox-backdrop" data-gallery-close="backdrop"></div>
-				<div class="hotel-gallery-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Фотографии тура">
+				<div class="hotel-gallery-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Фотографии маршрута">
 					<button class="hotel-gallery-close" type="button" data-gallery-close="button" aria-label="Закрыть">×</button>
 					<button class="hotel-gallery-nav hotel-gallery-nav--prev" type="button" data-gallery-nav="prev" aria-label="Предыдущее фото"></button>
 					<figure class="hotel-gallery-stage">

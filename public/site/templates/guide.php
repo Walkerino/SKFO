@@ -480,13 +480,13 @@ $guideReviewsHasSlider = count($reviews) > 3;
 
 		<section class="section section--guide-tours">
 			<div class="container">
-				<h2 class="section-title guide-section-title">Туры гида</h2>
+				<h2 class="section-title guide-section-title">Маршруты гида</h2>
 				<?php if (count($tourCards)): ?>
 					<div class="guide-slider guide-slider--tours<?php echo $guideToursHasSlider ? ' is-enabled' : ''; ?>"<?php echo $guideToursHasSlider ? ' data-guide-slider' : ''; ?>>
 						<?php if ($guideToursHasSlider): ?>
 							<div class="guide-slider-actions">
-								<button class="circle-btn circle-btn--prev" type="button" data-guide-slider-nav="prev" aria-label="Предыдущие туры"></button>
-								<button class="circle-btn circle-btn--next" type="button" data-guide-slider-nav="next" aria-label="Следующие туры"></button>
+								<button class="circle-btn circle-btn--prev" type="button" data-guide-slider-nav="prev" aria-label="Предыдущие маршруты"></button>
+								<button class="circle-btn circle-btn--next" type="button" data-guide-slider-nav="next" aria-label="Следующие маршруты"></button>
 							</div>
 						<?php endif; ?>
 						<div class="guide-tours-grid<?php echo $guideToursHasSlider ? ' guide-tours-grid--slider' : ''; ?>"<?php echo $guideToursHasSlider ? ' data-guide-slider-track' : ''; ?>>
@@ -514,7 +514,7 @@ $guideReviewsHasSlider = count($reviews) > 3;
 						<?php endif; ?>
 					</div>
 				<?php else: ?>
-					<div class="guide-empty">У этого гида пока нет опубликованных туров.</div>
+					<div class="guide-empty">У этого гида пока нет опубликованных маршрутов.</div>
 			<?php endif; ?>
 		</div>
 	</section>
@@ -635,7 +635,7 @@ $guideReviewsHasSlider = count($reviews) > 3;
 							</div>
 						</div>
 				<?php else: ?>
-				<div class="guide-empty">Отзывы по турам этого гида пока не опубликованы.</div>
+				<div class="guide-empty">Отзывы по маршрутам этого гида пока не опубликованы.</div>
 			<?php endif; ?>
 		</div>
 		<?php if (count($travelerPhotos)): ?>
