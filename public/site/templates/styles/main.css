@@ -80,6 +80,10 @@ img {
   display: block;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 video,
 iframe {
   width: 100%;
@@ -118,6 +122,7 @@ button {
   margin: 0 auto;
   background-color: white;
   padding-top: 50px;
+  padding-bottom: 50px;
   border-radius: 32px;
 }
 
@@ -7298,13 +7303,14 @@ body.auth-modal-open {
   display: block;
 }
 
-.page-profile .site-header--overlay {
-  position: relative;
+.page-profile {
   background: #1f52b2;
-  padding: 18px 0 20px;
 }
 
-.page-profile .site-main {
+.page-profile .site-header--overlay,
+.page-profile .tour-header,
+.page-profile .site-main,
+.page-profile .site-footer {
   background: #1f52b2;
 }
 
@@ -7315,7 +7321,7 @@ body.auth-modal-open {
 }
 
 .profile-section {
-  padding: 0;
+  padding: 64px 0 0;
 }
 
 .profile-container {
@@ -7397,7 +7403,7 @@ body.auth-modal-open {
 }
 
 .profile-shell {
-  margin-top: -82px;
+  margin-top: 100px;
   position: relative;
   z-index: 2;
 }
@@ -7513,28 +7519,6 @@ body.auth-modal-open {
   object-fit: cover;
 }
 
-.profile-avatar-upload-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid #d7e1f5;
-  background: #f7f9ff;
-  color: #2a58ba;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.16s ease, border-color 0.16s ease;
-}
-
-.profile-avatar-upload-btn:hover,
-.profile-avatar-upload-btn:focus-visible {
-  background: #edf3ff;
-  border-color: #bfcfef;
-}
-
 .profile-avatar-input {
   position: absolute;
   width: 1px;
@@ -7556,7 +7540,7 @@ body.auth-modal-open {
 }
 
 .profile-email {
-  margin: 8px 0 0;
+  margin: 0 0 0;
   color: #61708d;
   font-size: 17px;
   line-height: 1.3;
@@ -7843,12 +7827,12 @@ body.auth-modal-open {
     padding: 14px 0 16px;
   }
 
-  .page-profile .site-main {
-    background: #1f52b2;
-  }
-
   .profile-page {
     padding: 0 0 44px;
+  }
+
+  .profile-section {
+    padding: 28px 0 0;
   }
 
   .profile-hero {
@@ -7878,7 +7862,7 @@ body.auth-modal-open {
   }
 
   .profile-shell {
-    margin-top: -28px;
+    margin-top: 0;
   }
 
   .profile-card {

@@ -63,7 +63,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		$isArticleDetailPath = preg_match('#^/articles/[^/]+/?$#', (string) $requestPath) === 1;
 		$isArticleDetailPage = $articleParam !== '' || $isArticleDetailPath;
 	}
-	$isSecondaryCompactHeaderPage = in_array($templateName, ['tour', 'hotel', 'region', 'place', 'guide'], true) || $isArticleDetailPage || $isPlaceDetailRequest;
+	$isSecondaryCompactHeaderPage = in_array($templateName, ['tour', 'hotel', 'region', 'place', 'guide'], true) || $isArticleDetailPage || $isPlaceDetailRequest || $isProfilePage;
 	$normalizeHeadTitleKey = static function(string $value): string {
 		$value = trim($value);
 		$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
@@ -71,8 +71,8 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	};
 	$headTitleByTemplate = [
 		'home' => 'Главная',
-		'tour' => 'Тур',
-		'tours' => 'Туры',
+		'tour' => 'Маршрут',
+		'tours' => 'Маршруты',
 		'hotels' => 'Отели',
 		'hotel' => 'Отель',
 		'reviews' => 'Отзывы',
@@ -90,8 +90,8 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		'home' => 'Главная',
 		'hotels' => 'Отели',
 		'hotel' => 'Отель',
-		'tours' => 'Туры',
-		'tour' => 'Тур',
+		'tours' => 'Маршруты',
+		'tour' => 'Маршрут',
 		'reviews' => 'Отзывы',
 		'guides' => 'Гиды',
 		'guide' => 'Гид',

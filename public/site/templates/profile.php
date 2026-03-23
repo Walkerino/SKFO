@@ -55,24 +55,7 @@ if ($createdAtRaw !== '') {
 <div id="content" class="profile-page">
 	<section class="profile-section">
 		<div class="container profile-container">
-			<div class="profile-hero">
-				<div class="profile-hero-inner">
-					<div class="profile-hero-copy">
-						<p class="profile-kicker">Личный кабинет</p>
-						<h1 class="profile-hero-title">Профиль SKFO.RU</h1>
-						<p class="profile-hero-subtitle">
-							<?php if (!$authUser): ?>
-								Войдите по email и временному коду, чтобы управлять вашим профилем.
-							<?php else: ?>
-								Здравствуйте, <?php echo $sanitizer->entities($displayName); ?>. Ваш профиль готов к работе.
-							<?php endif; ?>
-						</p>
-					</div>
-					<div class="profile-hero-state<?php echo $authUser ? ' is-online' : ''; ?>">
-						<?php echo $authUser ? 'Вход выполнен' : 'Гость'; ?>
-					</div>
-				</div>
-			</div>
+			
 
 			<div class="profile-shell">
 			<?php if (!$authUser): ?>
@@ -105,15 +88,14 @@ if ($createdAtRaw !== '') {
 									<span<?php echo $profileHasAvatar ? ' hidden' : ''; ?> data-profile-avatar-initials><?php echo $sanitizer->entities($profileInitials); ?></span>
 									<img src="<?php echo $profileHasAvatar ? $sanitizer->entities($profileAvatar) : ''; ?>" alt="Аватар профиля"<?php echo $profileHasAvatar ? '' : ' hidden'; ?> data-profile-avatar-image />
 								</div>
-								<label class="profile-avatar-upload-btn" for="profile-avatar-input">Изменить фото</label>
-								<input class="profile-avatar-input" id="profile-avatar-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-profile-avatar-input />
+								<input class="profile-avatar-input" id="profile-avatar-input" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.gif" data-profile-avatar-input />
 							</div>
 							<div class="profile-head-copy">
 								<h2 class="profile-name" data-profile-name><?php echo $sanitizer->entities($displayName); ?></h2>
 								<p class="profile-email"><?php echo $sanitizer->entities($displayEmail); ?></p>
 								<p class="profile-description" data-profile-description><?php echo $sanitizer->entities($profileDescription !== '' ? $profileDescription : 'Добавьте описание профиля.'); ?></p>
 							</div>
-							<div class="profile-status">Профиль активен</div>
+							
 						</div>
 
 						<form class="profile-edit-form" data-profile-form>
@@ -148,18 +130,7 @@ if ($createdAtRaw !== '') {
 						</form>
 
 						<div class="profile-info-grid">
-							<div class="profile-info-item">
-								<span class="profile-label">Имя</span>
-								<span class="profile-value" data-profile-name-value><?php echo $sanitizer->entities($displayName); ?></span>
-							</div>
-							<div class="profile-info-item">
-								<span class="profile-label">Email</span>
-								<span class="profile-value"><?php echo $sanitizer->entities($displayEmail); ?></span>
-							</div>
-							<div class="profile-info-item">
-								<span class="profile-label">Статус</span>
-								<span class="profile-value">Авторизован</span>
-							</div>
+							
 							<div class="profile-info-item">
 								<span class="profile-label">Дата регистрации</span>
 								<span class="profile-value"><?php echo $sanitizer->entities($memberSince !== '' ? $memberSince : '—'); ?></span>
