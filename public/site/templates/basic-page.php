@@ -11,6 +11,7 @@
 ?>
 
 <?php
+$legalConfig = isset($skfoLegalConfig) && is_array($skfoLegalConfig) ? $skfoLegalConfig : skfoLegalConfig();
 $requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
 $isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
 $isRegionsRequest = $requestPath === '/regions' || $requestPath === '/regions/';
@@ -44,6 +45,14 @@ if ($page->name === 'profile' || $page->path === '/profile/' || $isProfileReques
 	<?php
 	$pageName = trim((string) $page->name);
 	$pageTitle = trim((string) $page->title);
+	$customLegalSections = [];
+	if ($pageName === 'terms') {
+		$pageTitle = (string) ($legalConfig['terms_title'] ?? 'Пользовательское соглашение');
+		$customLegalSections = (array) ($legalConfig['terms_sections'] ?? []);
+	} elseif ($pageName === 'privacy') {
+		$pageTitle = (string) ($legalConfig['privacy_title'] ?? 'Политика обработки цифровых данных');
+		$customLegalSections = (array) ($legalConfig['privacy_sections'] ?? []);
+	}
 	$pageBody = '';
 	if ($page->hasField('body')) {
 		$pageBody = trim((string) $page->getUnformatted('body'));
@@ -54,17 +63,30 @@ if ($page->name === 'profile' || $page->path === '/profile/' || $isProfileReques
 			<h1><?php echo $sanitizer->entities($pageTitle); ?></h1>
 		<?php endif; ?>
 
-		<?php if ($pageBody !== ''): ?>
+		<?php if ($pageBody !== '' && !count($customLegalSections)): ?>
 			<div class="basic-page-body"><?php echo $pageBody; ?></div>
 		<?php endif; ?>
 
-		<?php if ($pageName === 'terms'): ?>
-			<section class="basic-page-legal">
-				<h2>Роль сервиса</h2>
-				<p>SKFO.ru является информационной платформой, на которой организаторы публикуют маршруты, а пользователи знакомятся с условиями и оставляют заявки.</p>
-				<p>SKFO.ru не выступает туроператором и не формирует туристский продукт. Договор оказания услуг заключается непосредственно между пользователем и организатором.</p>
-				<p>Ответственность за фактическое оказание услуг, программу, безопасность и изменения условий несет организатор, указанный в карточке маршрута.</p>
-			</section>
+		<?php if (count($customLegalSections)): ?>
+			<div class="basic-page-legal-stack">
+				<?php foreach ($customLegalSections as $section): ?>
+					<?php
+					$sectionTitle = trim((string) ($section['title'] ?? ''));
+					$paragraphs = array_values(array_filter((array) ($section['paragraphs'] ?? []), static function($value): bool {
+						return trim((string) $value) !== '';
+					}));
+					if ($sectionTitle === '' && !count($paragraphs)) continue;
+					?>
+					<section class="basic-page-legal">
+						<?php if ($sectionTitle !== ''): ?>
+							<h2><?php echo $sanitizer->entities($sectionTitle); ?></h2>
+						<?php endif; ?>
+						<?php foreach ($paragraphs as $paragraph): ?>
+							<p><?php echo $sanitizer->entities((string) $paragraph); ?></p>
+						<?php endforeach; ?>
+					</section>
+				<?php endforeach; ?>
+			</div>
 		<?php endif; ?>
 
 		<?php if ($pageName === 'services'): ?>

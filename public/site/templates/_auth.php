@@ -303,6 +303,34 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		return '=?UTF-8?B?' . base64_encode($value) . '?=';
 	}
 
+	function skfoAuthEncodeMimeBody(string $value): string {
+		return rtrim(chunk_split(base64_encode($value), 76, "\r\n"));
+	}
+
+	function skfoAuthRenderTemplate(string $templateRelativePath, array $vars = []): string {
+		$templatePath = __DIR__ . '/' . ltrim($templateRelativePath, '/');
+		if (!is_file($templatePath) || !is_readable($templatePath)) {
+			return '';
+		}
+
+		extract($vars, EXTR_SKIP);
+		ob_start();
+		include $templatePath;
+		return (string) ob_get_clean();
+	}
+
+	function skfoAuthBuildCodeEmailHtml(string $code, int $ttlMinutes): string {
+		$projectDomain = 'skfo.ru';
+
+		return skfoAuthRenderTemplate('emails/auth-code.php', [
+			'code' => $code,
+			'ttlMinutes' => $ttlMinutes,
+			'projectName' => 'SKFO.RU',
+			'projectUrl' => 'https://' . $projectDomain . '/',
+			'supportEmail' => skfoAuthEnv('SKFO_SUPPORT_EMAIL', skfoAuthEnv('SKFO_SMTP_FROM_EMAIL', skfoAuthEnv('SKFO_FROM_EMAIL', 'support@' . $projectDomain))),
+		]);
+	}
+
 	function skfoAuthSmtpReadResponse($socket): array {
 		$lines = [];
 		$code = 0;
@@ -339,7 +367,7 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		return true;
 	}
 
-	function skfoAuthSendViaSmtp(string $toEmail, string $subject, string $bodyText, array $smtpConfig, string &$error): bool {
+	function skfoAuthSendViaSmtp(string $toEmail, string $subject, string $bodyText, string $bodyHtml, array $smtpConfig, string &$error): bool {
 		$host = trim((string) ($smtpConfig['host'] ?? ''));
 		$port = (int) ($smtpConfig['port'] ?? 587);
 		$user = trim((string) ($smtpConfig['user'] ?? ''));
@@ -424,8 +452,11 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		$encodedSubject = skfoAuthMimeHeader($subject);
 		$encodedFromName = $fromName !== '' ? skfoAuthMimeHeader($fromName) : '';
 		$fromHeader = $encodedFromName !== '' ? "{$encodedFromName} <{$fromEmail}>" : $fromEmail;
-		$normalizedBody = str_replace(["\r\n", "\r"], "\n", $bodyText);
-		$normalizedBody = str_replace("\n", "\r\n", $normalizedBody);
+		$normalizedBodyText = str_replace(["\r\n", "\r"], "\n", $bodyText);
+		$normalizedBodyText = str_replace("\n", "\r\n", $normalizedBodyText);
+		$normalizedBodyHtml = str_replace(["\r\n", "\r"], "\n", $bodyHtml);
+		$normalizedBodyHtml = str_replace("\n", "\r\n", $normalizedBodyHtml);
+		$boundary = 'skfo-alt-' . bin2hex(random_bytes(12));
 
 		$headers = [
 			"Date: " . date(DATE_RFC2822),
@@ -433,10 +464,23 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 			"To: <{$toEmail}>",
 			"Subject: {$encodedSubject}",
 			"MIME-Version: 1.0",
-			"Content-Type: text/plain; charset=UTF-8",
-			"Content-Transfer-Encoding: 8bit",
+			"Content-Type: multipart/alternative; boundary=\"{$boundary}\"",
 		];
-		$data = implode("\r\n", $headers) . "\r\n\r\n" . $normalizedBody;
+		$parts = [
+			"--{$boundary}",
+			"Content-Type: text/plain; charset=UTF-8",
+			"Content-Transfer-Encoding: base64",
+			'',
+			skfoAuthEncodeMimeBody($normalizedBodyText),
+			"--{$boundary}",
+			"Content-Type: text/html; charset=UTF-8",
+			"Content-Transfer-Encoding: base64",
+			'',
+			skfoAuthEncodeMimeBody($normalizedBodyHtml),
+			"--{$boundary}--",
+			'',
+		];
+		$data = implode("\r\n", $headers) . "\r\n\r\n" . implode("\r\n", $parts);
 		$data = preg_replace('/^\./m', '..', $data) ?? $data;
 
 		$written = fwrite($socket, $data . "\r\n.\r\n");
@@ -457,7 +501,7 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		return true;
 	}
 
-	function skfoAuthSendMail(string $toEmail, string $subject, string $message, $sanitizer, $config, string &$error): bool {
+	function skfoAuthSendMail(string $toEmail, string $subject, string $messageText, string $messageHtml, $config, string &$error): bool {
 		$error = '';
 		$smtpProvider = strtolower(skfoAuthEnv('SKFO_SMTP_PROVIDER', ''));
 		$smtpPresets = [
@@ -492,7 +536,7 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 				'from_email' => $smtpFromEmail,
 				'from_name' => $smtpFromName,
 			];
-			$sent = skfoAuthSendViaSmtp($toEmail, $subject, $message, $smtpConfig, $error);
+			$sent = skfoAuthSendViaSmtp($toEmail, $subject, $messageText, $messageHtml, $smtpConfig, $error);
 			if ($sent) return true;
 			return false;
 		}
@@ -505,8 +549,8 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 			$mail->to($toEmail)
 				->from($fromEmail)
 				->subject($subject)
-				->body($message)
-				->bodyHTML(nl2br($sanitizer->entities($message)));
+				->body($messageText)
+				->bodyHTML($messageHtml);
 			$sent = (int) $mail->send();
 			if ($sent < 1) {
 				$error = 'WireMail send returned 0.';
@@ -637,9 +681,13 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		}
 
 		$subject = 'Код входа SKFO.RU';
-		$message = "Ваш код подтверждения: {$code}\n\nКод действует 10 минут.\nЕсли это были не вы, просто проигнорируйте письмо.";
+		$messageText = "Ваш код подтверждения: {$code}\n\nКод действует 10 минут.\nЕсли это были не вы, просто проигнорируйте письмо.";
+		$messageHtml = skfoAuthBuildCodeEmailHtml($code, 10);
+		if ($messageHtml === '') {
+			$messageHtml = nl2br(htmlspecialchars($messageText, ENT_QUOTES, 'UTF-8'));
+		}
 		$mailError = '';
-		$sent = skfoAuthSendMail($email, $subject, $message, $sanitizer, $config, $mailError);
+		$sent = skfoAuthSendMail($email, $subject, $messageText, $messageHtml, $config, $mailError);
 		if (!$sent) {
 			$log->save('errors', 'auth send_code mail error: ' . $mailError);
 			$consume = $database->prepare("UPDATE `site_auth_otps` SET `consumed_at`=:consumed_at WHERE `id`=:id");

@@ -71,6 +71,9 @@ sudo certbot --nginx -d skfo.ru -d www.skfo.ru
 - `SKFO_DEBUG` (`0` for production)
 - `SKFO_TIMEZONE`
 - `SKFO_SESSION_NAME`
+- `SKFO_ADMIN_EMAIL`, `SKFO_FROM_EMAIL`, `SKFO_SUPPORT_EMAIL`
+- `SKFO_SMTP_PROVIDER`, `SKFO_SMTP_HOST`, `SKFO_SMTP_PORT`, `SKFO_SMTP_SECURE`
+- `SKFO_SMTP_USER`, `SKFO_SMTP_PASS`, `SKFO_SMTP_FROM_EMAIL`, `SKFO_SMTP_FROM_NAME`
 - `SKFO_USER_AUTH_SALT`, `SKFO_TABLE_SALT`
 
 Example for PHP-FPM pool (`/etc/php/8.2/fpm/pool.d/www.conf` or custom pool):
@@ -85,6 +88,17 @@ env[SKFO_HTTP_HOSTS] = skfo.ru,www.skfo.ru
 env[SKFO_DEBUG] = 0
 env[SKFO_TIMEZONE] = Europe/Moscow
 env[SKFO_SESSION_NAME] = pw353
+env[SKFO_ADMIN_EMAIL] = no-reply@skfo.ru
+env[SKFO_FROM_EMAIL] = no-reply@skfo.ru
+env[SKFO_SUPPORT_EMAIL] = support@skfo.ru
+env[SKFO_SMTP_PROVIDER] = 
+env[SKFO_SMTP_HOST] = 
+env[SKFO_SMTP_PORT] = 
+env[SKFO_SMTP_SECURE] = 
+env[SKFO_SMTP_USER] = 
+env[SKFO_SMTP_PASS] = 
+env[SKFO_SMTP_FROM_EMAIL] = no-reply@skfo.ru
+env[SKFO_SMTP_FROM_NAME] = SKFO.RU
 env[SKFO_USER_AUTH_SALT] = <existing_salt>
 env[SKFO_TABLE_SALT] = <existing_salt>
 ```

@@ -2,6 +2,9 @@
 
 $reviewTable = 'hotel_reviews';
 require_once __DIR__ . '/_reviews_moderation.php';
+$legalConfig = isset($skfoLegalConfig) && is_array($skfoLegalConfig) ? $skfoLegalConfig : skfoLegalConfig();
+$isDemoMode = !empty($legalConfig['is_demo_mode']);
+$commercialNotice = (string) ($legalConfig['commercial_notice'] ?? '');
 
 $toLower = static function(string $value): string {
 	$value = trim($value);
@@ -1664,7 +1667,10 @@ $hotelReviewFormUrl = '/reviews/?review_subject=' . rawurlencode($hotelReviewSub
 				<div class="hotel-rooms-card">
 					<header class="hotel-rooms-head">
 						<h2 class="tour-section-title">Бронирование номера</h2>
-						<div class="hotel-booking-fields hotel-booking-fields--rooms">
+						<?php if ($isDemoMode && $commercialNotice !== ''): ?>
+							<p class="hotel-demo-note"><?php echo $sanitizer->entities($commercialNotice); ?></p>
+						<?php endif; ?>
+						<div class="hotel-booking-fields hotel-booking-fields--rooms<?php echo $isDemoMode ? ' is-demo-disabled' : ''; ?>"<?php echo $isDemoMode ? ' data-demo-disabled inert aria-disabled="true"' : ''; ?>>
 							<div class="hotel-booking-row hotel-booking-row--rooms">
 								<label class="hotel-booking-input hotel-booking-input--date">
 									<span>Заезд</span>
@@ -1756,7 +1762,7 @@ $hotelReviewFormUrl = '/reviews/?review_subject=' . rawurlencode($hotelReviewSub
 									</label>
 								</div>
 								<div class="hotel-booking-action">
-									<button class="hotel-booking-action-btn" type="button" data-hotel-booking-action>Найти</button>
+									<button class="hotel-booking-action-btn<?php echo $isDemoMode ? ' is-demo-disabled' : ''; ?>" type="button" data-hotel-booking-action<?php echo $isDemoMode ? ' disabled aria-disabled="true"' : ''; ?>>Найти</button>
 								</div>
 							</div>
 						</div>
@@ -1905,7 +1911,7 @@ $hotelReviewFormUrl = '/reviews/?review_subject=' . rawurlencode($hotelReviewSub
 													<?php endif; ?>
 													<div class="hotel-offer-price" data-room-offer-price><?php echo $sanitizer->entities($offerPriceLabel); ?></div>
 													<div class="hotel-offer-caption" data-room-offer-caption><?php echo $sanitizer->entities($offerCaptionLabel); ?></div>
-													<button class="hotel-offer-book-btn" type="button">Забронировать</button>
+													<button class="hotel-offer-book-btn<?php echo $isDemoMode ? ' is-disabled' : ''; ?>" type="button"<?php echo $isDemoMode ? ' disabled aria-disabled="true"' : ''; ?>>Забронировать</button>
 												</div>
 										</article>
 									<?php endforeach; ?>

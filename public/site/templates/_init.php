@@ -5,6 +5,7 @@
 // Use this to define shared variables, functions, classes, includes, etc. 
 
 require_once __DIR__ . '/_auth.php';
+require_once __DIR__ . '/_legal.php';
 
 skfoAuthEnsureTables($database);
 
@@ -14,6 +15,7 @@ if (skfoAuthIsApiRequest($input)) {
 }
 
 $skfoAuthUser = skfoAuthGetCurrentUser($session, $database);
+$skfoLegalConfig = skfoLegalConfig();
 
 if (!function_exists('skfoNormalizeEscapedQuotes')) {
 	function skfoNormalizeEscapedQuotes(string $html): string {

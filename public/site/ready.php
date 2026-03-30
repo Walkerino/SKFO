@@ -1,5 +1,7 @@
 <?php namespace ProcessWire;
 
+require_once __DIR__ . '/templates/_legal.php';
+
 if(!defined("PROCESSWIRE")) die();
 
 /** @var ProcessWire $wire */
@@ -1952,3 +1954,46 @@ if($reviewsTemplate && $reviewsTemplate->id) {
 		$log->save('actual-cards-setup', "Updated page '/reviews/' template to 'reviews'.");
 	}
 }
+
+$legalConfig = skfoLegalConfig();
+$ensureLegalPage = static function(string $path, string $title) use ($pages, $templates, $log): void {
+	$path = trim($path);
+	if ($path === '' || $path[0] !== '/') return;
+
+	$page = $pages->get($path);
+	$basicTemplate = $templates->get('basic-page');
+	$homePage = $pages->get('/');
+	if (!$basicTemplate || !$basicTemplate->id || !$homePage || !$homePage->id) return;
+
+	$name = trim(basename($path, '/'));
+	if ($name === '') return;
+
+	if (!$page || !$page->id) {
+		$page = new Page();
+		$page->template = $basicTemplate;
+		$page->parent = $homePage;
+		$page->name = $name;
+		$page->title = $title;
+		$pages->save($page);
+		$log->save('actual-cards-setup', "Created page '{$path}'.");
+		return;
+	}
+
+	$page->of(false);
+	$changed = false;
+	if (!$page->template || $page->template->id !== $basicTemplate->id) {
+		$page->template = $basicTemplate;
+		$changed = true;
+	}
+	if (trim((string) $page->title) !== $title) {
+		$page->title = $title;
+		$changed = true;
+	}
+	if ($changed) {
+		$pages->save($page);
+		$log->save('actual-cards-setup', "Updated page '{$path}'.");
+	}
+};
+
+$ensureLegalPage((string) ($legalConfig['terms_url'] ?? '/terms/'), (string) ($legalConfig['terms_title'] ?? 'Пользовательское соглашение'));
+$ensureLegalPage((string) ($legalConfig['privacy_url'] ?? '/privacy/'), (string) ($legalConfig['privacy_title'] ?? 'Политика обработки цифровых данных'));

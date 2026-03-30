@@ -759,6 +759,7 @@ const initHotelDateFields = () => {
 };
 
 const initHotelRoomsSearchControls = () => {
+  const isDemoMode = document.body instanceof HTMLElement && document.body.dataset.demoMode === "1";
   const summary = document.querySelector("[data-hotel-booking-summary]");
   const actionBtn = document.querySelector("[data-hotel-booking-action]");
   const checkInInput = document.querySelector("input[data-hotel-booking-check-in]");
@@ -779,6 +780,12 @@ const initHotelRoomsSearchControls = () => {
     !(guestsTotalInput instanceof HTMLInputElement) ||
     !(roomList instanceof HTMLElement)
   ) {
+    return;
+  }
+
+  if (isDemoMode) {
+    actionBtn.disabled = true;
+    summary.hidden = true;
     return;
   }
 

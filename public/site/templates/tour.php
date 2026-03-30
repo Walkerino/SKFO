@@ -2,6 +2,9 @@
 
 $reviewTable = 'tour_reviews';
 require_once __DIR__ . '/_reviews_moderation.php';
+$legalConfig = isset($skfoLegalConfig) && is_array($skfoLegalConfig) ? $skfoLegalConfig : skfoLegalConfig();
+$isDemoMode = !empty($legalConfig['is_demo_mode']);
+$commercialNotice = (string) ($legalConfig['commercial_notice'] ?? '');
 
 $toLower = static function(string $value): string {
 	$value = trim($value);
@@ -550,10 +553,13 @@ $tourDetailRows = [
 								<div class="tour-price-discount"><?php echo $sanitizer->entities($tourDiscountLabel); ?></div>
 							<?php endif; ?>
 						</div>
-						<button class="tour-book-btn<?php echo $tourSeatsLeft > 0 && $tourSeatsLeft <= 6 ? ' is-warning' : ''; ?>" type="button" data-contacts-open>
+						<button class="tour-book-btn<?php echo $tourSeatsLeft > 0 && $tourSeatsLeft <= 6 ? ' is-warning' : ''; ?><?php echo $isDemoMode ? ' is-disabled' : ''; ?>" type="button"<?php echo $isDemoMode ? ' disabled aria-disabled="true"' : ' data-contacts-open'; ?>>
 							<?php echo $sanitizer->entities($tourCtaLabel); ?>
 						</button>
 					</div>
+					<?php if ($isDemoMode && $commercialNotice !== ''): ?>
+						<p class="tour-booking-note"><?php echo $sanitizer->entities($commercialNotice); ?></p>
+					<?php endif; ?>
 					
 				</div>
 			</div>

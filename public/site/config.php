@@ -139,6 +139,11 @@ $config->installed = 1770632743;
  */
 $config->sessionName = (string) $skfoEnv('SKFO_SESSION_NAME', 'pw353');
 
+/**
+ * Default admin/from email for ProcessWire and fallback mail sending.
+ */
+$config->adminEmail = (string) $skfoEnv('SKFO_ADMIN_EMAIL', $skfoEnv('SKFO_FROM_EMAIL', ''));
+
 
 /**
  * Installer: HTTP Hosts Whitelist

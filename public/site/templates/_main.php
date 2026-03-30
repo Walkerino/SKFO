@@ -28,9 +28,14 @@ $home = $pages->get('/'); /** @var HomePage $home */
 
 	$templateName = $page->template ? $page->template->name : '';
 		$requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
-		$isProfileRequest = $requestPath === '/profile' || $requestPath === '/profile/';
+	$isProfileRequest = $requestPath === '/profile' || $requestPath === '/profile/';
+	$isTermsRequest = $requestPath === '/terms' || $requestPath === '/terms/';
+	$isPrivacyRequest = $requestPath === '/privacy' || $requestPath === '/privacy/';
 		$isContentAdminPage = false;
 		$isProfilePage = $page->name === 'profile' || $page->path === '/profile/' || $isProfileRequest;
+		$isTermsPage = $page->name === 'terms' || $page->path === '/terms/' || $isTermsRequest;
+		$isPrivacyPage = $page->name === 'privacy' || $page->path === '/privacy/' || $isPrivacyRequest;
+		$isLegalPage = $isTermsPage || $isPrivacyPage;
 		$isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
 		$isHotelsRequest = preg_match('#^/hotels(?:/|$)#', (string) $requestPath) === 1;
 		$isRegionsRequest = preg_match('#^/regions(?:/|$)#', (string) $requestPath) === 1;
@@ -63,7 +68,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		$isArticleDetailPath = preg_match('#^/articles/[^/]+/?$#', (string) $requestPath) === 1;
 		$isArticleDetailPage = $articleParam !== '' || $isArticleDetailPath;
 	}
-	$isSecondaryCompactHeaderPage = in_array($templateName, ['tour', 'hotel', 'region', 'place', 'guide'], true) || $isArticleDetailPage || $isPlaceDetailRequest || $isProfilePage;
+	$isSecondaryCompactHeaderPage = in_array($templateName, ['tour', 'hotel', 'region', 'place', 'guide'], true) || $isArticleDetailPage || $isPlaceDetailRequest || $isProfilePage || $isLegalPage;
 	$normalizeHeadTitleKey = static function(string $value): string {
 		$value = trim($value);
 		$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
@@ -173,8 +178,22 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		return trim((string) $value);
 	};
 	$reCaptchaSiteKey = $envValue('SKFO_RECAPTCHA_SITE_KEY', '');
+	$legalConfig = isset($skfoLegalConfig) && is_array($skfoLegalConfig) ? $skfoLegalConfig : skfoLegalConfig();
+	$isDemoMode = !empty($legalConfig['is_demo_mode']);
+	$termsUrl = (string) ($legalConfig['terms_url'] ?? '/terms/');
+	$privacyUrl = (string) ($legalConfig['privacy_url'] ?? '/privacy/');
+	$termsTitle = (string) ($legalConfig['terms_title'] ?? 'Пользовательское соглашение');
+	$privacyTitle = (string) ($legalConfig['privacy_title'] ?? 'Политика обработки цифровых данных');
+	$footerDisclaimer = (string) ($legalConfig['demo_disclaimer'] ?? '');
+	$profileLegalNotice = (string) ($legalConfig['profile_notice'] ?? '');
+	$entrepreneur = isset($legalConfig['entrepreneur']) && is_array($legalConfig['entrepreneur']) ? $legalConfig['entrepreneur'] : [];
+	$entrepreneurName = trim((string) ($entrepreneur['name'] ?? ''));
+	$entrepreneurInn = trim((string) ($entrepreneur['inn'] ?? ''));
+	$entrepreneurOgrnip = trim((string) ($entrepreneur['ogrnip'] ?? ''));
 	$bodyClassNames = [];
 	if ($isProfilePage) $bodyClassNames[] = 'page-profile';
+	if ($isLegalPage) $bodyClassNames[] = 'page-legal';
+	if ($isDemoMode) $bodyClassNames[] = 'is-demo-mode';
 	if ($templateName !== '') {
 		$templateClassName = preg_replace('/[^a-z0-9_-]+/i', '', $templateName) ?? '';
 		$templateClassName = strtolower($templateClassName);
@@ -196,7 +215,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		<link rel="shortcut icon" href="<?php echo $faviconUrl; ?>" />
 		<link rel="stylesheet" type="text/css" href="<?php echo $config->urls->templates; ?>styles/main.css<?php echo $mainCssVersion ? '?v=' . (int) $mainCssVersion : ''; ?>" />
 	</head>
-			<body id="html-body"<?php echo $bodyClassAttr; ?>>
+			<body id="html-body"<?php echo $bodyClassAttr; ?> data-demo-mode="<?php echo $isDemoMode ? '1' : '0'; ?>">
 				<?php if(!$isContentAdminPage): ?>
 				<?php if ($isSecondaryCompactHeaderPage): ?>
 					<header class="tour-header" id="site-header">
@@ -361,9 +380,6 @@ $home = $pages->get('/'); /** @var HomePage $home */
 				<nav class="footer-menu" aria-label="Информация">
 					<a href="/about/">О нас</a>
 					<a href="/support/">Поддержка</a>
-					<a href="/services/">Размещение услуг</a>
-					<a href="/privacy/">Политика конфиденциальности</a>
-					<a href="/terms/">Правила использования сайта</a>
 				</nav>
 				<div class="footer-sections" aria-label="Разделы">
 					<a class="footer-section-item" href="<?php echo $home->url; ?>">
@@ -416,6 +432,20 @@ $home = $pages->get('/'); /** @var HomePage $home */
 						</span>
 					</a>
 				</div>
+				<div class="footer-legal">
+					<div class="footer-legal-links">
+						<a href="<?php echo $sanitizer->entities($termsUrl); ?>"><?php echo $sanitizer->entities($termsTitle); ?></a>
+						<a href="<?php echo $sanitizer->entities($privacyUrl); ?>"><?php echo $sanitizer->entities($privacyTitle); ?></a>
+					</div>
+					<?php if ($footerDisclaimer !== ''): ?>
+						<p class="footer-legal-disclaimer"><?php echo $sanitizer->entities($footerDisclaimer); ?></p>
+					<?php endif; ?>
+					<div class="footer-legal-entity" aria-label="Реквизиты предпринимателя">
+						<span><?php echo $sanitizer->entities('ФИО: ' . ($entrepreneurName !== '' ? $entrepreneurName : 'будет добавлено')); ?></span>
+						<span><?php echo $sanitizer->entities('ИНН: ' . ($entrepreneurInn !== '' ? $entrepreneurInn : 'будет добавлен')); ?></span>
+						<span><?php echo $sanitizer->entities('ОГРНИП: ' . ($entrepreneurOgrnip !== '' ? $entrepreneurOgrnip : 'будет добавлен')); ?></span>
+					</div>
+				</div>
 				</div>
 			</footer>
 			<?php endif; ?>
@@ -443,6 +473,14 @@ $home = $pages->get('/'); /** @var HomePage $home */
 							<?php endif; ?>
 							<button class="auth-submit-btn" type="submit">Войти</button>
 						</form>
+						<?php if ($profileLegalNotice !== ''): ?>
+							<p class="auth-legal-note">
+								<?php echo $sanitizer->entities($profileLegalNotice); ?>
+								<a href="<?php echo $sanitizer->entities($termsUrl); ?>"><?php echo $sanitizer->entities($termsTitle); ?></a>
+								<span>и</span>
+								<a href="<?php echo $sanitizer->entities($privacyUrl); ?>"><?php echo $sanitizer->entities($privacyTitle); ?></a>.
+							</p>
+						<?php endif; ?>
 						<p class="auth-switch-row">Еще нет профиля? <button type="button" class="auth-switch-link" data-auth-switch="register">Регистрация</button></p>
 					</div>
 					<div class="auth-pane" data-auth-pane="register">
@@ -466,6 +504,14 @@ $home = $pages->get('/'); /** @var HomePage $home */
 							<?php endif; ?>
 							<button class="auth-submit-btn" type="submit">Регистрация</button>
 						</form>
+						<?php if ($profileLegalNotice !== ''): ?>
+							<p class="auth-legal-note">
+								<?php echo $sanitizer->entities($profileLegalNotice); ?>
+								<a href="<?php echo $sanitizer->entities($termsUrl); ?>"><?php echo $sanitizer->entities($termsTitle); ?></a>
+								<span>и</span>
+								<a href="<?php echo $sanitizer->entities($privacyUrl); ?>"><?php echo $sanitizer->entities($privacyTitle); ?></a>.
+							</p>
+						<?php endif; ?>
 						<p class="auth-switch-row">Уже есть профиль? <button type="button" class="auth-switch-link" data-auth-switch="login">Войти</button></p>
 					</div>
 					<p class="auth-message" data-auth-message aria-live="polite"></p>

@@ -1,6 +1,12 @@
 <?php namespace ProcessWire;
 
 $authUser = isset($skfoAuthUser) && is_array($skfoAuthUser) ? $skfoAuthUser : null;
+$legalConfig = isset($skfoLegalConfig) && is_array($skfoLegalConfig) ? $skfoLegalConfig : skfoLegalConfig();
+$termsUrl = (string) ($legalConfig['terms_url'] ?? '/terms/');
+$privacyUrl = (string) ($legalConfig['privacy_url'] ?? '/privacy/');
+$termsTitle = (string) ($legalConfig['terms_title'] ?? 'Пользовательское соглашение');
+$privacyTitle = (string) ($legalConfig['privacy_title'] ?? 'Политика обработки цифровых данных');
+$profileLegalNotice = (string) ($legalConfig['profile_notice'] ?? '');
 $normalizeName = static function(string $value): string {
 	$value = trim($value);
 	$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
@@ -67,6 +73,14 @@ if ($createdAtRaw !== '') {
 							<div class="profile-benefit">Единый аккаунт для действий на сайте.</div>
 							<div class="profile-benefit">Защищенная авторизация по одноразовому коду.</div>
 						</div>
+						<?php if ($profileLegalNotice !== ''): ?>
+							<p class="profile-legal-note">
+								<?php echo $sanitizer->entities($profileLegalNotice); ?>
+								<a href="<?php echo $sanitizer->entities($termsUrl); ?>"><?php echo $sanitizer->entities($termsTitle); ?></a>
+								<span>и</span>
+								<a href="<?php echo $sanitizer->entities($privacyUrl); ?>"><?php echo $sanitizer->entities($privacyTitle); ?></a>.
+							</p>
+						<?php endif; ?>
 						<button class="profile-auth-btn" type="button" data-auth-open>Войти в профиль</button>
 					</div>
 			<?php else: ?>
@@ -127,6 +141,14 @@ if ($createdAtRaw !== '') {
 								<button class="profile-save-btn" type="submit" data-profile-save>Сохранить изменения</button>
 								<p class="profile-save-message" role="status" aria-live="polite" data-profile-message></p>
 							</div>
+							<?php if ($profileLegalNotice !== ''): ?>
+								<p class="profile-legal-note">
+									<?php echo $sanitizer->entities($profileLegalNotice); ?>
+									<a href="<?php echo $sanitizer->entities($termsUrl); ?>"><?php echo $sanitizer->entities($termsTitle); ?></a>
+									<span>и</span>
+									<a href="<?php echo $sanitizer->entities($privacyUrl); ?>"><?php echo $sanitizer->entities($privacyTitle); ?></a>.
+								</p>
+							<?php endif; ?>
 						</form>
 
 						<div class="profile-info-grid">

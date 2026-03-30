@@ -2,6 +2,13 @@
 
 require_once __DIR__ . '/_reviews_moderation.php';
 
+$legalConfig = isset($skfoLegalConfig) && is_array($skfoLegalConfig) ? $skfoLegalConfig : skfoLegalConfig();
+$termsUrl = (string) ($legalConfig['terms_url'] ?? '/terms/');
+$privacyUrl = (string) ($legalConfig['privacy_url'] ?? '/privacy/');
+$termsTitle = (string) ($legalConfig['terms_title'] ?? 'Пользовательское соглашение');
+$privacyTitle = (string) ($legalConfig['privacy_title'] ?? 'Политика обработки цифровых данных');
+$reviewConsentLabel = (string) ($legalConfig['review_consent_label'] ?? '');
+
 $reviewTables = [
 	'tour' => 'tour_reviews',
 	'hotel' => 'hotel_reviews',
@@ -13,6 +20,7 @@ $reviewAuthorValue = '';
 $reviewTextValue = '';
 $reviewRatingValue = 5;
 $reviewSubjectValue = '';
+$reviewConsentValue = false;
 $flashPrefix = 'reviews_form_';
 $pullFlash = static function($session, string $key) {
 	$value = $session->get($key);
@@ -301,6 +309,7 @@ $reviewSuccess = (string) ($pullFlash($session, $flashPrefix . 'success') ?? '')
 $reviewTextValue = (string) ($pullFlash($session, $flashPrefix . 'text') ?? '');
 $reviewRatingFlash = (int) ($pullFlash($session, $flashPrefix . 'rating') ?? 0);
 $reviewSubjectFlash = trim((string) ($pullFlash($session, $flashPrefix . 'subject') ?? ''));
+$reviewConsentValue = (bool) ($pullFlash($session, $flashPrefix . 'consent') ?? false);
 if ($reviewSubjectFlash !== '' && isset($reviewTargetMap[$reviewSubjectFlash])) {
 	$reviewSubjectValue = $reviewSubjectFlash;
 }
@@ -317,6 +326,7 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 	$reviewAuthorValue = $resolveReviewAuthor($authUser);
 	$reviewTextValue = trim((string) $input->post('review_text'));
 	$reviewRatingValue = (int) $input->post('review_rating');
+	$reviewConsentValue = trim((string) $input->post('review_consent')) === '1';
 	$reviewSubjectRaw = trim((string) $input->post('review_subject'));
 	if ($reviewSubjectRaw === '') {
 		$legacyTourId = (int) $input->post('review_tour_id');
@@ -349,6 +359,8 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 		$reviewError = 'Добавьте текст отзыва (минимум 8 символов).';
 	} elseif ($reviewRatingValue < 1 || $reviewRatingValue > 5) {
 		$reviewError = 'Выберите оценку от 1 до 5.';
+	} elseif (!$reviewConsentValue) {
+		$reviewError = 'Подтвердите согласие с Пользовательским соглашением и Политикой обработки цифровых данных.';
 	} elseif (($preparedReviewPhotos['error'] ?? '') !== '') {
 		$reviewError = (string) $preparedReviewPhotos['error'];
 	} else {
@@ -425,11 +437,13 @@ if ($input->requestMethod() === 'POST' && $input->post('review_form') === 'revie
 		$setFlash($session, $flashPrefix . 'text', $reviewTextValue);
 		$setFlash($session, $flashPrefix . 'rating', $reviewRatingValue);
 		$setFlash($session, $flashPrefix . 'subject', $reviewSubjectValue);
+		$setFlash($session, $flashPrefix . 'consent', $reviewConsentValue ? 1 : 0);
 	} else {
 		$setFlash($session, $flashPrefix . 'success', $reviewSuccess);
 		$session->remove($flashPrefix . 'text');
 		$session->remove($flashPrefix . 'rating');
 		$session->remove($flashPrefix . 'subject');
+		$session->remove($flashPrefix . 'consent');
 	}
 
 	$redirectUrl = (string) $page->url;
@@ -668,6 +682,18 @@ $csrfTokenValue = $session->CSRF->getTokenValue();
 								<input type="file" name="review_photos[]" accept="image/jpeg,image/png,image/webp,image/gif" multiple />
 								<small>До 12 фото, форматы JPG/PNG/WEBP/GIF, размер до 8 МБ.</small>
 							</label>
+
+							<?php if ($reviewConsentLabel !== ''): ?>
+								<label class="reviews-consent">
+									<input type="checkbox" name="review_consent" value="1"<?php echo $reviewConsentValue ? ' checked' : ''; ?> required />
+									<span>
+										<?php echo $sanitizer->entities($reviewConsentLabel); ?>
+										<a href="<?php echo $sanitizer->entities($termsUrl); ?>"><?php echo $sanitizer->entities($termsTitle); ?></a>
+										<span>и</span>
+										<a href="<?php echo $sanitizer->entities($privacyUrl); ?>"><?php echo $sanitizer->entities($privacyTitle); ?></a>.
+									</span>
+								</label>
+							<?php endif; ?>
 
 							<button class="reviews-submit" type="submit">Отправить</button>
 						</form>
