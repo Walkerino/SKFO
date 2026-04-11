@@ -5,6 +5,13 @@ require_once __DIR__ . '/_reviews_moderation.php';
 $legalConfig = isset($skfoLegalConfig) && is_array($skfoLegalConfig) ? $skfoLegalConfig : skfoLegalConfig();
 $isDemoMode = !empty($legalConfig['is_demo_mode']);
 $commercialNotice = (string) ($legalConfig['commercial_notice'] ?? '');
+$privacyUrl = (string) ($legalConfig['privacy_url'] ?? '/privacy/');
+$privacyTitle = (string) ($legalConfig['privacy_title'] ?? 'Политика обработки цифровых данных');
+$termsUrl = (string) ($legalConfig['terms_url'] ?? '/terms/');
+$termsTitle = (string) ($legalConfig['terms_title'] ?? 'Пользовательское соглашение');
+$bookingConsentLabel = (string) ($legalConfig['booking_consent_label'] ?? 'Я даю согласие на обработку моих персональных данных и подтверждаю ознакомление с документами:');
+$accommodationLegalTitle = (string) ($legalConfig['accommodation_legal_notice_title'] ?? 'Важная правовая информация');
+$accommodationLegalParagraphs = (array) ($legalConfig['accommodation_legal_notice_paragraphs'] ?? []);
 
 $toLower = static function(string $value): string {
 	$value = trim($value);
@@ -1911,7 +1918,7 @@ $hotelReviewFormUrl = '/reviews/?review_subject=' . rawurlencode($hotelReviewSub
 													<?php endif; ?>
 													<div class="hotel-offer-price" data-room-offer-price><?php echo $sanitizer->entities($offerPriceLabel); ?></div>
 													<div class="hotel-offer-caption" data-room-offer-caption><?php echo $sanitizer->entities($offerCaptionLabel); ?></div>
-													<button class="hotel-offer-book-btn<?php echo $isDemoMode ? ' is-disabled' : ''; ?>" type="button"<?php echo $isDemoMode ? ' disabled aria-disabled="true"' : ''; ?>>Забронировать</button>
+													<button class="hotel-offer-book-btn<?php echo $isDemoMode ? ' is-disabled' : ''; ?>" type="button" data-hotel-offer-book<?php echo $isDemoMode ? ' disabled aria-disabled="true"' : ''; ?>>Забронировать</button>
 												</div>
 										</article>
 									<?php endforeach; ?>
@@ -2050,6 +2057,34 @@ $hotelReviewFormUrl = '/reviews/?review_subject=' . rawurlencode($hotelReviewSub
 			</div>
 		</div>
 	</section>
+
+	<div class="auth-modal booking-consent-modal" id="booking-consent-modal" hidden>
+		<div class="auth-modal-backdrop" data-booking-consent-close></div>
+		<div class="auth-modal-dialog booking-consent-dialog" role="dialog" aria-modal="true" aria-labelledby="booking-consent-title">
+			<button class="auth-modal-close" type="button" aria-label="Закрыть" data-booking-consent-close>×</button>
+			<h2 class="auth-title" id="booking-consent-title">Подтверждение бронирования</h2>
+			<div class="booking-legal-block" aria-label="<?php echo $sanitizer->entities($accommodationLegalTitle); ?>">
+				<h3 class="booking-legal-title"><?php echo $sanitizer->entities($accommodationLegalTitle); ?></h3>
+				<?php foreach ($accommodationLegalParagraphs as $legalParagraph): ?>
+					<?php $legalParagraph = trim((string) $legalParagraph); ?>
+					<?php if ($legalParagraph === '') continue; ?>
+					<p class="booking-legal-text"><?php echo $sanitizer->entities($legalParagraph); ?></p>
+				<?php endforeach; ?>
+			</div>
+			<label class="auth-consent booking-consent">
+				<input type="checkbox" value="1" data-booking-consent-checkbox />
+				<span>
+					<?php echo $sanitizer->entities($bookingConsentLabel); ?>
+					<a href="<?php echo $sanitizer->entities($privacyUrl); ?>"><?php echo $sanitizer->entities($privacyTitle); ?></a>
+					<span>и</span>
+					<a href="<?php echo $sanitizer->entities($termsUrl); ?>"><?php echo $sanitizer->entities($termsTitle); ?></a>.
+				</span>
+			</label>
+			<div class="booking-consent-actions">
+				<button class="auth-submit-btn" type="button" data-booking-consent-confirm disabled>Подтвердить</button>
+			</div>
+		</div>
+	</div>
 
 	<div class="hotel-gallery-lightbox" data-hotel-gallery-modal hidden>
 		<div class="hotel-gallery-lightbox-backdrop" data-gallery-close="backdrop"></div>

@@ -569,6 +569,7 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 
 		$email = skfoAuthNormalizeEmail($sanitizer, (string) $input->post('email'));
 		$name = skfoAuthNormalizeName((string) $input->post('name'));
+		$registerConsent = trim((string) $input->post('register_consent')) === '1';
 		$ip = skfoAuthClientIp();
 		$captchaToken = trim((string) $input->post('g-recaptcha-response'));
 		$now = time();
@@ -589,6 +590,10 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 
 		if ($mode === 'register' && $name === '') {
 			skfoAuthJson(false, 'Введите имя для регистрации.', [], 422);
+			return;
+		}
+		if ($mode === 'register' && !$registerConsent) {
+			skfoAuthJson(false, 'Подтвердите согласие на обработку персональных данных.', [], 422);
 			return;
 		}
 
@@ -713,6 +718,7 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 
 		$email = skfoAuthNormalizeEmail($sanitizer, (string) $input->post('email'));
 		$name = skfoAuthNormalizeName((string) $input->post('name'));
+		$registerConsent = trim((string) $input->post('register_consent')) === '1';
 		$code = preg_replace('/\D+/', '', (string) $input->post('code'));
 		$ip = skfoAuthClientIp();
 		$returnTo = skfoAuthSanitizeReturnTo((string) $input->post('return_to'), skfoAuthRequestPath());
@@ -723,6 +729,10 @@ if (!function_exists(__NAMESPACE__ . '\\skfoAuthEnsureTables')) {
 		}
 		if (!is_string($code) || strlen($code) !== 6) {
 			skfoAuthJson(false, 'Введите 6-значный код из письма.', [], 422);
+			return;
+		}
+		if ($mode === 'register' && !$registerConsent) {
+			skfoAuthJson(false, 'Подтвердите согласие на обработку персональных данных.', [], 422);
 			return;
 		}
 

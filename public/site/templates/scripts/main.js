@@ -1018,6 +1018,83 @@ const initHotelRoomsSearchControls = () => {
   syncUi();
 };
 
+const initBookingConsentModal = () => {
+  const modal = document.querySelector("#booking-consent-modal");
+  if (!(modal instanceof HTMLElement)) return;
+
+  const openButtons = Array.from(document.querySelectorAll("[data-hotel-offer-book]")).filter(
+    (button) => button instanceof HTMLButtonElement,
+  );
+  if (openButtons.length === 0) return;
+
+  const closeButtons = Array.from(modal.querySelectorAll("[data-booking-consent-close]"));
+  const backdrop = modal.querySelector(".auth-modal-backdrop");
+  const consentCheckbox = modal.querySelector("[data-booking-consent-checkbox]");
+  const confirmButton = modal.querySelector("[data-booking-consent-confirm]");
+  if (!(consentCheckbox instanceof HTMLInputElement) || !(confirmButton instanceof HTMLButtonElement)) return;
+
+  let activeTrigger = null;
+
+  const syncConfirmState = () => {
+    confirmButton.disabled = !consentCheckbox.checked;
+  };
+
+  const openModal = (trigger) => {
+    activeTrigger = trigger instanceof HTMLButtonElement ? trigger : null;
+    consentCheckbox.checked = false;
+    syncConfirmState();
+    modal.hidden = false;
+    window.requestAnimationFrame(() => {
+      modal.classList.add("is-open");
+      lockModalScroll();
+    });
+  };
+
+  const closeModal = () => {
+    modal.classList.remove("is-open");
+    window.setTimeout(() => {
+      if (!modal.classList.contains("is-open")) {
+        modal.hidden = true;
+      }
+      unlockModalScroll();
+    }, 160);
+  };
+
+  openButtons.forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      openModal(button);
+    });
+  });
+
+  consentCheckbox.addEventListener("change", syncConfirmState);
+  syncConfirmState();
+
+  confirmButton.addEventListener("click", () => {
+    if (!consentCheckbox.checked) {
+      syncConfirmState();
+      return;
+    }
+    closeModal();
+    if (activeTrigger instanceof HTMLButtonElement) {
+      activeTrigger.focus();
+    }
+  });
+
+  if (backdrop instanceof HTMLElement) {
+    backdrop.addEventListener("click", closeModal);
+  }
+  closeButtons.forEach((button) => {
+    button.addEventListener("click", closeModal);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (!modal.classList.contains("is-open")) return;
+    closeModal();
+  });
+};
+
 const initDateRangeFields = () => {
   const rangeInputs = Array.from(document.querySelectorAll("input[data-date-range-input]"));
   if (rangeInputs.length === 0) return;
@@ -1607,6 +1684,7 @@ const initAuthModal = () => {
     const mode = form.dataset.authForm === "register" ? "register" : "login";
     const emailInput = form.querySelector('input[name="email"]');
     const nameInput = form.querySelector('input[name="name"]');
+    const registerConsentInput = form.querySelector('input[name="register_consent"]');
     const codeInput = form.querySelector('input[name="code"]');
     const sendCodeBtn = form.querySelector("[data-auth-send-code]");
     const submitBtn = form.querySelector(".auth-submit-btn");
@@ -1622,7 +1700,12 @@ const initAuthModal = () => {
         email: emailInput.value.trim(),
       };
       if (mode === "register" && nameInput) {
+        if (!(registerConsentInput instanceof HTMLInputElement) || !registerConsentInput.checked) {
+          setMessage("Подтвердите согласие на обработку персональных данных.", "error");
+          return;
+        }
         payload.name = nameInput.value.trim();
+        payload.register_consent = "1";
       }
       if (reCaptchaEnabled) {
         const captchaToken = getCaptchaToken(form);
@@ -1660,7 +1743,12 @@ const initAuthModal = () => {
         return_to: returnTo,
       };
       if (mode === "register" && nameInput) {
+        if (!(registerConsentInput instanceof HTMLInputElement) || !registerConsentInput.checked) {
+          setMessage("Подтвердите согласие на обработку персональных данных.", "error");
+          return;
+        }
         payload.name = nameInput.value.trim();
+        payload.register_consent = "1";
       }
 
       setBusy(form, true);
@@ -4408,6 +4496,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initPeoplePicker();
   initHotelDateFields();
   initHotelRoomsSearchControls();
+  initBookingConsentModal();
   initDateRangeFields();
   initHeroCustomSelects();
   initWhereFieldAutoGrow();

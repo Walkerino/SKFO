@@ -184,6 +184,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$privacyUrl = (string) ($legalConfig['privacy_url'] ?? '/privacy/');
 	$termsTitle = (string) ($legalConfig['terms_title'] ?? 'Пользовательское соглашение');
 	$privacyTitle = (string) ($legalConfig['privacy_title'] ?? 'Политика обработки цифровых данных');
+	$registerConsentLabel = (string) ($legalConfig['register_consent_label'] ?? 'Я даю согласие на обработку моих персональных данных и принимаю условия:');
 	$footerDisclaimer = (string) ($legalConfig['demo_disclaimer'] ?? '');
 	$profileLegalNotice = (string) ($legalConfig['profile_notice'] ?? '');
 	$entrepreneur = isset($legalConfig['entrepreneur']) && is_array($legalConfig['entrepreneur']) ? $legalConfig['entrepreneur'] : [];
@@ -486,10 +487,10 @@ $home = $pages->get('/'); /** @var HomePage $home */
 					<div class="auth-pane" data-auth-pane="register">
 						<h2 class="auth-title">Регистрация</h2>
 						<p class="auth-subtitle">Создайте профиль за минуту</p>
-						<form class="auth-form" data-auth-form="register">
-							<label class="auth-field">
-								<input type="text" name="name" placeholder="Имя" autocomplete="name" required />
-							</label>
+							<form class="auth-form" data-auth-form="register">
+								<label class="auth-field">
+									<input type="text" name="name" placeholder="Имя" autocomplete="name" required />
+								</label>
 							<label class="auth-field">
 								<input type="email" name="email" placeholder="Email" autocomplete="email" required />
 								<button class="auth-code-btn" type="button" data-auth-send-code>получить код</button>
@@ -497,13 +498,20 @@ $home = $pages->get('/'); /** @var HomePage $home */
 							<label class="auth-field">
 								<input type="text" name="code" placeholder="Код из письма" autocomplete="one-time-code" inputmode="numeric" maxlength="6" required />
 							</label>
-							<?php if ($reCaptchaSiteKey !== ''): ?>
-								<div class="auth-captcha">
-									<div class="g-recaptcha" data-sitekey="<?php echo $sanitizer->entities($reCaptchaSiteKey); ?>"></div>
-								</div>
-							<?php endif; ?>
-							<button class="auth-submit-btn" type="submit">Регистрация</button>
-						</form>
+								<?php if ($reCaptchaSiteKey !== ''): ?>
+									<div class="auth-captcha">
+										<div class="g-recaptcha" data-sitekey="<?php echo $sanitizer->entities($reCaptchaSiteKey); ?>"></div>
+									</div>
+								<?php endif; ?>
+								<label class="auth-consent">
+									<input type="checkbox" name="register_consent" value="1" required data-auth-register-consent />
+									<span>
+										<?php echo $sanitizer->entities($registerConsentLabel); ?>
+										<a href="<?php echo $sanitizer->entities($privacyUrl); ?>"><?php echo $sanitizer->entities($privacyTitle); ?></a>.
+									</span>
+								</label>
+								<button class="auth-submit-btn" type="submit">Регистрация</button>
+							</form>
 						<?php if ($profileLegalNotice !== ''): ?>
 							<p class="auth-legal-note">
 								<?php echo $sanitizer->entities($profileLegalNotice); ?>

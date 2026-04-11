@@ -7477,6 +7477,31 @@ body.auth-modal-open {
   cursor: pointer;
 }
 
+.auth-submit-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.auth-consent {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  color: #5b677b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.auth-consent input {
+  margin: 2px 0 0;
+}
+
+.auth-consent a {
+  color: #1f52b2;
+  text-decoration: none;
+}
+
 .auth-switch-row {
   margin: 12px 0 0;
   text-align: center;
@@ -7526,6 +7551,44 @@ body.auth-modal-open {
 
 .contacts-modal-dialog {
   padding-bottom: 28px;
+}
+
+.booking-consent-dialog {
+  max-width: min(700px, calc(100vw - 24px));
+}
+
+.booking-legal-block {
+  margin-top: 8px;
+  border-radius: 14px;
+  padding: 14px;
+  background: #f4f7fc;
+  border: 1px solid #d9e1ef;
+}
+
+.booking-legal-title {
+  margin: 0 0 8px;
+  color: #102038;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.booking-legal-text {
+  margin: 0;
+  color: #425571;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.booking-legal-text + .booking-legal-text {
+  margin-top: 8px;
+}
+
+.booking-consent {
+  margin-top: 14px;
+}
+
+.booking-consent-actions {
+  margin-top: 10px;
 }
 
 .contacts-subtitle {
