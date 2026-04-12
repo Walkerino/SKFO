@@ -503,13 +503,13 @@ $home = $pages->get('/'); /** @var HomePage $home */
 										<div class="g-recaptcha" data-sitekey="<?php echo $sanitizer->entities($reCaptchaSiteKey); ?>"></div>
 									</div>
 								<?php endif; ?>
-								<label class="auth-consent">
-									<input type="checkbox" name="register_consent" value="1" required data-auth-register-consent />
-									<span>
-										<?php echo $sanitizer->entities($registerConsentLabel); ?>
-										<a href="<?php echo $sanitizer->entities($privacyUrl); ?>"><?php echo $sanitizer->entities($privacyTitle); ?></a>.
-									</span>
+							<div class="auth-consent">
+								<input id="register-consent-checkbox" type="checkbox" name="register_consent" value="1" required data-auth-register-consent />
+								<label class="auth-consent-label" for="register-consent-checkbox">
+									<?php echo $sanitizer->entities($registerConsentLabel); ?>
+									<a href="<?php echo $sanitizer->entities($privacyUrl); ?>"><?php echo $sanitizer->entities($privacyTitle); ?></a>.
 								</label>
+							</div>
 								<button class="auth-submit-btn" type="submit">Регистрация</button>
 							</form>
 						<?php if ($profileLegalNotice !== ''): ?>

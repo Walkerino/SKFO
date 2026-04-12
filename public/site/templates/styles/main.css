@@ -7494,7 +7494,19 @@ body.auth-modal-open {
 }
 
 .auth-consent input {
-  margin: 2px 0 0;
+  margin: 0;
+  width: 18px;
+  height: 18px;
+  align-self: start;
+  transform: translateY(2px);
+  accent-color: #1f52b2;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.auth-consent-label {
+  cursor: pointer;
 }
 
 .auth-consent a {

@@ -385,13 +385,16 @@ $countryCodeLabels = [
 
 $defaultHotelImage = $config->urls->templates . 'assets/image1.png';
 $defaultHotelGalleryAssets = [
-	'assets/hotels/default-hotel-1.jpg',
-	'assets/hotels/default-hotel-2.jpg',
-	'assets/hotels/default-hotel-3.jpg',
-	'assets/hotels/default-hotel-4.jpg',
-	'assets/hotels/default-hotel-5.jpg',
-	'assets/hotels/default-hotel-6.jpg',
-	'assets/hotels/default-hotel-7.jpg',
+	'assets/hotels/default-hotel-1.png',
+	'assets/hotels/default-hotel-2.png',
+	'assets/hotels/default-hotel-3.png',
+	'assets/hotels/default-hotel-4.png',
+	'assets/hotels/default-hotel-5.png',
+	'assets/hotels/default-hotel-6.png',
+	'assets/hotels/default-hotel-7.png',
+	'assets/hotels/default-hotel-8.png',
+	'assets/hotels/default-hotel-9.png',
+	'assets/hotels/default-hotel-10.png',
 ];
 $fallbackHotelGalleryAssets = [
 	'site/assets/files/1123/a3b0fbb001a56c7f212673120328947d9d32b65d.png',
