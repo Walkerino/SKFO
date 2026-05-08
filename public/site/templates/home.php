@@ -776,6 +776,14 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		</div>
 	</section>
 
+	<section class="section section--amirov-banner" aria-label="Амиров-тур">
+		<div class="container">
+			<div class="amirov-banner-card">
+				<img src="<?php echo $config->urls->templates; ?>assets/partners/amirov-tour-banner.png" alt="Амиров-тур. Забронировать отдых" />
+			</div>
+		</div>
+	</section>
+
 	<?php if ($isTourSearchSubmitted): ?>
 		<section class="section section--hotels-results section--home-tours-results">
 			<div class="container">
@@ -1092,6 +1100,19 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		</div>
 	</section>
 	<?php endif; ?>
+
+	<section class="section section--partners">
+		<div class="container">
+			<div class="partners-card">
+				<h2 class="partners-title">Партнёры</h2>
+				<p class="partners-text">
+					«Амиров Тур» является официальным партнёром проекта СКФО.ру.<br />
+					В рамках партнёрства мы объединяем усилия для развития качественного туризма в Республике Дагестан и помогаем путешественникам находить проверенные маршруты, авторские туры и надёжные решения для комфортного знакомства с регионом.
+				</p>
+				<img class="partners-logo" src="<?php echo $config->urls->templates; ?>assets/partners/amirov-tour-logo.png" alt="Амиров Тур" />
+			</div>
+		</div>
+	</section>
 
 	<section class="section section--journal">
 		<?php
