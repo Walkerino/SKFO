@@ -31,10 +31,12 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$isProfileRequest = $requestPath === '/profile' || $requestPath === '/profile/';
 	$isTermsRequest = $requestPath === '/terms' || $requestPath === '/terms/';
 	$isPrivacyRequest = $requestPath === '/privacy' || $requestPath === '/privacy/';
+	$isAmirovRequest = $requestPath === '/amirov-tour' || $requestPath === '/amirov-tour/';
 		$isContentAdminPage = false;
 		$isProfilePage = $page->name === 'profile' || $page->path === '/profile/' || $isProfileRequest;
 		$isTermsPage = $page->name === 'terms' || $page->path === '/terms/' || $isTermsRequest;
 		$isPrivacyPage = $page->name === 'privacy' || $page->path === '/privacy/' || $isPrivacyRequest;
+		$isAmirovPage = $page->name === 'amirov-tour' || $page->path === '/amirov-tour/' || $templateName === 'amirov-tour' || $isAmirovRequest;
 		$isLegalPage = $isTermsPage || $isPrivacyPage;
 		$isReviewsRequest = $requestPath === '/reviews' || $requestPath === '/reviews/';
 		$isHotelsRequest = preg_match('#^/hotels(?:/|$)#', (string) $requestPath) === 1;
@@ -47,7 +49,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$isHotelsCatalogPage = $templateName === 'hotels' || $page->path === '/hotels/' || $requestPath === '/hotels' || $requestPath === '/hotels/';
 	$isReviewsPage = $page->name === 'reviews' || $page->path === '/reviews/' || $isReviewsRequest;
 	$isGuidesPage = $page->name === 'guides' || $page->path === '/guides/' || in_array($templateName, ['guides', 'guide'], true) || $isGuidesRequest;
-	$isTourMobileHeaderPage = $isHotelsCatalogPage || $isReviewsPage;
+	$isTourMobileHeaderPage = $isHotelsCatalogPage || $isReviewsPage || $isAmirovPage;
 	$isRegionsPage = $page->name === 'regions' || $page->path === '/regions/' || in_array($templateName, ['regions', 'region'], true) || $isRegionsRequest;
 	$isPlacesPage = $page->name === 'places' || $page->path === '/places/' || in_array($templateName, ['places', 'place'], true) || $isPlacesRequest;
 	$isArticlesPage = $page->name === 'articles' || $page->path === '/articles/' || $isArticlesRequest;
@@ -68,7 +70,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		$isArticleDetailPath = preg_match('#^/articles/[^/]+/?$#', (string) $requestPath) === 1;
 		$isArticleDetailPage = $articleParam !== '' || $isArticleDetailPath;
 	}
-	$isSecondaryCompactHeaderPage = in_array($templateName, ['tour', 'hotel', 'region', 'place', 'guide'], true) || $isArticleDetailPage || $isPlaceDetailRequest || $isProfilePage || $isLegalPage;
+	$isSecondaryCompactHeaderPage = in_array($templateName, ['tour', 'hotel', 'region', 'place', 'guide'], true) || $isArticleDetailPage || $isPlaceDetailRequest || $isProfilePage || $isLegalPage || $isAmirovPage;
 	$normalizeHeadTitleKey = static function(string $value): string {
 		$value = trim($value);
 		$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
@@ -90,6 +92,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		'articles' => 'Статьи',
 		'article' => 'Статья',
 		'profile' => 'Профиль',
+		'amirov-tour' => 'Амиров Тур',
 	];
 	$headTitleOverrides = [
 		'home' => 'Главная',
@@ -107,6 +110,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 		'articles' => 'Статьи',
 		'article' => 'Статья',
 		'profile' => 'Профиль',
+		'amirov-tour' => 'Амиров Тур',
 	];
 	$pageTitleForHead = trim((string) $page->title);
 	$pageTitleKey = $normalizeHeadTitleKey($pageTitleForHead);
@@ -127,6 +131,9 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	}
 	if ($requestPath === '/articles' || $requestPath === '/articles/') {
 		$pageTitleForHead = 'Статьи';
+	}
+	if ($isAmirovPage) {
+		$pageTitleForHead = 'Амиров Тур';
 	}
 	if ($pageTitleForHead === '' && isset($headTitleByTemplate[$templateName])) {
 		$pageTitleForHead = $headTitleByTemplate[$templateName];
@@ -194,6 +201,7 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$bodyClassNames = [];
 	if ($isProfilePage) $bodyClassNames[] = 'page-profile';
 	if ($isLegalPage) $bodyClassNames[] = 'page-legal';
+	if ($isAmirovPage) $bodyClassNames[] = 'page-amirov-tour';
 	if ($isDemoMode) $bodyClassNames[] = 'is-demo-mode';
 	if ($templateName !== '') {
 		$templateClassName = preg_replace('/[^a-z0-9_-]+/i', '', $templateName) ?? '';

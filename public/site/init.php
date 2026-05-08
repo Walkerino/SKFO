@@ -132,6 +132,102 @@ $ensureBasicPage = static function(string $slug, string $title) use ($wire): voi
 	}
 };
 
+$ensureTemplatePage = static function(string $templateName, string $label, string $fieldgroupName, string $slug, string $title) use ($wire): void {
+	$templateName = trim($templateName);
+	$label = trim($label);
+	$fieldgroupName = trim($fieldgroupName);
+	$slug = trim($slug, '/');
+	$title = trim($title);
+	if ($templateName === '' || $fieldgroupName === '' || $slug === '' || $title === '') return;
+
+	$templates = $wire->templates;
+	$fieldgroups = $wire->fieldgroups;
+	$fields = $wire->fields;
+	$pages = $wire->pages;
+	$users = $wire->users;
+	$homePage = $pages->get('/');
+	if (!$homePage instanceof Page || !$homePage->id) return;
+
+	$originalUser = $wire->user;
+	$superuser = $users->get('roles=superuser, limit=1');
+	if ($superuser instanceof User && $superuser->id) {
+		$users->setCurrentUser($superuser);
+	}
+
+	try {
+		$fieldgroup = $fieldgroups->get($fieldgroupName);
+		if (!$fieldgroup instanceof Fieldgroup || !$fieldgroup->id) {
+			$fieldgroup = new Fieldgroup();
+			$fieldgroup->name = $fieldgroupName;
+			$fieldgroups->save($fieldgroup);
+		}
+
+		$titleField = $fields->get('title');
+		if ($titleField instanceof Field && $titleField->id && !$fieldgroup->has($titleField)) {
+			$fieldgroup->add($titleField);
+			$fieldgroups->save($fieldgroup);
+		}
+
+		$template = $templates->get($templateName);
+		if (!$template instanceof Template || !$template->id) {
+			$template = new Template();
+			$template->name = $templateName;
+			$template->label = $label !== '' ? $label : $title;
+			$template->fieldgroup = $fieldgroup;
+			$template->set('noChildren', 1);
+			$template->set('noGlobal', 0);
+			$templates->save($template);
+			$template = $templates->get($templateName);
+		}
+
+		if (!$template instanceof Template || !$template->id) return;
+		if ($titleField instanceof Field && $titleField->id && $template->fieldgroup instanceof Fieldgroup && !$template->fieldgroup->has($titleField)) {
+			$template->fieldgroup->add($titleField);
+			$template->fieldgroup->save();
+		}
+
+		$pagePath = '/' . $slug . '/';
+		$page = $pages->get('include=all, status<8192, path=' . $pagePath);
+		$isNewPage = !$page instanceof Page || !$page->id;
+		if ($isNewPage) {
+			$page = new Page();
+			$page->parent = $homePage;
+			$page->name = $slug;
+		}
+
+		if ($page instanceof Page) {
+			$changed = $isNewPage;
+			if (!$page->template instanceof Template || $page->template->name !== $templateName) {
+				$page->template = $template;
+				$changed = true;
+			}
+			if (trim((string) $page->title) !== $title) {
+				$page->title = $title;
+				$changed = true;
+			}
+			if ((int) $page->status & Page::statusUnpublished) {
+				$page->removeStatus(Page::statusUnpublished);
+				$changed = true;
+			}
+			if ((int) $page->status & Page::statusHidden) {
+				$page->removeStatus(Page::statusHidden);
+				$changed = true;
+			}
+			if ($changed) {
+				$page->save();
+			}
+		}
+	} catch (\Throwable $e) {
+		// Keep request flow untouched.
+	} finally {
+		if ($originalUser instanceof User && $originalUser->id) {
+			$users->setCurrentUser($originalUser);
+		}
+	}
+};
+
+$ensureTemplatePage('amirov-tour', 'Амиров Тур', 'partner_amirov_tour', 'amirov-tour', 'Амиров Тур');
+
 if ($requestPath === '/region' || $requestPath === '/region/') {
 	$query = isset($_SERVER['QUERY_STRING']) && $_SERVER['QUERY_STRING'] !== '' ? '?' . (string) $_SERVER['QUERY_STRING'] : '';
 	$wire->session->redirect('/regions/' . $query, true);

@@ -6718,6 +6718,301 @@ a.actual-card:hover {
   margin-top: 26px;
 }
 
+.amirov-page {
+  min-height: 100vh;
+  background: #ebebeb;
+  color: #111827;
+  overflow-wrap: break-word;
+}
+
+.amirov-hero {
+  position: relative;
+  padding: 132px 0 54px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.amirov-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("../assets/patterns/hero-pattern.svg") center / 1000px repeat;
+  opacity: 0.08;
+  pointer-events: none;
+}
+
+.amirov-hero-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(360px, 1.05fr);
+  align-items: center;
+  gap: 34px;
+}
+
+.amirov-hero-copy {
+  min-width: 0;
+}
+
+.amirov-label,
+.amirov-section-kicker {
+  margin: 0;
+  color: #ef560f;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.amirov-hero-logo {
+  width: 92px;
+  height: auto;
+  margin: 18px 0 20px;
+}
+
+.amirov-title {
+  margin: 0;
+  max-width: 620px;
+  color: #101827;
+  font-family: "Ruberoid", "Inter", "Arial", sans-serif;
+  font-size: clamp(42px, 5vw, 72px);
+  font-weight: 700;
+  line-height: 0.98;
+}
+
+.amirov-mobile-break {
+  display: none;
+}
+
+.amirov-lead {
+  margin: 22px 0 0;
+  max-width: 610px;
+  color: #374151;
+  font-size: 20px;
+  line-height: 1.45;
+}
+
+.amirov-actions {
+  margin-top: 28px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.amirov-primary-btn,
+.amirov-secondary-btn,
+.amirov-site-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease, border-color 180ms ease;
+}
+
+.amirov-primary-btn,
+.amirov-site-link {
+  background: linear-gradient(90deg, #ff9a0c 0%, #ef560f 100%);
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(239, 86, 15, 0.22);
+}
+
+.amirov-secondary-btn {
+  border: 1.5px solid #cfd6e6;
+  background: #ffffff;
+  color: #1f52b2;
+}
+
+.amirov-primary-btn:hover,
+.amirov-secondary-btn:hover,
+.amirov-site-link:hover,
+.amirov-primary-btn:focus-visible,
+.amirov-secondary-btn:focus-visible,
+.amirov-site-link:focus-visible {
+  transform: translateY(-2px);
+}
+
+.amirov-primary-btn:hover,
+.amirov-site-link:hover,
+.amirov-primary-btn:focus-visible,
+.amirov-site-link:focus-visible {
+  filter: brightness(1.04);
+  box-shadow: 0 14px 28px rgba(239, 86, 15, 0.28);
+}
+
+.amirov-secondary-btn:hover,
+.amirov-secondary-btn:focus-visible {
+  border-color: #9db7ea;
+  box-shadow: 0 10px 22px rgba(31, 82, 178, 0.14);
+}
+
+.amirov-hero-media {
+  overflow: hidden;
+  border-radius: 28px;
+  background: #f97316;
+  box-shadow: 0 18px 44px rgba(20, 35, 62, 0.16);
+}
+
+.amirov-hero-media img {
+  width: 100%;
+  height: clamp(280px, 31vw, 420px);
+  object-fit: cover;
+  object-position: left center;
+}
+
+.amirov-section {
+  padding: 54px 0;
+}
+
+.amirov-section--details {
+  padding-top: 8px;
+  padding-bottom: 74px;
+}
+
+.amirov-section-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.amirov-section-title {
+  margin: 8px 0 0;
+  color: #101827;
+  font-family: "Ruberoid", "Inter", "Arial", sans-serif;
+  font-size: clamp(34px, 3.6vw, 52px);
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.amirov-directions-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.amirov-direction-card {
+  min-height: 188px;
+  border-radius: 18px;
+  background: #ffffff;
+  padding: 22px;
+  box-shadow: 0 5px 20px rgba(16, 37, 89, 0.08);
+}
+
+.amirov-direction-card h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.amirov-direction-card p {
+  margin: 12px 0 0;
+  color: #4b5563;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.amirov-details-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 18px;
+  align-items: stretch;
+}
+
+.amirov-details-card,
+.amirov-contact-card {
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 5px 20px rgba(16, 37, 89, 0.08);
+}
+
+.amirov-details-card {
+  padding: 34px;
+}
+
+.amirov-details-text {
+  margin: 18px 0 0;
+  max-width: 760px;
+  color: #374151;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.amirov-facts-list {
+  margin: 24px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  list-style: none;
+}
+
+.amirov-facts-list li {
+  position: relative;
+  min-height: 72px;
+  border-radius: 14px;
+  background: #f4f7fb;
+  padding: 16px 16px 16px 42px;
+  color: #253044;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.amirov-facts-list li::before {
+  content: "";
+  position: absolute;
+  top: 20px;
+  left: 18px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #1f52b2;
+}
+
+.amirov-contact-card {
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.amirov-contact-logo {
+  width: 72px;
+  height: auto;
+}
+
+.amirov-contact-card h2 {
+  margin: 24px 0 0;
+  color: #101827;
+  font-size: 28px;
+  line-height: 1.08;
+}
+
+.amirov-contact-list {
+  margin-top: 22px;
+  display: grid;
+  gap: 12px;
+  color: #374151;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.amirov-contact-list a {
+  color: #1f52b2;
+  font-weight: 700;
+}
+
+.amirov-site-link {
+  width: 100%;
+  margin-top: auto;
+}
+
 .journal-card {
   background: linear-gradient(92.98deg, #1F52B2 1.73%, #467BDE 94.88%);
   border-radius: 32px;
@@ -11720,5 +12015,129 @@ body.auth-modal-open {
   .basic-page-body,
   .basic-page-legal p {
     font-size: 15px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .amirov-hero-grid,
+  .amirov-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .amirov-directions-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .amirov-site-link {
+    margin-top: 28px;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-amirov-tour .tour-header {
+    background: linear-gradient(135deg, var(--blue-900), var(--blue-700));
+  }
+
+  .amirov-hero {
+    padding: 104px 0 36px;
+  }
+
+  .amirov-hero-grid {
+    gap: 24px;
+  }
+
+  .amirov-hero-logo {
+    width: 74px;
+    margin: 14px 0 16px;
+  }
+
+  .amirov-title {
+    font-size: clamp(30px, 8vw, 34px);
+    line-height: 1.08;
+  }
+
+  .amirov-mobile-break {
+    display: inline;
+  }
+
+  .amirov-lead {
+    font-size: 15px;
+  }
+
+  .amirov-actions,
+  .amirov-primary-btn,
+  .amirov-secondary-btn {
+    width: 100%;
+  }
+
+  .amirov-hero-media {
+    border-radius: 22px;
+  }
+
+  .amirov-hero-media img {
+    height: clamp(152px, 47vw, 190px);
+    object-fit: contain;
+    object-position: center;
+  }
+
+  .amirov-section {
+    padding: 38px 0;
+  }
+
+  .amirov-section--details {
+    padding-top: 0;
+    padding-bottom: 52px;
+  }
+
+  .amirov-section-head {
+    display: block;
+    margin-bottom: 18px;
+  }
+
+  .amirov-section-title {
+    font-size: clamp(30px, 8vw, 38px);
+  }
+
+  .amirov-directions-grid,
+  .amirov-facts-list {
+    grid-template-columns: 1fr;
+  }
+
+  .amirov-direction-card,
+  .amirov-details-card,
+  .amirov-contact-card {
+    border-radius: 18px;
+  }
+
+  .amirov-direction-card {
+    min-height: 0;
+    padding: 18px;
+  }
+
+  .amirov-direction-card h3 {
+    font-size: 20px;
+  }
+
+  .amirov-direction-card p {
+    font-size: 15px;
+  }
+
+  .amirov-details-card,
+  .amirov-contact-card {
+    padding: 22px;
+  }
+
+  .amirov-details-text {
+    font-size: 16px;
+  }
+
+  .amirov-contact-card h2 {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-amirov-tour .container {
+    width: min(358px, calc(100% - 32px));
   }
 }
