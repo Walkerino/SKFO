@@ -1997,3 +1997,5 @@ $ensureLegalPage = static function(string $path, string $title) use ($pages, $te
 
 $ensureLegalPage((string) ($legalConfig['terms_url'] ?? '/terms/'), (string) ($legalConfig['terms_title'] ?? 'Пользовательское соглашение'));
 $ensureLegalPage((string) ($legalConfig['privacy_url'] ?? '/privacy/'), (string) ($legalConfig['privacy_title'] ?? 'Политика обработки цифровых данных'));
+
+require_once __DIR__ . '/seed_test_tour.php';
