@@ -15,11 +15,21 @@ $skfoSeedTestTour = static function(ProcessWire $wire): void {
 	$users = $wire->users;
 	$log = $wire->log;
 
-	$page = $pages->get('include=all, path=/tour/chetyrekhdnevnyi-tur-po-dagestanu/');
-	if(!$page instanceof Page || !$page->id) {
+	$pageSlug = 'chetyrekhdnevnyi-tur-po-dagestanu';
+	$page = $pages->get('include=all, path=/tour/' . $pageSlug . '/');
+	if((!$page instanceof Page || !$page->id) && $wire->config->debug) {
 		$page = $pages->get('include=all, template=tour, id=1586');
 	}
-	if(!$page instanceof Page || !$page->id || !$page->template || $page->template->name !== 'tour') return;
+
+	$tourTemplate = $wire->templates->get('tour');
+	$tourParent = $pages->get('include=all, path=/tour/');
+	if((!$page instanceof Page || !$page->id) && $tourTemplate instanceof Template && $tourTemplate->id && $tourParent instanceof Page && $tourParent->id) {
+		$page = new Page();
+		$page->template = $tourTemplate;
+		$page->parent = $tourParent;
+		$page->name = $pageSlug;
+	}
+	if(!$page instanceof Page || (!$page->id && !($page->parent instanceof Page)) || !$page->template || $page->template->name !== 'tour') return;
 
 	$currentDisclaimer = $page->hasField('tour_disclaimer') ? (string) $page->getUnformatted('tour_disclaimer') : '';
 	if(strpos($currentDisclaimer, $seedVersion) !== false) return;
@@ -105,7 +115,10 @@ $skfoSeedTestTour = static function(ProcessWire $wire): void {
 		]));
 		$setOptionByValue($page, 'tour_difficulty_level', 'medium');
 		$setOptionByValue($page, 'tour_emotion_level', 'unforgettable');
-		$setText($page, 'guide', 1896);
+		$guidePage = $pages->get('include=all, path=/guides/seed26-guide-04/');
+		if($guidePage instanceof Page && $guidePage->id) {
+			$setText($page, 'guide', $guidePage);
+		}
 		$setText($page, 'tour_type', 'Экскурсионный тур, джиппинг, легкий треккинг');
 		$setText($page, 'tour_format', 'Сборная группа или индивидуально');
 		$setText($page, 'tour_language', 'Русский');
