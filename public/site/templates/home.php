@@ -908,7 +908,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		<?php if (count($hotToursCards)): ?>
 			<div class="container-hot-tours">
 				<div class="hot-tours-header">
-					<h2 class="section-title">Планы на долгожданную весну</h2>
+					<h2 class="section-title">Планы на долгожданное лето</h2>
 					<div class="hot-tours-actions">
 						<button class="circle-btn circle-btn--prev hot-tours-prev" type="button" aria-label="Предыдущие маршруты"></button>
 						<button class="circle-btn circle-btn--next hot-tours-next" type="button" aria-label="Следующие маршруты"></button>
