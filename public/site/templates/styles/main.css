@@ -8697,19 +8697,37 @@ body.auth-modal-open {
     grid-template-columns: 1fr;
   }
 
+  .tour-page:not(.hotel-page) .tour-hero-layout {
+    grid-template-columns: 1fr;
+    width: 100%;
+    overflow: hidden;
+  }
+
   .hotel-page .tour-hero-media,
   .tour-page:not(.hotel-page) .tour-hero-media {
     max-width: 100%;
+    justify-self: stretch;
+    min-width: 0;
   }
 
   .tour-title {
+    margin: 0 0 12px;
     font-size: 30px;
-    margin-bottom: 12px;
+    line-height: 1.12;
   }
 
+  .tour-description {
+    margin: 0;
+    max-width: none;
+    font-size: 16px;
+    line-height: 1.45;
+    font-weight: 400;
+  }
 
   .tour-hero-main {
     padding: 0;
+    width: 100%;
+    min-width: 0;
   }
 
   .tour-badge {
@@ -8718,6 +8736,24 @@ body.auth-modal-open {
     font-size: 14px;
     margin-top: 60px;
     margin-left: 0;
+  }
+
+  .tour-page:not(.hotel-page) .tour-badge {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
+    max-width: calc(100% - 32px);
+    margin: 10px 0 0;
+    justify-content: center;
+    font-size: 14px;
+    white-space: normal;
+  }
+
+  .tour-page:not(.hotel-page) .tour-badge span {
+    padding-top: 0;
+    text-align: center;
   }
 
   .hotel-page .tour-badge {
@@ -9002,6 +9038,19 @@ body.auth-modal-open {
     width: 100%;
     margin-left: 0;
     justify-content: stretch;
+  }
+
+  .tour-page:not(.hotel-page) .hotel-hero-gallery .hotel-hero-gallery-strip {
+    width: 100%;
+    margin-left: 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    justify-content: stretch;
+  }
+
+  .tour-page:not(.hotel-page) .hotel-hero-gallery {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .hotel-media-item--primary {
