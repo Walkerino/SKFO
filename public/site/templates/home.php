@@ -776,10 +776,10 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		</div>
 	</section>
 
-	<section class="section section--amirov-banner" aria-label="Амиров-тур">
+	<section class="section section--amirov-banner" aria-label="ЭтноМир Кавказа">
 		<div class="container">
 			<div class="amirov-banner-card">
-				<img src="<?php echo $config->urls->templates; ?>assets/partners/amirov-tour-banner.png" alt="Амиров-тур. Забронировать отдых" />
+				<img src="<?php echo $config->urls->templates; ?>assets/partners/ethnomir-kavkaza-banner.png" alt="ЭтноМир Кавказа. Забронировать отдых" />
 			</div>
 		</div>
 	</section>
@@ -1106,10 +1106,13 @@ $forumExternalUrl = 'https://club.skfo.ru';
 			<div class="partners-card">
 				<h2 class="partners-title">Партнёры</h2>
 				<p class="partners-text">
-					«Амиров Тур» является официальным партнёром проекта СКФО.ру.<br />
-					В рамках партнёрства мы объединяем усилия для развития качественного туризма в Республике Дагестан и помогаем путешественникам находить проверенные маршруты, авторские туры и надёжные решения для комфортного знакомства с регионом.
+					«Амиров Тур» и «ЭтноМир Кавказа» являются официальными партнёрами проекта СКФО.ру.<br />
+					В рамках партнёрства мы объединяем усилия для развития качественного туризма на Северном Кавказе и помогаем путешественникам находить проверенные маршруты, авторские туры и надёжные решения для комфортного знакомства с регионом.
 				</p>
-				<img class="partners-logo" src="<?php echo $config->urls->templates; ?>assets/partners/amirov-tour-logo.png" alt="Амиров Тур" />
+				<div class="partners-logos" aria-label="Логотипы партнёров">
+					<img class="partners-logo" src="<?php echo $config->urls->templates; ?>assets/partners/amirov-tour-logo.png" alt="Амиров Тур" />
+					<img class="partners-logo" src="<?php echo $config->urls->templates; ?>assets/partners/ethnomir-kavkaza-logo.svg" alt="ЭтноМир Кавказа" />
+				</div>
 			</div>
 		</div>
 	</section>

@@ -1999,3 +1999,4 @@ $ensureLegalPage((string) ($legalConfig['terms_url'] ?? '/terms/'), (string) ($l
 $ensureLegalPage((string) ($legalConfig['privacy_url'] ?? '/privacy/'), (string) ($legalConfig['privacy_title'] ?? 'Политика обработки цифровых данных'));
 
 require_once __DIR__ . '/seed_test_tour.php';
+require_once __DIR__ . '/seed_group_tours.php';
