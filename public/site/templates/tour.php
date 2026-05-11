@@ -5,6 +5,11 @@ require_once __DIR__ . '/_reviews_moderation.php';
 $legalConfig = isset($skfoLegalConfig) && is_array($skfoLegalConfig) ? $skfoLegalConfig : skfoLegalConfig();
 $isDemoMode = !empty($legalConfig['is_demo_mode']);
 $commercialNotice = (string) ($legalConfig['commercial_notice'] ?? '');
+$tourOperator = isset($legalConfig['tour_operator']) && is_array($legalConfig['tour_operator']) ? $legalConfig['tour_operator'] : [];
+$tourOperatorName = trim((string) ($tourOperator['name'] ?? ''));
+$tourOperatorRegistryNumber = trim((string) ($tourOperator['registry_number'] ?? ''));
+$tourOperatorLegalAddress = trim((string) ($tourOperator['legal_address'] ?? ''));
+$tourOperatorLabel = trim($tourOperatorName . ($tourOperatorRegistryNumber !== '' ? ', ' . $tourOperatorRegistryNumber : ''));
 
 $toLower = static function(string $value): string {
 	$value = trim($value);
@@ -406,6 +411,9 @@ $tourDetailRows = [
 				<div class="tour-hero-layout<?php echo $heroCompactClass; ?>">
 						<div class="tour-hero-main">
 							<h1 class="tour-title"><?php echo $sanitizer->entities($tourTitle); ?></h1>
+							<?php if ($tourOperatorLabel !== ''): ?>
+								<p class="tour-operator-note"><?php echo $sanitizer->entities('Туроператор: ' . $tourOperatorLabel); ?></p>
+							<?php endif; ?>
 							<p class="tour-description"><?php echo nl2br($sanitizer->entities($tourDescription)); ?></p>
 						</div>
 						<div class="tour-hero-media">
@@ -559,6 +567,9 @@ $tourDetailRows = [
 					</div>
 					<?php if ($isDemoMode && $commercialNotice !== ''): ?>
 						<p class="tour-booking-note"><?php echo $sanitizer->entities($commercialNotice); ?></p>
+					<?php endif; ?>
+					<?php if ($tourOperatorLegalAddress !== ''): ?>
+						<p class="tour-operator-address"><?php echo $sanitizer->entities('Юридический адрес туроператора: ' . $tourOperatorLegalAddress); ?></p>
 					<?php endif; ?>
 					
 				</div>

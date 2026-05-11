@@ -8,6 +8,12 @@
 // See the Markup Regions documentation:
 // https://processwire.com/docs/front-end/output/markup-regions/
 
+$legalConfig = isset($skfoLegalConfig) && is_array($skfoLegalConfig) ? $skfoLegalConfig : skfoLegalConfig();
+$tourOperator = isset($legalConfig['tour_operator']) && is_array($legalConfig['tour_operator']) ? $legalConfig['tour_operator'] : [];
+$tourOperatorName = trim((string) ($tourOperator['name'] ?? ''));
+$tourOperatorRegistryNumber = trim((string) ($tourOperator['registry_number'] ?? ''));
+$tourOperatorLabel = trim($tourOperatorName . ($tourOperatorRegistryNumber !== '' ? ', ' . $tourOperatorRegistryNumber : ''));
+
 $normalizeRegionOption = static function(string $value): string {
 	$value = trim(str_replace(["\r", "\n"], ' ', $value));
 	$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
@@ -780,6 +786,9 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		<div class="container">
 			<div class="amirov-banner-card">
 				<img src="<?php echo $config->urls->templates; ?>assets/partners/ethnomir-kavkaza-banner.png" alt="ЭтноМир Кавказа. Забронировать отдых" />
+				<?php if ($tourOperatorLabel !== ''): ?>
+					<span class="amirov-banner-rto"><?php echo $sanitizer->entities($tourOperatorLabel); ?></span>
+				<?php endif; ?>
 			</div>
 		</div>
 	</section>
@@ -806,6 +815,9 @@ $forumExternalUrl = 'https://club.skfo.ru';
 									<?php endif; ?> -->
 								</div>
 								<h2 class="hotel-card-title"><?php echo $sanitizer->entities((string) ($tour['title'] ?? '')); ?></h2>
+								<?php if ($tourOperatorLabel !== ''): ?>
+									<p class="tour-operator-note tour-operator-note--card"><?php echo $sanitizer->entities('Туроператор: ' . $tourOperatorLabel); ?></p>
+								<?php endif; ?>
 								<p class="hotel-card-location"><?php echo $sanitizer->entities($tourRegion); ?></p>
 								<ul class="hotel-card-amenities" aria-label="Параметры маршрута">
 									<?php if ($tourDuration !== ''): ?>
@@ -934,6 +946,9 @@ $forumExternalUrl = 'https://club.skfo.ru';
 									<div class="hot-tour-image"<?php echo $backgroundStyle; ?>></div>
 									<div class="hot-tour-body">
 										<h3 class="hot-tour-title"><?php echo $sanitizer->entities($card['title']); ?></h3>
+										<?php if ($tourOperatorLabel !== ''): ?>
+											<div class="hot-tour-operator-note"><?php echo $sanitizer->entities('Туроператор: ' . $tourOperatorLabel); ?></div>
+										<?php endif; ?>
 										<div class="hot-tour-region"><?php echo $sanitizer->entities($card['region']); ?></div>
 										<div class="hot-tour-footer">
 											<span class="hot-tour-price"><?php echo $sanitizer->entities($card['price']); ?></span>

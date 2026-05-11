@@ -36,6 +36,12 @@ if (!function_exists(__NAMESPACE__ . '\\skfoLegalConfig')) {
 				'skfo.ru выступает исключительно как посредник (агент) и не является стороной договора на оказание услуг размещения.',
 				'Договор на проживание заключается непосредственно между гостем и средством размещения.',
 			],
+			'tour_operator' => [
+				'name' => $env('SKFO_TOUR_OPERATOR_NAME', 'ООО "Этномир Кавказа"'),
+				'registry_number' => $env('SKFO_TOUR_OPERATOR_REGISTRY_NUMBER', 'РТО 021624'),
+				'legal_address' => $env('SKFO_TOUR_OPERATOR_LEGAL_ADDRESS', '367027, г. Махачкала, ул. 5-я линия Акушинского, д. 19, эт. 2, пом. 11'),
+				'registry_url' => $env('SKFO_TOUR_OPERATOR_REGISTRY_URL', 'https://reestrinform.ru/reestr-turoperatorov/region-5/ogrn-1190571008396.html'),
+			],
 			'entrepreneur' => [
 				'name' => $env('SKFO_LEGAL_ENTREPRENEUR_NAME', 'ФИО предпринимателя будет добавлено'),
 				'inn' => $env('SKFO_LEGAL_ENTREPRENEUR_INN', 'будет добавлен'),

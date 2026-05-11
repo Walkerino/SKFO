@@ -198,6 +198,11 @@ $home = $pages->get('/'); /** @var HomePage $home */
 	$entrepreneurName = trim((string) ($entrepreneur['name'] ?? ''));
 	$entrepreneurInn = trim((string) ($entrepreneur['inn'] ?? ''));
 	$entrepreneurOgrnip = trim((string) ($entrepreneur['ogrnip'] ?? ''));
+	$tourOperator = isset($legalConfig['tour_operator']) && is_array($legalConfig['tour_operator']) ? $legalConfig['tour_operator'] : [];
+	$tourOperatorName = trim((string) ($tourOperator['name'] ?? ''));
+	$tourOperatorRegistryNumber = trim((string) ($tourOperator['registry_number'] ?? ''));
+	$tourOperatorLegalAddress = trim((string) ($tourOperator['legal_address'] ?? ''));
+	$tourOperatorRegistryUrl = trim((string) ($tourOperator['registry_url'] ?? ''));
 	$bodyClassNames = [];
 	if ($isProfilePage) $bodyClassNames[] = 'page-profile';
 	if ($isLegalPage) $bodyClassNames[] = 'page-legal';
@@ -454,6 +459,21 @@ $home = $pages->get('/'); /** @var HomePage $home */
 						<span><?php echo $sanitizer->entities('ИНН: ' . ($entrepreneurInn !== '' ? $entrepreneurInn : 'будет добавлен')); ?></span>
 						<span><?php echo $sanitizer->entities('ОГРНИП: ' . ($entrepreneurOgrnip !== '' ? $entrepreneurOgrnip : 'будет добавлен')); ?></span>
 					</div>
+					<?php if ($tourOperatorName !== '' || $tourOperatorRegistryNumber !== '' || $tourOperatorLegalAddress !== ''): ?>
+						<div class="footer-legal-entity footer-legal-operator" aria-label="Реквизиты туроператора">
+							<?php if ($tourOperatorName !== '' || $tourOperatorRegistryNumber !== ''): ?>
+								<span>
+									<?php echo $sanitizer->entities('Туроператор: ' . trim($tourOperatorName . ($tourOperatorRegistryNumber !== '' ? ', ' . $tourOperatorRegistryNumber : ''))); ?>
+									<?php if ($tourOperatorRegistryUrl !== ''): ?>
+										<a href="<?php echo $sanitizer->entities($tourOperatorRegistryUrl); ?>" target="_blank" rel="noopener noreferrer">реестр</a>
+									<?php endif; ?>
+								</span>
+							<?php endif; ?>
+							<?php if ($tourOperatorLegalAddress !== ''): ?>
+								<span><?php echo $sanitizer->entities('Юридический адрес: ' . $tourOperatorLegalAddress); ?></span>
+							<?php endif; ?>
+						</div>
+					<?php endif; ?>
 				</div>
 				</div>
 			</footer>

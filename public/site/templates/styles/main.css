@@ -675,6 +675,17 @@ button {
   overflow-wrap: anywhere;
 }
 
+.tour-operator-note {
+  margin: -8px 10px 18px;
+  max-width: 520px;
+  color: #5b6472;
+  font-family: "Inter", "Arial", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .tour-description {
   margin: 10px;
   color: #525252;
@@ -1124,6 +1135,14 @@ button {
   color: #6f7787;
   font-size: 12px;
   line-height: 1.35;
+}
+
+.tour-operator-address {
+  margin: 8px 0 0;
+  color: #6f7787;
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .tour-guide-trust {
@@ -4839,6 +4858,16 @@ h6,
 
 }
 
+.tour-operator-note--card {
+  margin: 8px auto 0;
+  max-width: 240px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+}
+
 .hotel-card-amenities {
   margin: 16px 0 0;
   padding: 0;
@@ -5252,6 +5281,7 @@ h6,
 }
 
 .amirov-banner-card {
+  position: relative;
   overflow: hidden;
   border-radius: 32px;
   background: #f97316;
@@ -5262,6 +5292,22 @@ h6,
   height: clamp(220px, 29.6vw, 339px);
   object-fit: cover;
   object-position: left center;
+}
+
+.amirov-banner-rto {
+  position: absolute;
+  left: clamp(22px, 4.9vw, 56px);
+  bottom: clamp(14px, 2.1vw, 24px);
+  z-index: 2;
+  max-width: min(430px, calc(100% - 44px));
+  color: rgba(255, 255, 255, 0.48);
+  font-family: "Inter", "Arial", sans-serif;
+  font-size: clamp(9px, 1vw, 12px);
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: 0;
+  pointer-events: none;
+  overflow-wrap: anywhere;
 }
 
 .section--places {
@@ -7318,6 +7364,20 @@ a.hot-tour-card:hover {
   color: #6b7280;
 }
 
+.hot-tour-operator-note {
+  margin-top: 4px;
+  color: #6b7280;
+  font-family: "Inter", sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
 .hot-tour-footer {
   margin-top: auto;
   padding-top: 4px;
@@ -7681,6 +7741,11 @@ a.hot-tour-card:hover {
   font-family: "Inter", "Arial", sans-serif;
   font-size: 14px;
   line-height: 1.45;
+}
+
+.footer-legal-operator a {
+  color: #1f52b2;
+  text-decoration: none;
 }
 
 body.auth-modal-open {
@@ -9957,6 +10022,14 @@ body.auth-modal-open {
   .amirov-banner-card img {
     height: clamp(164px, 48vw, 220px);
     object-position: left center;
+  }
+
+  .amirov-banner-rto {
+    left: 18px;
+    bottom: 10px;
+    max-width: min(245px, calc(100% - 36px));
+    color: rgba(255, 255, 255, 0.42);
+    font-size: 9px;
   }
 
   .section--partners {
