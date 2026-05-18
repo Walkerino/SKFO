@@ -698,8 +698,8 @@ $forumExternalUrl = 'https://club.skfo.ru';
 	<section class="hero">
 		<div class="container hero-inner">
 			<h1 class="hero-title">
-				ТВОЙ КАВКАЗ<br />
-				НАЧИНАЕТСЯ ЗДЕСЬ
+				Отдых на Кавказе<br />
+				начинается здесь
 			</h1>
 			<div class="hero-tabs" aria-label="Разделы">
 				<div class="hero-tabs-group" role="tablist">
@@ -707,7 +707,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					<span class="tab-hover" aria-hidden="true"></span>
 					<a class="hero-tab is-active" href="/" role="tab" aria-selected="true">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
-						<span class="hero-tab-text">Поездки</span>
+						<span class="hero-tab-text">Туры</span>
 					</a>
 					<a class="hero-tab" href="/hotels/" role="tab" aria-selected="false">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/hotel.svg" alt="" aria-hidden="true" />
