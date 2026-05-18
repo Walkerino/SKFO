@@ -1807,7 +1807,7 @@ if($regionsPage && $regionsPage->id && $regionDetailTemplate && $regionDetailTem
 								'is_fresh' => 0,
 							],
 							[
-								'title' => "Что взять с собой в поездку по {$title}",
+								'title' => "Что взять с собой в тур по {$title}",
 								'topic' => 'Полезные подборки',
 								'date' => strtotime('2025-12-08'),
 								'is_fresh' => 0,

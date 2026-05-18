@@ -680,7 +680,7 @@ $totalFilteredPlaces = count($filteredPlaces);
 					<span class="tab-hover" aria-hidden="true"></span>
 					<a class="hero-tab" href="/" role="tab" aria-selected="false">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
-						<span class="hero-tab-text">Поездки</span>
+						<span class="hero-tab-text">Туры</span>
 					</a>
 					<a class="hero-tab" href="/hotels/" role="tab" aria-selected="false">
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/hotel.svg" alt="" aria-hidden="true" />

@@ -756,9 +756,9 @@ $forumExternalUrl = 'https://club.skfo.ru';
 						<img src="<?php echo $config->urls->templates; ?>assets/icons/where.svg" alt="" aria-hidden="true" />
 					</label>
 					<label class="hero-field<?php echo $tourTypeFieldClass; ?>">
-						<span class="sr-only">Формат поездки</span>
+						<span class="sr-only">Формат тура</span>
 						<select name="tour_type" data-hero-custom-select>
-							<option value="">Формат поездки</option>
+							<option value="">Формат тура</option>
 							<?php foreach ($tourTypeOptions as $tourTypeKey => $tourTypeLabel): ?>
 								<option value="<?php echo $sanitizer->entities($tourTypeKey); ?>"<?php echo $searchTourType === $tourTypeKey ? ' selected' : ''; ?>>
 									<?php echo $sanitizer->entities($tourTypeLabel); ?>
@@ -1228,7 +1228,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 				<div class="journal-card-header">
 					<h2 class="journal-title">Статьи СКФО</h2>
 					<p class="journal-subtitle">
-						Читайте и планируйте поездки </br> по гайдам, маршрутам, советам
+						Читайте и планируйте туры </br> по гайдам, маршрутам, советам
 					</p>
 					<a class="journal-button" href="/articles/">Выбрать статью</a>
 				</div>
@@ -1402,7 +1402,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					<h2 class="forum-title">Форум СКФО</h2>
 					<p class="forum-subtitle">
 						Делимся опытом и помогаем<br />
-						друг другу планировать поездки
+						друг другу планировать туры
 					</p>
 					<a class="forum-button" href="<?php echo $forumExternalUrl; ?>" target="_blank" rel="noopener noreferrer">Присоединиться</a>
 				</div>

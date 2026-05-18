@@ -23,7 +23,7 @@ $partnerDirections = [
 	],
 	[
 		'title' => 'Индивидуальные маршруты',
-		'text' => 'Поездки, составленные под интересы гостей, темп путешествия и состав группы.',
+		'text' => 'Туры, составленные под интересы гостей, темп путешествия и состав группы.',
 	],
 	[
 		'title' => 'Джип-туры',
@@ -35,7 +35,7 @@ $partnerDirections = [
 	],
 	[
 		'title' => 'Школьные туры',
-		'text' => 'Организованные поездки для школьных и студенческих групп.',
+		'text' => 'Организованные туры для школьных и студенческих групп.',
 	],
 ];
 
@@ -55,7 +55,7 @@ $partnerFacts = [
 				<img class="amirov-hero-logo" src="<?php echo $sanitizer->entities($partnerLogoUrl); ?>" alt="Амиров Тур" />
 				<h1 class="amirov-title">Туры и<span class="amirov-mobile-break"><br /></span> экскурсии по<span class="amirov-mobile-break"><br /></span> Дагестану<span class="amirov-mobile-break"><br /></span> и Кавказу</h1>
 				<p class="amirov-lead">
-					«Амиров-Тур» организует групповые, авторские и индивидуальные поездки из Махачкалы и Каспийска, помогает знакомиться с природой, историей и традициями Дагестана и соседних регионов.
+					«Амиров-Тур» организует групповые, авторские и индивидуальные туры из Махачкалы и Каспийска, помогает знакомиться с природой, историей и традициями Дагестана и соседних регионов.
 				</p>
 				<div class="amirov-actions">
 					<a class="amirov-primary-btn" href="<?php echo $sanitizer->entities($partnerToursUrl); ?>" target="_blank" rel="noopener noreferrer">Смотреть экскурсии</a>
@@ -72,7 +72,7 @@ $partnerFacts = [
 		<div class="container">
 			<div class="amirov-section-head">
 				<p class="amirov-section-kicker">Направления</p>
-				<h2 class="amirov-section-title">Форматы поездок</h2>
+				<h2 class="amirov-section-title">Форматы туров</h2>
 			</div>
 			<div class="amirov-directions-grid">
 				<?php foreach ($partnerDirections as $direction): ?>
@@ -91,7 +91,7 @@ $partnerFacts = [
 				<p class="amirov-section-kicker">Почему удобно</p>
 				<h2 class="amirov-section-title">Партнёр для путешествий по региону</h2>
 				<p class="amirov-details-text">
-					Компания делает акцент на живом знакомстве с местами маршрута: в поездках рассказывает об истории, традициях и культуре территорий, через которые проходит программа.
+					Компания делает акцент на живом знакомстве с местами маршрута: в турах рассказывает об истории, традициях и культуре территорий, через которые проходит программа.
 				</p>
 				<ul class="amirov-facts-list">
 					<?php foreach ($partnerFacts as $fact): ?>

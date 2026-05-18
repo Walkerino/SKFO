@@ -133,7 +133,7 @@ if ($createdAtRaw !== '') {
 									name="profile_description"
 									rows="4"
 									maxlength="240"
-									placeholder="Например: люблю горные маршруты и короткие поездки на выходных."
+									placeholder="Например: люблю горные маршруты и короткие туры на выходных."
 									data-profile-input-description
 								><?php echo $sanitizer->entities($profileDescription); ?></textarea>
 							</div>

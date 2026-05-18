@@ -467,7 +467,7 @@ if ($hotelImageUrl === '') $hotelImageUrl = $defaultHotelImage;
 if ($hotelTitle === '') $hotelTitle = 'Отель в СКФО';
 if ($hotelLocation === '') $hotelLocation = 'Северо-Кавказский федеральный округ';
 if ($hotelDescription === '') {
-	$hotelDescription = "Комфортный отель для отдыха и поездок по региону.\nУдобное расположение, сервис и продуманная инфраструктура для гостей.";
+	$hotelDescription = "Комфортный отель для отдыха и туров по региону.\nУдобное расположение, сервис и продуманная инфраструктура для гостей.";
 }
 $hotelDescriptionPreview = $truncateText($hotelDescription, 520);
 

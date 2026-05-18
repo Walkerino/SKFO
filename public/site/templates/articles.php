@@ -318,7 +318,7 @@ $defaultArticleParagraphs = [
 	'Летом начинается сезон рафтинга и треккинга, работают экотропы и маршруты для любителей высоты. Зимой можно кататься на лыжах, сноуборде и отправляться в снежные походы.',
 	'На центральных улицах городов и курортных поселков проходят фестивали, концерты и гастрономические ярмарки. Путешествие по Кавказу всегда насыщено событиями.',
 	'Все регионы Северного Кавказа славятся своей национальной кухней, традициями и гостеприимством. В каждом регионе можно найти уникальные маршруты, музеи и природные парки.',
-	'Сайт СКФО.РУ поможет вам выбрать направление и спланировать поездку с учетом ваших интересов, бюджета и желаемого уровня активности.'
+	'Сайт СКФО.РУ поможет вам выбрать направление и спланировать тур с учетом ваших интересов, бюджета и желаемого уровня активности.'
 ];
 
 $normalizeArticles = static function(array $articles) use ($buildArticleUrl, $extractArticleSlugFromUrl, $slugify, $splitToParagraphs, $defaultCoverUrl, $sanitizeArticleHtml): array {
@@ -599,7 +599,7 @@ if (!count($firstTimeArticlesRaw)) {
 			'url' => '',
 		],
 		[
-			'title' => 'Что взять с собой в поездку по Кавказу',
+			'title' => 'Что взять с собой в тур по Кавказу',
 			'date' => '18 декабря 2025',
 			'datetime' => '2025-12-18',
 			'topic' => 'Советы туристам',
@@ -607,7 +607,7 @@ if (!count($firstTimeArticlesRaw)) {
 			'url' => '',
 		],
 		[
-			'title' => 'Как выбрать сезон для первой поездки',
+			'title' => 'Как выбрать сезон для первого тура',
 			'date' => '12 декабря 2025',
 			'datetime' => '2025-12-12',
 			'topic' => 'Советы туристам',
@@ -806,7 +806,7 @@ if ($selectedArticle) {
 }
 
 $forumTitle = 'Форум СКФО';
-$forumSubtitle = "Делимся опытом и помогаем\nдруг другу планировать поездки";
+$forumSubtitle = "Делимся опытом и помогаем\nдруг другу планировать туры";
 $forumButtonText = 'Присоединиться';
 $forumImageUrl = $config->urls->templates . 'assets/image1.png';
 $forumExternalUrl = 'https://club.skfo.ru';
@@ -860,14 +860,14 @@ $forumExternalUrl = 'https://club.skfo.ru';
 	<?php else: ?>
 		<section class="articles-hero">
 			<div class="container">
-				<h1 class="articles-title">Полезное<br />для поездок</h1>
+				<h1 class="articles-title">Полезное<br />для туров</h1>
 				<div class="hero-tabs" aria-label="Разделы">
 					<div class="hero-tabs-group" role="tablist">
 						<span class="tab-indicator" aria-hidden="true"></span>
 						<span class="tab-hover" aria-hidden="true"></span>
 						<a class="hero-tab" href="/" role="tab" aria-selected="false">
 							<img src="<?php echo $config->urls->templates; ?>assets/icons/tour.svg" alt="" aria-hidden="true" />
-							<span class="hero-tab-text">Поездки</span>
+							<span class="hero-tab-text">Туры</span>
 						</a>
 						<a class="hero-tab" href="/hotels/" role="tab" aria-selected="false">
 							<img src="<?php echo $config->urls->templates; ?>assets/icons/hotel.svg" alt="" aria-hidden="true" />
