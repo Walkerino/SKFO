@@ -698,6 +698,10 @@ button {
   line-height: 105%;
   letter-spacing: 0%;
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 9;
+  overflow: hidden;
 
 }
 
@@ -1303,6 +1307,7 @@ button {
 
 .hotel-page .tour-description {
   max-width: 560px;
+  -webkit-line-clamp: 8;
 }
 
 .hotel-amenity-groups {
@@ -4845,6 +4850,11 @@ h6,
   font-size: 22px;
   line-height: 1.1;
   text-align: center;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .hotel-card-location {
@@ -4855,6 +4865,11 @@ h6,
   font-family: "Inter", sans-serif;
   font-weight: 400;
   text-align: center;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 
 }
 

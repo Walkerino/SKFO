@@ -23,6 +23,16 @@ $normalizeLine = static function(string $value): string {
 	$line = preg_replace('/\s+/u', ' ', $line) ?? $line;
 	return trim($line);
 };
+$truncateText = static function(string $value, int $length = 520): string {
+	$value = trim(strip_tags($value));
+	if ($value === '') return '';
+	$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+	$currentLength = function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
+	if ($currentLength <= $length) return $value;
+	$cut = function_exists('mb_substr') ? mb_substr($value, 0, $length, 'UTF-8') : substr($value, 0, $length);
+	$cut = preg_replace('/\s+\S*$/u', '', $cut) ?? $cut;
+	return rtrim($cut, " \t\n\r\0\x0B.,;:") . '...';
+};
 $extractComboTextParts = static function($value) use ($normalizeLine): array {
 	$parts = [];
 
@@ -459,6 +469,7 @@ if ($hotelLocation === '') $hotelLocation = 'Северо-Кавказский �
 if ($hotelDescription === '') {
 	$hotelDescription = "Комфортный отель для отдыха и поездок по региону.\nУдобное расположение, сервис и продуманная инфраструктура для гостей.";
 }
+$hotelDescriptionPreview = $truncateText($hotelDescription, 520);
 
 $normalizeRichTextToPlain = static function($value) use ($extractAmenityItems): string {
 	if (is_array($value)) $value = implode("\n", $extractAmenityItems($value));
@@ -1543,7 +1554,7 @@ $hotelReviewFormUrl = '/reviews/?review_subject=' . rawurlencode($hotelReviewSub
 				<div class="tour-hero-layout">
 					<div class="tour-hero-main">
 						<h1 class="tour-title"><?php echo $sanitizer->entities($hotelTitle); ?></h1>
-						<p class="tour-description"><?php echo nl2br($sanitizer->entities($hotelDescription)); ?></p>
+						<p class="tour-description"><?php echo nl2br($sanitizer->entities($hotelDescriptionPreview)); ?></p>
 					</div>
 					<div class="tour-hero-media">
 						<div class="tour-badge">

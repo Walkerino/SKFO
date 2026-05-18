@@ -207,6 +207,23 @@ $getFirstTextFromPage = static function(Page $item, array $fieldNames) use ($nor
 	return '';
 };
 
+$getTourOperatorLabelFromPage = static function(Page $item) use ($tourOperatorName, $tourOperatorRegistryNumber, $normalizeDisplayText): string {
+	$name = $tourOperatorName;
+	$registryNumber = $tourOperatorRegistryNumber;
+
+	if ($item->hasField('tour_operator_name')) {
+		$pageName = $normalizeDisplayText((string) $item->getUnformatted('tour_operator_name'));
+		if ($pageName !== '') $name = $pageName;
+	}
+
+	if ($item->hasField('tour_operator_registry_number')) {
+		$pageRegistryNumber = $normalizeDisplayText((string) $item->getUnformatted('tour_operator_registry_number'));
+		if ($pageRegistryNumber !== '') $registryNumber = $pageRegistryNumber;
+	}
+
+	return trim($name . ($registryNumber !== '' ? ', ' . $registryNumber : ''));
+};
+
 $getFirstImageUrlFromPage = static function(Page $item, array $fieldNames) use ($getImageUrlsFromPage): string {
 	$urls = $getImageUrlsFromPage($item, $fieldNames);
 	return count($urls) ? (string) $urls[0] : '';
@@ -491,6 +508,7 @@ if (isset($pages) && $pages instanceof Pages) {
 				'seasonality_keys' => $tourSeasonalityKeys,
 				'price' => $tourPage->hasField('tour_price') ? $normalizeTourPrice((string) $tourPage->getUnformatted('tour_price')) : '',
 				'duration' => $tourPage->hasField('tour_duration') ? $normalizeTourDuration((string) $tourPage->tour_duration) : '',
+				'operator_label' => $getTourOperatorLabelFromPage($tourPage),
 				'image' => $imageUrl,
 				'url' => (string) $tourPage->url,
 			];
@@ -527,6 +545,7 @@ if (!count($toursCatalog) && $homeDisplayPage->hasField('home_featured_tours') &
 				'seasonality_keys' => $tourSeasonalityKeys,
 				'price' => $tourPage->hasField('tour_price') ? $normalizeTourPrice((string) $tourPage->getUnformatted('tour_price')) : '',
 				'duration' => $tourPage->hasField('tour_duration') ? $normalizeTourDuration((string) $tourPage->tour_duration) : '',
+				'operator_label' => $getTourOperatorLabelFromPage($tourPage),
 				'image' => $imageUrl,
 				'url' => (string) $tourPage->url,
 			];
@@ -805,6 +824,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 							$tourRegion = trim((string) ($tour['region'] ?? ''));
 							$tourPrice = trim((string) ($tour['price'] ?? ''));
 							$tourDuration = trim((string) ($tour['duration'] ?? ''));
+							$tourOperatorCardLabel = trim((string) ($tour['operator_label'] ?? $tourOperatorLabel));
 							$tourUrl = trim((string) ($tour['url'] ?? ''));
 							if ($tourPrice === '') $tourPrice = 'Цена уточняется';
 							?>
@@ -815,8 +835,8 @@ $forumExternalUrl = 'https://club.skfo.ru';
 									<?php endif; ?> -->
 								</div>
 								<h2 class="hotel-card-title"><?php echo $sanitizer->entities((string) ($tour['title'] ?? '')); ?></h2>
-								<?php if ($tourOperatorLabel !== ''): ?>
-									<p class="tour-operator-note tour-operator-note--card"><?php echo $sanitizer->entities('Туроператор: ' . $tourOperatorLabel); ?></p>
+								<?php if ($tourOperatorCardLabel !== ''): ?>
+									<p class="tour-operator-note tour-operator-note--card"><?php echo $sanitizer->entities('Туроператор: ' . $tourOperatorCardLabel); ?></p>
 								<?php endif; ?>
 								<p class="hotel-card-location"><?php echo $sanitizer->entities($tourRegion); ?></p>
 								<ul class="hotel-card-amenities" aria-label="Параметры маршрута">
@@ -873,6 +893,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 					'title' => $title,
 					'region' => $region,
 					'price' => $price !== '' ? $price : 'Цена уточняется',
+					'operator_label' => $getTourOperatorLabelFromPage($tourPage),
 					'image' => $imageUrl,
 					'url' => (string) $tourPage->url,
 				];
@@ -932,6 +953,7 @@ $forumExternalUrl = 'https://club.skfo.ru';
 								<?php
 								$backgroundStyle = '';
 								$cardUrl = trim((string) ($card['url'] ?? ''));
+								$cardOperatorLabel = trim((string) ($card['operator_label'] ?? $tourOperatorLabel));
 								$isCardLink = $cardUrl !== '';
 								if (!empty($card['image'])) {
 									$image = htmlspecialchars($card['image'], ENT_QUOTES, 'UTF-8');
@@ -946,8 +968,8 @@ $forumExternalUrl = 'https://club.skfo.ru';
 									<div class="hot-tour-image"<?php echo $backgroundStyle; ?>></div>
 									<div class="hot-tour-body">
 										<h3 class="hot-tour-title"><?php echo $sanitizer->entities($card['title']); ?></h3>
-										<?php if ($tourOperatorLabel !== ''): ?>
-											<div class="hot-tour-operator-note"><?php echo $sanitizer->entities('Туроператор: ' . $tourOperatorLabel); ?></div>
+										<?php if ($cardOperatorLabel !== ''): ?>
+											<div class="hot-tour-operator-note"><?php echo $sanitizer->entities('Туроператор: ' . $cardOperatorLabel); ?></div>
 										<?php endif; ?>
 										<div class="hot-tour-region"><?php echo $sanitizer->entities($card['region']); ?></div>
 										<div class="hot-tour-footer">
@@ -975,9 +997,9 @@ $forumExternalUrl = 'https://club.skfo.ru';
 		$actualCards = [];
 		$actualCardKeys = [];
 
-		$addActualCard = static function(array $card) use (&$actualCards, &$actualCardKeys, $toLower, $defaultCardImage, $normalizeDisplayText): void {
+		$addActualCard = static function(array $card) use (&$actualCards, &$actualCardKeys, $toLower, $defaultCardImage, $normalizeDisplayText, $truncateText): void {
 			$title = $normalizeDisplayText((string) ($card['title'] ?? ''));
-			$text = $normalizeDisplayText((string) ($card['text'] ?? ''));
+			$text = $truncateText($normalizeDisplayText((string) ($card['text'] ?? '')), 180);
 			$region = $normalizeDisplayText((string) ($card['region'] ?? ''));
 			$image = trim((string) ($card['image'] ?? ''));
 			$url = trim((string) ($card['url'] ?? ''));

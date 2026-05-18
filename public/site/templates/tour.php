@@ -9,6 +9,12 @@ $tourOperator = isset($legalConfig['tour_operator']) && is_array($legalConfig['t
 $tourOperatorName = trim((string) ($tourOperator['name'] ?? ''));
 $tourOperatorRegistryNumber = trim((string) ($tourOperator['registry_number'] ?? ''));
 $tourOperatorLegalAddress = trim((string) ($tourOperator['legal_address'] ?? ''));
+$pageTourOperatorName = $page->hasField('tour_operator_name') ? trim((string) $page->getUnformatted('tour_operator_name')) : '';
+$pageTourOperatorRegistryNumber = $page->hasField('tour_operator_registry_number') ? trim((string) $page->getUnformatted('tour_operator_registry_number')) : '';
+$pageTourOperatorLegalAddress = $page->hasField('tour_operator_legal_address') ? trim((string) $page->getUnformatted('tour_operator_legal_address')) : '';
+if ($pageTourOperatorName !== '') $tourOperatorName = $pageTourOperatorName;
+if ($pageTourOperatorRegistryNumber !== '') $tourOperatorRegistryNumber = $pageTourOperatorRegistryNumber;
+if ($pageTourOperatorLegalAddress !== '') $tourOperatorLegalAddress = $pageTourOperatorLegalAddress;
 $tourOperatorLabel = trim($tourOperatorName . ($tourOperatorRegistryNumber !== '' ? ', ' . $tourOperatorRegistryNumber : ''));
 
 $toLower = static function(string $value): string {
@@ -48,6 +54,16 @@ $measureTextLength = static function(string $value): int {
 	$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
 	if($value === '') return 0;
 	return function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
+};
+$truncateText = static function(string $value, int $length = 520): string {
+	$value = trim(strip_tags($value));
+	if ($value === '') return '';
+	$value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+	$currentLength = function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
+	if ($currentLength <= $length) return $value;
+	$cut = function_exists('mb_substr') ? mb_substr($value, 0, $length, 'UTF-8') : substr($value, 0, $length);
+	$cut = preg_replace('/\s+\S*$/u', '', $cut) ?? $cut;
+	return rtrim($cut, " \t\n\r\0\x0B.,;:") . '...';
 };
 $firstLetter = static function(string $value): string {
 	$value = trim($value);
@@ -111,6 +127,7 @@ $tourTitle = $page->hasField('tour_title') ? trim((string) $page->tour_title) : 
 if($tourTitle === '') $tourTitle = trim((string) $page->title);
 $tourRegion = $page->hasField('tour_region') ? trim((string) $page->tour_region) : '';
 $tourDescription = $page->hasField('tour_description') ? trim((string) $page->tour_description) : '';
+$tourDescriptionPreview = $truncateText($tourDescription, 520);
 $tourPriceRaw = $page->hasField('tour_price') ? (string) $page->getUnformatted('tour_price') : '';
 $tourPrice = $formatTourPrice($tourPriceRaw);
 $tourDuration = $page->hasField('tour_duration') ? trim((string) $page->tour_duration) : '';
@@ -388,6 +405,17 @@ if ($tourDiscountPercent > 0 && $tourDiscountDeadlineLabel !== '') {
 } elseif ($tourDiscountPercent > 0) {
 	$tourDiscountLabel = 'Скидка ' . $tourDiscountPercent . '% при раннем бронировании';
 }
+if ($tourDiscountLabel === '' && $page->hasField('tour_price')) {
+	$tourPriceValue = $page->getUnformatted('tour_price');
+	if ($tourPriceValue instanceof TableRows) {
+		foreach ($tourPriceValue as $priceRow) {
+			$rowDiscount = trim(strip_tags((string) ($priceRow->discount ?? '')));
+			if ($rowDiscount === '') continue;
+			$tourDiscountLabel = $rowDiscount;
+			break;
+		}
+	}
+}
 
 $tourCtaLabel = 'Забронировать';
 if ($tourSeatsLeft > 0 && $tourSeatsLeft <= 6) {
@@ -414,7 +442,7 @@ $tourDetailRows = [
 							<?php if ($tourOperatorLabel !== ''): ?>
 								<p class="tour-operator-note"><?php echo $sanitizer->entities('Туроператор: ' . $tourOperatorLabel); ?></p>
 							<?php endif; ?>
-							<p class="tour-description"><?php echo nl2br($sanitizer->entities($tourDescription)); ?></p>
+							<p class="tour-description"><?php echo nl2br($sanitizer->entities($tourDescriptionPreview)); ?></p>
 						</div>
 						<div class="tour-hero-media">
 							<div class="tour-badge">

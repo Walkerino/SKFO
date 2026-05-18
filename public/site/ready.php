@@ -448,6 +448,9 @@ $tourDayDescriptionField = $ensureField('tour_day_description', 'FieldtypeTextar
 	$tourIsHotField = $ensureField('tour_is_hot', 'FieldtypeCheckbox', 'Горячее предложение');
 	$tourDiscountPercentField = $ensureField('tour_discount_percent', 'FieldtypeInteger', 'Скидка, %');
 	$tourDiscountDeadlineField = $ensureField('tour_discount_deadline', 'FieldtypeDatetime', 'Скидка действует до');
+	$tourOperatorNameField = $ensureField('tour_operator_name', 'FieldtypeText', 'Туроператор: название');
+	$tourOperatorRegistryNumberField = $ensureField('tour_operator_registry_number', 'FieldtypeText', 'Туроператор: РТО');
+	$tourOperatorLegalAddressField = $ensureField('tour_operator_legal_address', 'FieldtypeTextarea', 'Туроператор: юридический адрес');
 	$tourGuideNameField = $ensureField('tour_guide_name', 'FieldtypeText', 'Гид: имя');
 	$tourGuidePhotoField = $ensureField('tour_guide_photo', 'FieldtypeImage', 'Гид: фото', [
 		'maxFiles' => 1,
@@ -1339,6 +1342,9 @@ if($homeTemplate && $homeTemplate->id) {
 			$tourIsHotField,
 			$tourDiscountPercentField,
 			$tourDiscountDeadlineField,
+			$tourOperatorNameField,
+			$tourOperatorRegistryNumberField,
+			$tourOperatorLegalAddressField,
 			$tourGuideNameField,
 			$tourGuidePhotoField,
 			$tourGuideExperienceYearsField,
